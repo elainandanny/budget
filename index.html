@@ -134,7 +134,7 @@
             </div>
             <div id="finance-expense-form">
               <div class="form-row">
-                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
+                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-date"></div>
                 <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon"><datalist id="finance-store-options"></datalist></div>
               </div>
               <div id="finance-return-wrap" class="form-group hidden"><label class="form-label">Link return to original purchase</label><select class="form-select" id="fin-return-link"></select></div>
@@ -151,7 +151,7 @@
             </div>
             <div id="finance-income-form" class="hidden">
               <div class="form-row three">
-                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-income-date"></div>
+                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-income-date"></div>
                 <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="fin-income-source" placeholder="Paycheck, freelance..."></div>
                 <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-income-amount" placeholder="0.00"></div>
               </div>
@@ -183,14 +183,14 @@
           </div>
           <div class="chart-card"><div class="section-title">Category budgets</div><div class="budget-list" id="finance-category-budgets"></div><button class="save-btn" type="button" onclick="financeSaveCategoryBudgets()">Save category budgets</button><span class="save-msg" id="fin-cat-budget-msg"></span></div>
           <div class="chart-grid">
-            <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="date" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
+            <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
             <div class="chart-card"><div class="section-title">Annual monthly spending</div><div class="heatmap-grid" id="finance-heatmap-grid"></div></div>
           </div>
         </div>
 
         <div id="finance-subs" class="finance-panel">
           <div class="sub-total-bar"><div><div class="metric-label">Monthly recurring total</div><div class="big-money" id="finance-sub-monthly">$0.00</div></div><div><div class="metric-label">Annual cost</div><div class="metric-value" id="finance-sub-annual">$0.00</div></div></div>
-          <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="date" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
+          <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
           <div class="sub-grid" id="finance-sub-grid"></div><div id="finance-sub-creep"></div>
         </div>
 
@@ -333,7 +333,7 @@
         <div class="form-grid-2">
           <div class="form-group">
             <label class="form-label">Date</label>
-            <input class="form-input" type="date" id="f-date" />
+            <input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="f-date" />
           </div>
           <div class="form-group">
             <label class="form-label">Price / gallon ($)</label>
@@ -393,7 +393,7 @@
         <div class="history-controls">
           <div class="form-group"><label class="form-label">Brand</label><select class="form-select" id="history-brand" onchange="renderHistory()"></select></div>
           <div class="form-group"><label class="form-label">Station</label><select class="form-select" id="history-station" onchange="renderHistory()"></select></div>
-          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="date" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
+          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
           <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="history-sort" onchange="renderHistory()"><option value="date">Date</option><option value="brand">Brand</option><option value="station">Station</option><option value="ppg">$/gal</option><option value="gallons">Gallons</option><option value="total">Total</option><option value="odometer">Odometer</option><option value="mpg">MPG</option></select></div>
           <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="history-direction" onchange="renderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
         </div>
@@ -425,7 +425,7 @@
 <div id="tab-chat" class="panel top-panel">
       <div class="chart-card chat-card">
         <div class="section-title">AI assistant</div>
-        <div class="banner info-banner" style="margin:10px 0 12px;">Ask questions about gas fill-ups or finance/budget data. Gas answers use your gas entries; finance answers use your loaded finance tracker data.</div>
+        <div class="banner info-banner" style="margin:10px 0 12px;">Ask questions about your gas fill-ups, spending, budgets, subscriptions, goals, stations, price trends, MPG, or calendar history. The chat uses your loaded gas and finance data.</div>
         <div class="chat-window" id="chat-window">
           <div class="chat-message system">Try: “Which station is cheapest?” or “Where am I overspending?”</div>
         </div>
@@ -437,8 +437,8 @@
           <button class="chat-hint" type="button" onclick="useAndSendChatHint('Compare this month vs last month across finance and gas.')">Compare months</button>
         </div>
         <div class="chat-input-row">
-          <textarea class="form-input" id="chat-question" placeholder="Ask about gas, spending, budgets, subscriptions, goals..." onkeydown="handleUnifiedChatKey(event)"></textarea>
-          <button class="save-btn" id="chat-send-btn" type="button" onclick="askUnifiedAI()">Send</button>
+          <textarea class="form-input" id="chat-question" placeholder="Ask about gas, spending, budgets, subscriptions, goals..." onkeydown="handleChatKey(event)"></textarea>
+          <button class="save-btn" id="chat-send-btn" type="button" onclick="askGasAgent()">Send</button>
         </div>
         <div class="save-msg" id="chat-msg" style="margin-top:8px;"></div>
       </div>
@@ -454,7 +454,7 @@
         <div class="history-controls">
           <div class="form-group"><label class="form-label">Brand</label><select class="form-select" id="history-brand" onchange="renderHistory()"></select></div>
           <div class="form-group"><label class="form-label">Station</label><select class="form-select" id="history-station" onchange="renderHistory()"></select></div>
-          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="date" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
+          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
           <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="history-sort" onchange="renderHistory()"><option value="date">Date</option><option value="brand">Brand</option><option value="station">Station</option><option value="ppg">$/gal</option><option value="gallons">Gallons</option><option value="total">Total</option><option value="odometer">Odometer</option><option value="mpg">MPG</option></select></div>
           <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="history-direction" onchange="renderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
         </div>
@@ -795,7 +795,7 @@ async function addEntry() {
 function readFormEntry(prefix, existingId = null) {
   const brand = document.getElementById(`${prefix}-brand`).value.trim();
   const station = document.getElementById(`${prefix}-station`).value.trim();
-  const date = document.getElementById(`${prefix}-date`).value;
+  const date = normalizeDateValue(document.getElementById(`${prefix}-date`).value);
   const ppg = parseFloat(document.getElementById(`${prefix}-ppg`).value);
   const gallons = parseFloat(document.getElementById(`${prefix}-gallons`).value);
   const total = parseFloat(document.getElementById(`${prefix}-total`).value);
@@ -857,7 +857,7 @@ async function askUnifiedAI() {
   return askGasAgent();
 }
 
-document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('f-date').value = dateForInput(new Date().toISOString().split('T')[0]);
 }
 
 function resetAddDetails() {
@@ -1177,8 +1177,8 @@ function clearHistoryFilters() {
 function getHistoryEntries() {
   const brand = document.getElementById('history-brand')?.value || '';
   const station = document.getElementById('history-station')?.value || '';
-  const start = document.getElementById('history-date-start')?.value || '';
-  const end = document.getElementById('history-date-end')?.value || '';
+  const start = normalizeDateValue(document.getElementById('history-date-start')?.value || '');
+  const end = normalizeDateValue(document.getElementById('history-date-end')?.value || '');
   const sort = document.getElementById('history-sort')?.value || 'date';
   const direction = document.getElementById('history-direction')?.value || 'desc';
   const data = entries.filter(e => (!brand || e.brand === brand) && (!station || e.station === station) && (!start || e.date >= start) && (!end || e.date <= end));
@@ -1215,8 +1215,32 @@ function fullAddress(e) {
 function formatDateShort(value) {
   const text = String(value || '');
   const m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[2]}.${m[3]}.${m[1].slice(2)}`;
+  const m2 = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2}|\d{4})$/);
+  if (m2) {
+    const mm = String(m2[1]).padStart(2, '0');
+    const dd = String(m2[2]).padStart(2, '0');
+    const yy = String(m2[3]).slice(-2);
+    return `${mm}.${dd}.${yy}`;
+  }
+  return text;
+}
+
+function normalizeDateValue(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const m = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2}|\d{4})$/);
   if (!m) return text;
-  return `${m[2]}.${m[3]}.${m[1].slice(2)}`;
+  const mm = String(m[1]).padStart(2, '0');
+  const dd = String(m[2]).padStart(2, '0');
+  const y = String(m[3]);
+  const yyyy = y.length === 2 ? `20${y}` : y;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function dateForInput(value) {
+  return formatDateShort(value);
 }
 
 function displayRow(e) {
@@ -1239,7 +1263,7 @@ function displayRow(e) {
 function editRow(e) {
   return `
     <tr>
-      <td><input class="table-input" id="e-date" type="date" value="${escapeHtml(e.date)}"></td>
+      <td><input class="table-input" id="e-date" type="text" inputmode="numeric" placeholder="mm.dd.yy" value="${escapeHtml(formatDateShort(e.date))}"></td>
       <td><input class="table-input" id="e-brand" list="brand-options" value="${escapeHtml(e.brand)}"></td>
       <td><input class="table-input" id="e-station" list="station-options" value="${escapeHtml(e.station)}"></td>
       <td><input class="table-input" id="e-ppg" type="number" step="0.001" value="${e.ppg}" oninput="calcTotal('e')"></td>
@@ -1649,7 +1673,7 @@ function useAndSendChatHint(text) {
   const input = document.getElementById('chat-question');
   if (!input) return;
   input.value = text;
-  askUnifiedAI();
+  askGasAgent();
 }
 
 function handleChatKey(event) {
@@ -1803,8 +1827,10 @@ function renderChatMessages() {
 }
 
 function compactEntriesForAI() {
-  return entries.map(e => ({
+  const gasData = entries.map(e => ({
+    kind: 'gas_fillup',
     date: e.date,
+    display_date: formatDateShort(e.date),
     brand: e.brand,
     station: e.station,
     price_per_gallon: e.ppg,
@@ -1814,6 +1840,42 @@ function compactEntriesForAI() {
     full_tank: e.full_tank,
     address: fullAddress(e)
   }));
+
+  let financeData = [];
+  try {
+    financeData = financeAllTransactions().map(t => ({
+      kind: t.source === 'gas' ? 'finance_gas_import' : 'finance_transaction',
+      date: t.date,
+      display_date: formatDateShort(t.date),
+      merchant: t.store,
+      total: t.total,
+      is_return: Boolean(t.is_return),
+      payment: t.payment || '',
+      notes: t.notes || '',
+      categories: (t.splits || []).map(s => ({
+        category: financeCat(s.cat).label,
+        category_id: s.cat,
+        subcategory: s.subcat || '',
+        amount: Number(s.amount || 0)
+      }))
+    }));
+  } catch (err) {
+    financeData = [];
+  }
+
+  let financeSummary = [];
+  try {
+    financeSummary = [
+      { kind: 'finance_settings', monthly_limit: financeState.settings.monthly_limit || 0, category_budgets: financeState.settings.category_budgets || {} },
+      ...financeState.income.map(i => ({ kind: 'finance_income', date: i.date, display_date: formatDateShort(i.date), source: i.source, amount: i.amount, type: i.type || '', notes: i.notes || '' })),
+      ...financeState.subscriptions.map(s => ({ kind: 'finance_subscription', name: s.name, amount: s.amount, cycle: s.cycle, category: financeCat(s.cat).label, next_date: s.next_date || '', display_next_date: s.next_date ? formatDateShort(s.next_date) : '' })),
+      ...financeState.goals.map(g => ({ kind: 'finance_goal', name: g.name, target: g.target, current: g.current, target_date: g.target_date || '', display_target_date: g.target_date ? formatDateShort(g.target_date) : '' }))
+    ];
+  } catch (err) {
+    financeSummary = [];
+  }
+
+  return [...gasData, ...financeData, ...financeSummary];
 }
 
 function extractGeminiStreamText(rawChunk) {
@@ -2172,7 +2234,7 @@ function financeInitUI(){
   const opts = FINANCE_CATS.map(c => `<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
   ['fin-cat-quick','fin-sub-cat'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = opts; });
   const hist = document.getElementById('fin-history-cat'); if(hist) hist.innerHTML = '<option value="">All categories</option>' + opts;
-  ['fin-date','fin-income-date','fin-sub-next'].forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = financeDateToday(); });
+  ['fin-date','fin-income-date','fin-sub-next'].forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = dateForInput(financeDateToday()); });
   financeRenderStoreOptions();
   financeRenderDashboardFilterOptions();
 }
@@ -2235,12 +2297,12 @@ function financeRenderAll(){ financeInitUI(); financeRenderDashboard(); financeR
 function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeRenderDashboard(); }
 function financeGoNow(){ financeMonth = new Date(); financeRenderDashboard(); }
 function financeSetTxType(type){ financeTxType = type; ['expense','return','income'].forEach(t => document.getElementById('fin-mode-'+t)?.classList.toggle('active', t === type)); document.getElementById('finance-expense-form')?.classList.toggle('hidden', type === 'income'); document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income'); document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return'); if(type === 'return') financePopulateReturnLinks(); }
-function financePopulateReturnLinks(){ const sel = document.getElementById('fin-return-link'); if(!sel) return; sel.innerHTML = '<option value="">No link</option>' + financeState.transactions.filter(t=>!t.is_return).slice(0,80).map(t=>`<option value="${t.id}">${t.date} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join(''); }
+function financePopulateReturnLinks(){ const sel = document.getElementById('fin-return-link'); if(!sel) return; sel.innerHTML = '<option value="">No link</option>' + financeState.transactions.filter(t=>!t.is_return).slice(0,80).map(t=>`<option value="${t.id}">${formatDateShort(t.date)} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join(''); }
 function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } }
 function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
 function financeUpdateTally(){ const total = Number(document.getElementById('fin-total')?.value || 0); let alloc = 0; document.querySelectorAll('#fin-split-lines [data-role="amt"]').forEach(el => alloc += Number(el.value || 0)); const rem = total - alloc; const a = document.getElementById('fin-tally-alloc'); const r = document.getElementById('fin-tally-rem'); if(a) a.textContent = financeFmt(alloc); if(r){ r.textContent = `Remaining: ${financeFmt(rem)}`; r.style.color = Math.abs(rem) < .02 ? 'var(--success)' : rem < 0 ? 'var(--danger)' : 'var(--muted)'; } }
 async function financeSaveTransaction(){
-  const date = document.getElementById('fin-date').value; const store = document.getElementById('fin-store').value.trim(); const total = Number(document.getElementById('fin-total').value); const payment = document.getElementById('fin-payment').value; const notes = document.getElementById('fin-notes').value.trim();
+  const date = normalizeDateValue(document.getElementById('fin-date').value); const store = document.getElementById('fin-store').value.trim(); const total = Number(document.getElementById('fin-total').value); const payment = document.getElementById('fin-payment').value; const notes = document.getElementById('fin-notes').value.trim();
   if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
   let splits = [];
   if(financeSplitMode === 'quick') splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat').value.trim(), amount: total }];
@@ -2248,8 +2310,8 @@ async function financeSaveTransaction(){
   financeState.transactions.unshift({ id: financeId(), date, store, total, payment, notes, splits, is_return: financeTxType === 'return', linked_id: financeTxType === 'return' ? (document.getElementById('fin-return-link').value || null) : null, created_at: new Date().toISOString() });
   await financePersist(); financeShowMsg('fin-save-msg', financeTxType === 'return' ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
 }
-function financeClearForm(){ ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); const d=document.getElementById('fin-date'); if(d) d.value = financeDateToday(); const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = ''; financeSetSplitMode('quick'); financeSetTxType('expense'); }
-async function financeSaveIncome(){ const date = document.getElementById('fin-income-date').value; const source = document.getElementById('fin-income-source').value.trim(); const amount = Number(document.getElementById('fin-income-amount').value); const type = document.getElementById('fin-income-type').value; const notes = document.getElementById('fin-income-notes').value.trim(); if(!date || !Number.isFinite(amount) || amount <= 0){ financeShowMsg('fin-income-msg','Date and positive amount required.',true); return; } financeState.income.unshift({id:financeId(), date, source, amount, type, notes, created_at:new Date().toISOString()}); await financePersist(); ['fin-income-source','fin-income-amount','fin-income-notes'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('fin-income-msg','Income saved.'); financeRenderAll(); }
+function financeClearForm(){ ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday()); const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = ''; financeSetSplitMode('quick'); financeSetTxType('expense'); }
+async function financeSaveIncome(){ const date = normalizeDateValue(document.getElementById('fin-income-date').value); const source = document.getElementById('fin-income-source').value.trim(); const amount = Number(document.getElementById('fin-income-amount').value); const type = document.getElementById('fin-income-type').value; const notes = document.getElementById('fin-income-notes').value.trim(); if(!date || !Number.isFinite(amount) || amount <= 0){ financeShowMsg('fin-income-msg','Date and positive amount required.',true); return; } financeState.income.unshift({id:financeId(), date, source, amount, type, notes, created_at:new Date().toISOString()}); await financePersist(); ['fin-income-source','fin-income-amount','fin-income-notes'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('fin-income-msg','Income saved.'); financeRenderAll(); }
 
 function financeRenderDashboard(){
   if(!document.getElementById('finance-dashboard')) return;
@@ -2273,28 +2335,28 @@ function financeRenderBudgetCard(spent){ const limit = Number(financeState.setti
 function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotals(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
 function financeRenderCharts(){ const spendCanvas=document.getElementById('finance-chart-spending'); if(!spendCanvas) return; if(financeChartSpending) financeChartSpending.destroy(); if(financeChartCategory) financeChartCategory.destroy(); const y=financeMonth.getFullYear(), m=financeMonth.getMonth(); const months=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1); months.push({y:d.getFullYear(),m:d.getMonth(),label:d.toLocaleDateString(undefined,{month:'short'})}); } const data=months.map(x=>Math.max(0,financeNetSpent(financeTransactionsForChartMonth(x.y,x.m)))); financeChartSpending = new Chart(spendCanvas, {type:'bar', data:{labels:months.map(x=>x.label), datasets:[{data, backgroundColor:'rgba(232,200,64,.75)', borderColor:'#e8c840', borderWidth:1}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>'$'+v}}}}}); const totals=financeCategoryTotals(financeDashboardTransactions()); const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8); financeChartCategory = new Chart(document.getElementById('finance-chart-category'), {type:'doughnut', data:{labels:rows.map(([id])=>financeCat(id).label), datasets:[{data:rows.map(([,v])=>v), backgroundColor:rows.map(([id])=>financeCat(id).color)}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}}); }
-function financeRenderRecent(){ const el=document.getElementById('finance-recent-list'); if(!el) return; const recent=financeAllTransactions().slice(0,6); el.innerHTML = recent.length ? recent.map(t=>`<div class="simple-row"><span>${t.date}</span><span><strong>${escapeHtml(t.store||'—')}</strong> ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</span><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong></div>`).join('') : '<div class="empty">No transactions yet.</div>'; }
-function financeRenderHistory(){ const el=document.getElementById('finance-history-list'); if(!el) return; const search=(document.getElementById('fin-history-search')?.value||'').toLowerCase(); const cat=document.getElementById('fin-history-cat')?.value||''; const month=document.getElementById('fin-history-month')?.value||''; const rows=financeAllTransactions().filter(t=>(!search || (t.store||'').toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search)) && (!cat || (t.splits||[]).some(s=>s.cat===cat)) && (!month || t.date.startsWith(month))); const net=financeNetSpent(rows); document.getElementById('finance-history-summary').textContent = `${rows.length} transaction${rows.length===1?'':'s'} · ${financeFmt(net)} net`; el.innerHTML = rows.length ? rows.map(t=>`<div class="tx-item"><div><div class="tx-title">${escapeHtml(t.store||'—')} ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</div><div class="tx-sub">${t.date} · ${(t.splits||[]).map(s=>financeCat(s.cat).emoji+' '+financeCat(s.cat).label).join(', ')}${t.notes?' · '+escapeHtml(t.notes):''}</div></div><div class="tx-right"><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong>${t.source==='gas'?'<span class="metric-sub">Edit in Gas History</span>':`<button class="small-btn danger-btn" type="button" onclick="financeDeleteTransaction('${t.id}')">Delete</button>`}</div></div>`).join('') : '<div class="empty">No transactions found.</div>'; }
+function financeRenderRecent(){ const el=document.getElementById('finance-recent-list'); if(!el) return; const recent=financeAllTransactions().slice(0,6); el.innerHTML = recent.length ? recent.map(t=>`<div class="simple-row"><span>${formatDateShort(t.date)}</span><span><strong>${escapeHtml(t.store||'—')}</strong> ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</span><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong></div>`).join('') : '<div class="empty">No transactions yet.</div>'; }
+function financeRenderHistory(){ const el=document.getElementById('finance-history-list'); if(!el) return; const search=(document.getElementById('fin-history-search')?.value||'').toLowerCase(); const cat=document.getElementById('fin-history-cat')?.value||''; const month=document.getElementById('fin-history-month')?.value||''; const rows=financeAllTransactions().filter(t=>(!search || (t.store||'').toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search)) && (!cat || (t.splits||[]).some(s=>s.cat===cat)) && (!month || t.date.startsWith(month))); const net=financeNetSpent(rows); document.getElementById('finance-history-summary').textContent = `${rows.length} transaction${rows.length===1?'':'s'} · ${financeFmt(net)} net`; el.innerHTML = rows.length ? rows.map(t=>`<div class="tx-item"><div><div class="tx-title">${escapeHtml(t.store||'—')} ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</div><div class="tx-sub">${formatDateShort(t.date)} · ${(t.splits||[]).map(s=>financeCat(s.cat).emoji+' '+financeCat(s.cat).label).join(', ')}${t.notes?' · '+escapeHtml(t.notes):''}</div></div><div class="tx-right"><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong>${t.source==='gas'?'<span class="metric-sub">Edit in Gas History</span>':`<button class="small-btn danger-btn" type="button" onclick="financeDeleteTransaction('${t.id}')">Delete</button>`}</div></div>`).join('') : '<div class="empty">No transactions found.</div>'; }
 async function financeDeleteTransaction(id){ if(!confirm('Delete this transaction?')) return; financeState.transactions = financeState.transactions.filter(t=>t.id!==id); await financePersist(); financeRenderAll(); }
 function financeClearHistoryFilters(){ ['fin-history-search','fin-history-month'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const cat=document.getElementById('fin-history-cat'); if(cat) cat.value=''; financeRenderHistory(); }
 function financeExportCSV(){ const rows=[['Date','Merchant','Total','Return','Categories','Payment','Notes']]; financeState.transactions.forEach(t=>rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',(t.splits||[]).map(s=>`${financeCat(s.cat).label}:${s.amount}`).join('; '),t.payment||'',t.notes||''])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`finance-${financeDateToday()}.csv`; a.click(); }
 
 function financeRenderBudgets(){ const now=new Date(); const tx=financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth()); const spent=financeNetSpent(tx); const limit=Number(financeState.settings.monthly_limit||0); const overview=document.getElementById('finance-budget-overview'); if(!overview) return; overview.innerHTML = limit ? `<div class="budget-header"><span>${now.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${spent/limit>=1?'over':spent/limit>=.8?'warn':''}" style="width:${Math.min(100,spent/limit*100)}%"></div></div><div class="budget-pct">${Math.round(spent/limit*100)}% used · ${financeFmt(limit-spent)} remaining</div>` : '<div class="summary-line">Set a monthly limit to track total spending.</div>'; const input=document.getElementById('fin-budget-input'); if(input && !input.value && limit) input.value=limit; financeRenderIncomeList(); financeRenderCategoryBudgetInputs(); financeRenderGoals(); financeRenderHeatmap(); }
 async function financeSaveBudgetLimit(){ const v=Number(document.getElementById('fin-budget-input').value); if(!Number.isFinite(v)||v<0){ financeShowMsg('fin-budget-msg','Enter a valid budget amount.',true); return; } financeState.settings.monthly_limit=v; await financePersist(); financeShowMsg('fin-budget-msg','Limit saved.'); financeRenderAll(); }
-function financeRenderIncomeList(){ const now=new Date(); const inc=financeForMonth(financeState.income, now.getFullYear(), now.getMonth()); const total=financeIncomeTotal(inc); document.getElementById('finance-income-summary-bar').innerHTML = `<div class="summary-line">Total income this month: <strong class="success-text">${financeFmt(total)}</strong></div>`; const list=document.getElementById('finance-income-list'); list.innerHTML = financeState.income.slice(0,10).map(i=>`<div class="simple-row"><span>${i.date}</span><span>${escapeHtml(i.source||'Income')}</span><span><strong>${financeFmt(i.amount)}</strong> <button class="small-btn danger-btn" onclick="financeDeleteIncome('${i.id}')">×</button></span></div>`).join('') || '<div class="empty">No income logged.</div>'; }
+function financeRenderIncomeList(){ const now=new Date(); const inc=financeForMonth(financeState.income, now.getFullYear(), now.getMonth()); const total=financeIncomeTotal(inc); document.getElementById('finance-income-summary-bar').innerHTML = `<div class="summary-line">Total income this month: <strong class="success-text">${financeFmt(total)}</strong></div>`; const list=document.getElementById('finance-income-list'); list.innerHTML = financeState.income.slice(0,10).map(i=>`<div class="simple-row"><span>${formatDateShort(i.date)}</span><span>${escapeHtml(i.source||'Income')}</span><span><strong>${financeFmt(i.amount)}</strong> <button class="small-btn danger-btn" onclick="financeDeleteIncome('${i.id}')">×</button></span></div>`).join('') || '<div class="empty">No income logged.</div>'; }
 async function financeDeleteIncome(id){ financeState.income=financeState.income.filter(i=>i.id!==id); await financePersist(); financeRenderAll(); }
 function financeRenderCategoryBudgetInputs(){ const wrap=document.getElementById('finance-category-budgets'); if(!wrap) return; const now=new Date(); const totals=financeCategoryTotals(financeForMonth(financeState.transactions, now.getFullYear(), now.getMonth())); const budgets=financeState.settings.category_budgets || {}; wrap.innerHTML=FINANCE_CATS.map(c=>{ const spent=Math.max(0, totals[c.id]||0); const limit=Number(budgets[c.id]||0); const pct=limit?Math.min(100,spent/limit*100):0; return `<div class="cat-budget-row"><div><div class="budget-header"><span>${c.emoji} ${escapeHtml(c.label)}</span><span>${financeFmt(spent)}${limit?' / '+financeFmt(limit):''}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${limit&&spent/limit>=1?'over':limit&&spent/limit>=.8?'warn':''}" style="width:${pct}%"></div></div></div><input class="form-input" type="number" step="1" data-cat-budget="${c.id}" value="${limit||''}" placeholder="Budget"></div>`; }).join(''); }
 async function financeSaveCategoryBudgets(){ const budgets={}; document.querySelectorAll('[data-cat-budget]').forEach(el=>{ const v=Number(el.value); if(Number.isFinite(v)&&v>0) budgets[el.dataset.catBudget]=v; }); financeState.settings.category_budgets=budgets; await financePersist(); financeShowMsg('fin-cat-budget-msg','Category budgets saved.'); financeRenderAll(); }
 let financeGoalOpen=false; function financeToggleGoalForm(){ financeGoalOpen=!financeGoalOpen; document.getElementById('finance-goal-form')?.classList.toggle('hidden', !financeGoalOpen); }
-async function financeSaveGoal(){ const name=document.getElementById('fin-goal-name').value.trim(); const target=Number(document.getElementById('fin-goal-target').value); const current=Number(document.getElementById('fin-goal-current').value||0); const date=document.getElementById('fin-goal-date').value; if(!name||!Number.isFinite(target)||target<=0){ financeShowMsg('fin-goal-msg','Name and target greater than 0 required.',true); return; } financeState.goals.push({id:financeId(),name,target,current,target_date:date}); await financePersist(); financeShowMsg('fin-goal-msg','Goal saved.'); financeToggleGoalForm(); financeRenderAll(); }
-function financeRenderGoals(){ const el=document.getElementById('finance-goals-list'); if(!el) return; el.innerHTML = financeState.goals.length ? financeState.goals.map(g=>{ const pct=Math.min(100,(Number(g.current||0)/Number(g.target||1))*100); return `<div class="goal-item"><div class="budget-header"><span>🎯 ${escapeHtml(g.name)}</span><span>${financeFmt(g.current)} / ${financeFmt(g.target)}</span></div><div class="budget-bar-wrap"><div class="budget-bar blue" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}%${g.target_date?' · Target: '+g.target_date:''}</div><div class="btn-row"><button class="small-btn" onclick="financeUpdateGoal('${g.id}')">Update</button><button class="small-btn danger-btn" onclick="financeDeleteGoal('${g.id}')">Delete</button></div></div>`; }).join('') : '<div class="empty">No goals yet.</div>'; }
+async function financeSaveGoal(){ const name=document.getElementById('fin-goal-name').value.trim(); const target=Number(document.getElementById('fin-goal-target').value); const current=Number(document.getElementById('fin-goal-current').value||0); const date=normalizeDateValue(document.getElementById('fin-goal-date').value); if(!name||!Number.isFinite(target)||target<=0){ financeShowMsg('fin-goal-msg','Name and target greater than 0 required.',true); return; } financeState.goals.push({id:financeId(),name,target,current,target_date:date}); await financePersist(); financeShowMsg('fin-goal-msg','Goal saved.'); financeToggleGoalForm(); financeRenderAll(); }
+function financeRenderGoals(){ const el=document.getElementById('finance-goals-list'); if(!el) return; el.innerHTML = financeState.goals.length ? financeState.goals.map(g=>{ const pct=Math.min(100,(Number(g.current||0)/Number(g.target||1))*100); return `<div class="goal-item"><div class="budget-header"><span>🎯 ${escapeHtml(g.name)}</span><span>${financeFmt(g.current)} / ${financeFmt(g.target)}</span></div><div class="budget-bar-wrap"><div class="budget-bar blue" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}%${g.target_date?' · Target: '+formatDateShort(g.target_date):''}</div><div class="btn-row"><button class="small-btn" onclick="financeUpdateGoal('${g.id}')">Update</button><button class="small-btn danger-btn" onclick="financeDeleteGoal('${g.id}')">Delete</button></div></div>`; }).join('') : '<div class="empty">No goals yet.</div>'; }
 async function financeUpdateGoal(id){ const g=financeState.goals.find(x=>x.id===id); if(!g) return; const val=prompt('Saved so far:', g.current); if(val===null) return; g.current=Number(val)||0; await financePersist(); financeRenderAll(); }
 async function financeDeleteGoal(id){ financeState.goals=financeState.goals.filter(g=>g.id!==id); await financePersist(); financeRenderAll(); }
 function financeRenderHeatmap(){ const year=new Date().getFullYear(); const el=document.getElementById('finance-heatmap-grid'); if(!el) return; const vals=Array.from({length:12},(_,i)=>Math.max(0,financeNetSpent(financeForMonth(financeAllTransactions(),year,i)))); const max=Math.max(...vals,1); const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el.innerHTML=vals.map((v,i)=>`<div class="heatmap-cell" style="opacity:${v?(.35+v/max*.65):.18}"><strong>${months[i]}</strong><br>${financeFmt(v)}</div>`).join(''); }
 
 function financeSubMonthly(s){ const amt=Number(s.amount||0); return s.cycle==='annual'?amt/12:s.cycle==='quarterly'?amt/3:s.cycle==='weekly'?amt*4.33:amt; }
-function financeRenderSubs(){ const m=financeState.subscriptions.reduce((s,x)=>s+financeSubMonthly(x),0); const monthly=document.getElementById('finance-sub-monthly'); if(!monthly) return; monthly.textContent=financeFmt(m); document.getElementById('finance-sub-annual').textContent=financeFmt(m*12); const grid=document.getElementById('finance-sub-grid'); grid.innerHTML = financeState.subscriptions.length ? financeState.subscriptions.map(s=>`<div class="sub-card"><div class="sub-card-name">${escapeHtml(s.name)}</div><div class="big-money">${financeFmt(s.amount)}</div><div class="metric-sub">${s.cycle} · ${financeFmt(financeSubMonthly(s))}/mo</div><div class="metric-sub">${financeCat(s.cat).emoji} ${financeCat(s.cat).label}${s.next_date?' · Next '+s.next_date:''}</div><div class="btn-row"><button class="small-btn" onclick="financeEditSub('${s.id}')">Edit</button><button class="small-btn danger-btn" onclick="financeDeleteSub('${s.id}')">Delete</button></div></div>`).join('') : '<div class="empty">No subscriptions yet.</div>'; document.getElementById('finance-sub-creep').innerHTML = m>150 ? `<div class="insight">Subscriptions total <strong>${financeFmt(m)}/mo</strong> (${financeFmt(m*12)}/yr). Review services you no longer use.</div>` : ''; }
-async function financeSaveSubscription(){ const name=document.getElementById('fin-sub-name').value.trim(); const amount=Number(document.getElementById('fin-sub-amount').value); const cycle=document.getElementById('fin-sub-cycle').value; const cat=document.getElementById('fin-sub-cat').value; const next_date=document.getElementById('fin-sub-next').value; if(!name||!Number.isFinite(amount)||amount<=0){ financeShowMsg('finance-sub-msg','Name and positive amount required.',true); return; } if(financeEditingSubId){ const s=financeState.subscriptions.find(x=>x.id===financeEditingSubId); Object.assign(s,{name,amount,cycle,cat,next_date}); financeEditingSubId=null; document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); } else financeState.subscriptions.push({id:financeId(),name,amount,cycle,cat,next_date}); await financePersist(); ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('finance-sub-msg','Saved.'); financeRenderAll(); }
+function financeRenderSubs(){ const m=financeState.subscriptions.reduce((s,x)=>s+financeSubMonthly(x),0); const monthly=document.getElementById('finance-sub-monthly'); if(!monthly) return; monthly.textContent=financeFmt(m); document.getElementById('finance-sub-annual').textContent=financeFmt(m*12); const grid=document.getElementById('finance-sub-grid'); grid.innerHTML = financeState.subscriptions.length ? financeState.subscriptions.map(s=>`<div class="sub-card"><div class="sub-card-name">${escapeHtml(s.name)}</div><div class="big-money">${financeFmt(s.amount)}</div><div class="metric-sub">${s.cycle} · ${financeFmt(financeSubMonthly(s))}/mo</div><div class="metric-sub">${financeCat(s.cat).emoji} ${financeCat(s.cat).label}${s.next_date?' · Next '+formatDateShort(s.next_date):''}</div><div class="btn-row"><button class="small-btn" onclick="financeEditSub('${s.id}')">Edit</button><button class="small-btn danger-btn" onclick="financeDeleteSub('${s.id}')">Delete</button></div></div>`).join('') : '<div class="empty">No subscriptions yet.</div>'; document.getElementById('finance-sub-creep').innerHTML = m>150 ? `<div class="insight">Subscriptions total <strong>${financeFmt(m)}/mo</strong> (${financeFmt(m*12)}/yr). Review services you no longer use.</div>` : ''; }
+async function financeSaveSubscription(){ const name=document.getElementById('fin-sub-name').value.trim(); const amount=Number(document.getElementById('fin-sub-amount').value); const cycle=document.getElementById('fin-sub-cycle').value; const cat=document.getElementById('fin-sub-cat').value; const next_date=normalizeDateValue(document.getElementById('fin-sub-next').value); if(!name||!Number.isFinite(amount)||amount<=0){ financeShowMsg('finance-sub-msg','Name and positive amount required.',true); return; } if(financeEditingSubId){ const s=financeState.subscriptions.find(x=>x.id===financeEditingSubId); Object.assign(s,{name,amount,cycle,cat,next_date}); financeEditingSubId=null; document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); } else financeState.subscriptions.push({id:financeId(),name,amount,cycle,cat,next_date}); await financePersist(); ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('finance-sub-msg','Saved.'); financeRenderAll(); }
 function financeEditSub(id){ const s=financeState.subscriptions.find(x=>x.id===id); if(!s) return; financeEditingSubId=id; document.getElementById('fin-sub-name').value=s.name; document.getElementById('fin-sub-amount').value=s.amount; document.getElementById('fin-sub-cycle').value=s.cycle; document.getElementById('fin-sub-cat').value=s.cat; document.getElementById('fin-sub-next').value=s.next_date||''; document.getElementById('finance-sub-save-btn').textContent='Update'; document.getElementById('finance-sub-cancel-btn').classList.remove('hidden'); }
 function financeCancelSubEdit(){ financeEditingSubId=null; ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); }
 async function financeDeleteSub(id){ financeState.subscriptions=financeState.subscriptions.filter(s=>s.id!==id); await financePersist(); financeRenderAll(); }
@@ -2311,7 +2373,7 @@ function financeLocalAnswer(q){ const c=financeBuildContext(); const lower=q.toL
 async function financeAskAI(){ const input=document.getElementById('finance-chat-question'); const btn=document.getElementById('finance-chat-send-btn'); const q=(input.value||'').trim(); if(!q) return; financeChatMessages.push({role:'user',content:q}); input.value=''; btn.disabled=true; btn.textContent='Thinking...'; financeChatMessages.push({role:'assistant',content:financeLocalAnswer(q)}); financeRenderChat(); btn.disabled=false; btn.textContent='Send'; }
 
 
-document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('f-date').value = dateForInput(new Date().toISOString().split('T')[0]);
 financeInitUI();
 init();
 
