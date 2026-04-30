@@ -678,3 +678,35 @@ tbody tr:hover td {
   .finance-filter-grid { grid-template-columns: 1fr; }
   .finance-filter-grid .date-range-group { grid-column: auto; }
 }
+
+/* Finance toggle pills updated to match Gas tab design */
+.mode-toggle {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 1.5rem;
+  background: var(--surface2);
+  border-radius: var(--radius);
+  padding: 3px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.mode-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.mode-btn:hover {
+  color: var(--text);
+}
+.tx-title .badge { margin-left: 6px; }
