@@ -710,3 +710,80 @@ tbody tr:hover td {
   color: var(--text);
 }
 .tx-title .badge { margin-left: 6px; }
+
+/* Global pill containment and no-spill fixes */
+.tabs,
+.mode-toggle,
+.chat-hints,
+.chat-followups,
+.station-map-list,
+.btn-row {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tabs,
+.mode-toggle {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.tab,
+.mode-btn,
+.chat-hint,
+.chat-followup,
+.station-chip,
+.save-btn,
+.small-btn {
+  min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab,
+.mode-btn {
+  flex: 1 1 0;
+}
+
+.chat-hints,
+.chat-followups,
+.station-map-list,
+.btn-row {
+  overflow: visible;
+  flex-wrap: wrap;
+}
+
+.chat-hint,
+.chat-followup,
+.station-chip {
+  flex: 0 1 auto;
+}
+
+@media (max-width: 640px) {
+  .tabs,
+  .mode-toggle {
+    gap: 3px;
+    padding: 3px;
+  }
+
+  .tab,
+  .mode-btn {
+    font-size: 12px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .finance-tabs .tab,
+  .gas-tabs .tab {
+    font-size: 12px;
+  }
+
+  .chat-hint,
+  .chat-followup,
+  .station-chip {
+    max-width: 100%;
+  }
+}
