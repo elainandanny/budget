@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">💰</div>
+      <div>
+        <div class="app-title">Finance Tracker</div>
+        <div class="app-sub">Spending · Budgets · Income · Goals</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="sync-pill" id="sync-status">Checking sync…</span>
+      <button class="small-btn hidden" id="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </header>
+
+  <section id="auth-view" class="auth-card hidden">
+    <div class="section-title">Log in</div>
+    <div class="banner info-banner">Log in with the same Supabase account foundation as your Gas Tracker.</div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="auth-email" placeholder="you@example.com" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="auth-password" placeholder="Password" />
+    </div>
+    <div class="btn-row">
+      <button class="save-btn" onclick="login()">Log in</button>
+      <button class="small-btn" onclick="signup()">Create account</button>
+    </div>
+    <div class="save-msg" id="auth-msg"></div>
+  </section>
+
+  <main id="app-view" class="hidden">
+    <nav class="tabs">
+      <button class="tab active" onclick="switchTab('dashboard')">Dashboard</button>
+      <button class="tab" onclick="switchTab('add')">Add</button>
+      <button class="tab" onclick="switchTab('history')">History</button>
+      <button class="tab" onclick="switchTab('budgets')">Budgets</button>
+      <button class="tab" onclick="switchTab('subs')">Subscriptions</button>
+    </nav>
+
+    <section id="tab-dashboard" class="panel active">
+      <div class="month-card">
+        <button class="small-btn" onclick="changeMonth(-1)">← Prev</button>
+        <strong id="dash-month-label"></strong>
+        <button class="small-btn" onclick="changeMonth(1)">Next →</button>
+        <button class="small-btn" onclick="goToNow()">This Month</button>
+      </div>
+      <div class="metrics" id="dash-metrics"></div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="section-title">Monthly Budget</div>
+          <div id="dash-budget"></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">Savings Rate</div>
+          <div id="savings-box"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title">Spending — Last 12 Months</div>
+        <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="section-title">By Category</div>
+          <div class="chart-wrap-sm"><canvas id="chart-cat"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">Income vs Expenses</div>
+          <div class="chart-wrap-sm"><canvas id="chart-income"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title">Category Breakdown</div>
+        <div id="cat-breakdown" class="category-list"></div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title">Smart Insights</div>
+        <div id="smart-insights"></div>
+      </div>
+    </section>
+
+    <section id="tab-add" class="panel">
+      <div class="form-card">
+        <div class="section-title">Transaction Type</div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="mode-expense" onclick="setTxType('expense')">Expense</button>
+          <button class="mode-btn" id="mode-return" onclick="setTxType('return')">Return</button>
+          <button class="mode-btn" id="mode-income" onclick="setTxType('income')">Income</button>
+        </div>
+
+        <div id="expense-form">
+          <div class="form-row three">
+            <div class="form-group">
+              <label class="form-label">Date</label>
+              <input class="form-input" type="date" id="f-date" />
+            </div>
+            <div class="form-group span-2">
+              <label class="form-label">Store / Merchant</label>
+              <input class="form-input" id="f-store" list="store-options" placeholder="Costco, Amazon, Target" />
+              <datalist id="store-options"></datalist>
+            </div>
+          </div>
+          <div id="return-link-wrap" class="form-group hidden">
+            <label class="form-label">Link to Original Transaction</label>
+            <select class="form-select" id="f-return-link"></select>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Total Amount</label>
+              <input class="form-input" type="number" step="0.01" id="f-total" placeholder="0.00" oninput="updateTally()" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Method</label>
+              <select class="form-select" id="f-payment">
+                <option value="credit">Credit Card</option>
+                <option value="debit">Debit Card</option>
+                <option value="cash">Cash</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="section-title small-title">Category</div>
+          <div class="mode-toggle">
+            <button class="mode-btn active" id="split-quick-btn" onclick="setSplitMode('quick')">One Category</button>
+            <button class="mode-btn" id="split-split-btn" onclick="setSplitMode('split')">Split Multiple</button>
+          </div>
+          <div id="split-quick">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="f-cat-quick"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Subcategory</label>
+                <input class="form-input" id="f-subcat" placeholder="Optional" />
+              </div>
+            </div>
+          </div>
+          <div id="split-detail" class="hidden">
+            <div class="split-tally">
+              <span>Allocated: <strong id="tally-alloc">$0.00</strong></span>
+              <span id="tally-rem">Remaining: $0.00</span>
+            </div>
+            <div id="split-lines" class="split-lines"></div>
+            <button class="small-btn full" type="button" onclick="addSplitLine()">+ Add split line</button>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Notes</label>
+            <input class="form-input" id="f-notes" placeholder="Optional details" />
+          </div>
+          <div class="btn-row">
+            <button class="save-btn" onclick="saveTransaction()">Save Transaction</button>
+            <button class="small-btn" onclick="clearForm()">Clear</button>
+            <span class="save-msg" id="save-msg"></span>
+          </div>
+        </div>
+
+        <div id="income-form" class="hidden">
+          <div class="form-row three">
+            <div class="form-group">
+              <label class="form-label">Date</label>
+              <input class="form-input" type="date" id="fi-date" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Source</label>
+              <input class="form-input" id="fi-source" placeholder="Paycheck, Freelance" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Amount</label>
+              <input class="form-input" type="number" step="0.01" id="fi-amount" placeholder="0.00" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Type</label>
+              <select class="form-select" id="fi-type">
+                <option value="salary">Salary / Wages</option>
+                <option value="freelance">Freelance</option>
+                <option value="investment">Investment</option>
+                <option value="gift">Gift / Transfer</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <input class="form-input" id="fi-notes" placeholder="Optional" />
+            </div>
+          </div>
+          <div class="btn-row">
+            <button class="save-btn" onclick="saveIncome()">Save Income</button>
+            <span class="save-msg" id="income-msg"></span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title">Recently Added</div>
+        <div id="recent-list"></div>
+      </div>
+    </section>
+
+    <section id="tab-history" class="panel">
+      <div class="filter-card">
+        <div class="history-controls">
+          <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="hist-search" oninput="renderHistory()" placeholder="Store or note" /></div>
+          <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="hist-cat" onchange="renderHistory()"></select></div>
+          <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="hist-month" onchange="renderHistory()" /></div>
+          <button class="small-btn" onclick="clearHistFilters()">Clear</button>
+          <button class="small-btn" onclick="exportCSV()">Export CSV</button>
+        </div>
+      </div>
+      <div id="hist-summary" class="summary-line"></div>
+      <div id="hist-list" class="tx-list"></div>
+    </section>
+
+    <section id="tab-budgets" class="panel">
+      <div class="form-card">
+        <div class="section-title">Monthly Spending Limit</div>
+        <div id="budget-overview"></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Set Monthly Limit</label>
+            <input class="form-input" type="number" step="1" id="budget-input" placeholder="3500" />
+          </div>
+          <div class="form-group align-end">
+            <button class="save-btn" onclick="saveBudgetLimit()">Save Limit</button>
+          </div>
+        </div>
+        <div class="save-msg" id="budget-msg"></div>
+      </div>
+      <div class="form-card">
+        <div class="section-title">Category Budgets</div>
+        <div id="category-budget-list" class="budget-list"></div>
+        <button class="save-btn" onclick="saveCategoryBudgets()">Save Category Budgets</button>
+        <span class="save-msg" id="cat-budget-msg"></span>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="section-title">Income This Month</div>
+          <div id="income-summary-bar"></div>
+          <div id="income-list" class="income-list"></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">Annual Monthly Spending</div>
+          <div id="heatmap-year" class="summary-line"></div>
+          <div id="heatmap-grid" class="heatmap-grid"></div>
+        </div>
+      </div>
+      <div class="form-card">
+        <div class="section-title">Savings Goals</div>
+        <div id="goals-list"></div>
+        <button class="small-btn" onclick="toggleGoalForm()">+ New Goal</button>
+        <div id="goal-form" class="goal-form hidden">
+          <div class="form-row three">
+            <div class="form-group span-2"><label class="form-label">Goal Name</label><input class="form-input" id="g-name" placeholder="Emergency Fund" /></div>
+            <div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" id="g-target" /></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Saved So Far</label><input class="form-input" type="number" id="g-current" /></div>
+            <div class="form-group"><label class="form-label">Target Date</label><input class="form-input" type="date" id="g-date" /></div>
+          </div>
+          <div class="btn-row"><button class="save-btn" onclick="saveGoal()">Save Goal</button><button class="small-btn" onclick="toggleGoalForm()">Cancel</button><span id="goal-msg" class="save-msg"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-subs" class="panel">
+      <div class="sub-total-bar">
+        <div><div class="metric-label">Monthly Recurring Total</div><div class="big-money" id="sub-monthly">$0.00</div></div>
+        <div><div class="metric-label">Annual Cost</div><div class="big-money muted" id="sub-annual">$0.00</div></div>
+      </div>
+      <div class="form-card">
+        <div class="section-title" id="sub-form-title">Add Subscription</div>
+        <div class="form-row three">
+          <div class="form-group span-2"><label class="form-label">Service</label><input class="form-input" id="s-name" placeholder="Netflix, Spotify" /></div>
+          <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="s-amount" /></div>
+        </div>
+        <div class="form-row three">
+          <div class="form-group"><label class="form-label">Cycle</label><select class="form-select" id="s-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div>
+          <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="s-cat"></select></div>
+          <div class="form-group"><label class="form-label">Next Billing</label><input class="form-input" type="date" id="s-next" /></div>
+        </div>
+        <div class="btn-row"><button class="save-btn" id="sub-save-btn" onclick="saveSubscription()">Add Subscription</button><button class="small-btn hidden" id="sub-cancel-btn" onclick="cancelSubEdit()">Cancel</button><span class="save-msg" id="sub-msg"></span></div>
+      </div>
+      <div id="sub-grid" class="sub-grid"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ykedfxitevfpioplirdy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrZWRmeGl0ZXZmcGlvcGxpcmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQ4ODIsImV4cCI6MjA5MzA0MDg4Mn0.EmfBzmig_fkITR2Uw5MPxkjvFTzwlevkTzbUCKgwI5o';
+
+const LS = {
+  tx: 'finance-tracker-tx-v1',
+  inc: 'finance-tracker-income-v1',
+  subs: 'finance-tracker-subs-v1',
+  goals: 'finance-tracker-goals-v1',
+  settings: 'finance-tracker-settings-v1'
+};
+
+const CATS = [
+  {id:'groceries', label:'Groceries', emoji:'🛒', color:'#4a90d9'},
+  {id:'household', label:'Household', emoji:'🏠', color:'#2eab6f'},
+  {id:'health', label:'Health & Meds', emoji:'💊', color:'#e05a2b'},
+  {id:'dining', label:'Dining Out', emoji:'🍽️', color:'#e8c840'},
+  {id:'hobbies', label:'Hobbies', emoji:'🎯', color:'#9b5de5'},
+  {id:'clothing', label:'Clothing', emoji:'👗', color:'#f4845f'},
+  {id:'gas', label:'Gas', emoji:'⛽', color:'#fbbf24'},
+  {id:'transport', label:'Transport', emoji:'🚗', color:'#60a5fa'},
+  {id:'subscriptions', label:'Subscriptions', emoji:'📱', color:'#a78bfa'},
+  {id:'utilities', label:'Utilities', emoji:'💡', color:'#34d399'},
+  {id:'insurance', label:'Insurance', emoji:'🛡️', color:'#94a3b8'},
+  {id:'housing', label:'Housing / Rent', emoji:'🏡', color:'#fb923c'},
+  {id:'entertainment', label:'Entertainment', emoji:'🎬', color:'#f472b6'},
+  {id:'education', label:'Education', emoji:'📚', color:'#38bdf8'},
+  {id:'gifts', label:'Gifts', emoji:'🎁', color:'#e879f9'},
+  {id:'travel', label:'Travel', emoji:'✈️', color:'#22d3ee'},
+  {id:'savings', label:'Savings', emoji:'🏦', color:'#86efac'},
+  {id:'other', label:'Other', emoji:'📦', color:'#6b7280'}
+];
+const getCat = id => CATS.find(c => c.id === id) || CATS[CATS.length - 1];
+
+let supabaseClient = null;
+let currentUser = null;
+let transactions = [];
+let incomeEntries = [];
+let subscriptions = [];
+let goals = [];
+let settings = { monthly_limit: 0, category_budgets: {} };
+let dashMonth = new Date();
+let splitMode = 'quick';
+let txType = 'expense';
+let editingSubId = null;
+let goalFormOpen = false;
+let chartSpending = null;
+let chartCat = null;
+let chartIncome = null;
+
+function readLS(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
+  catch { return fallback; }
+}
+function saveLS() {
+  localStorage.setItem(LS.tx, JSON.stringify(transactions));
+  localStorage.setItem(LS.inc, JSON.stringify(incomeEntries));
+  localStorage.setItem(LS.subs, JSON.stringify(subscriptions));
+  localStorage.setItem(LS.goals, JSON.stringify(goals));
+  localStorage.setItem(LS.settings, JSON.stringify(settings));
+}
+function loadLocal() {
+  transactions = readLS(LS.tx, []);
+  incomeEntries = readLS(LS.inc, []);
+  subscriptions = readLS(LS.subs, []);
+  goals = readLS(LS.goals, []);
+  settings = readLS(LS.settings, { monthly_limit: 0, category_budgets: {} });
+  if (!settings.category_budgets) settings.category_budgets = {};
+}
+
+async function init() {
+  loadLocal();
+  populateCatDropdowns();
+  setDefaultDates();
+  if (!window.supabase) {
+    setSyncStatus('Supabase not loaded');
+    document.getElementById('auth-view').classList.remove('hidden');
+    return;
+  }
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) console.error(error);
+    currentUser = data?.session?.user || null;
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      currentUser = session?.user || null;
+      showCorrectView();
+      if (currentUser) loadAllCloud().catch(err => console.warn('Cloud load failed:', err));
+    });
+  } catch (err) {
+    console.error('Init failed:', err);
+  }
+  showCorrectView();
+  if (currentUser) await loadAllCloud().catch(err => console.warn('Cloud load failed:', err));
+  renderAll();
+}
+
+function showCorrectView() {
+  const loggedIn = Boolean(currentUser);
+  document.getElementById('auth-view').classList.toggle('hidden', loggedIn);
+  document.getElementById('app-view').classList.toggle('hidden', !loggedIn);
+  document.getElementById('logout-btn').classList.toggle('hidden', !loggedIn);
+  setSyncStatus(loggedIn ? 'Cloud sync on' : 'Logged out');
+  if (loggedIn) renderAll();
+}
+function setSyncStatus(text) { document.getElementById('sync-status').textContent = text; }
+function showAuthMsg(msg, err=false) { const el = document.getElementById('auth-msg'); el.textContent = msg; el.style.color = err ? 'var(--danger)' : 'var(--success)'; }
+async function signup() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (!email || !password) return showAuthMsg('Enter email and password.', true);
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  showAuthMsg(error ? error.message : 'Account created. Check your email if confirmation is enabled.', Boolean(error));
+}
+async function login() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (!email || !password) return showAuthMsg('Enter email and password.', true);
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) showAuthMsg(error.message, true);
+}
+async function logout() { await supabaseClient.auth.signOut(); currentUser = null; showCorrectView(); }
+
+async function loadAllCloud() {
+  if (!currentUser) return;
+  const uid = currentUser.id;
+  const results = await Promise.allSettled([
+    supabaseClient.from('finance_transactions').select('*').eq('user_id', uid).order('date', { ascending: false }),
+    supabaseClient.from('finance_income').select('*').eq('user_id', uid).order('date', { ascending: false }),
+    supabaseClient.from('finance_subscriptions').select('*').eq('user_id', uid),
+    supabaseClient.from('finance_goals').select('*').eq('user_id', uid),
+    supabaseClient.from('finance_settings').select('*').eq('user_id', uid).maybeSingle()
+  ]);
+  const [tx, inc, subs, gs, set] = results.map(r => r.status === 'fulfilled' ? r.value : { data:null, error:r.reason });
+  if (!tx.error && tx.data) transactions = tx.data.map(r => ({ ...r, splits: parseSplits(r.splits) }));
+  if (!inc.error && inc.data) incomeEntries = inc.data;
+  if (!subs.error && subs.data) subscriptions = subs.data;
+  if (!gs.error && gs.data) goals = gs.data;
+  if (!set.error && set.data) settings = { monthly_limit: Number(set.data.monthly_limit || 0), category_budgets: set.data.category_budgets || {} };
+  saveLS();
+  renderAll();
+}
+function parseSplits(v) { if (Array.isArray(v)) return v; try { return JSON.parse(v || '[]'); } catch { return []; } }
+async function upsertCloud(table, row) {
+  saveLS();
+  if (!currentUser) return;
+  const payload = { ...row, user_id: currentUser.id };
+  const { error } = await supabaseClient.from(table).upsert(payload);
+  if (error) console.warn(table, error.message);
+}
+async function deleteCloud(table, id) {
+  saveLS();
+  if (!currentUser) return;
+  const { error } = await supabaseClient.from(table).delete().eq('id', id).eq('user_id', currentUser.id);
+  if (error) console.warn(table, error.message);
+}
+
+function switchTab(name) {
+  const names = ['dashboard','add','history','budgets','subs'];
+  document.querySelectorAll('.tab').forEach((tab, i) => tab.classList.toggle('active', names[i] === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  renderAll();
+}
+function setDefaultDates() {
+  const today = new Date().toISOString().split('T')[0];
+  ['f-date','fi-date','s-next'].forEach(id => { const el = document.getElementById(id); if (el && !el.value) el.value = today; });
+}
+function populateCatDropdowns() {
+  const opts = CATS.map(c => `<option value="${c.id}">${c.emoji} ${c.label}</option>`).join('');
+  ['f-cat-quick','s-cat'].forEach(id => { const el = document.getElementById(id); if (el) el.innerHTML = opts; });
+  const hc = document.getElementById('hist-cat'); if (hc) hc.innerHTML = '<option value="">All Categories</option>' + opts;
+}
+function populateStoreSuggestions() {
+  const stores = [...new Set(transactions.map(t => t.store).filter(Boolean))].sort();
+  document.getElementById('store-options').innerHTML = stores.map(s => `<option value="${esc(s)}"></option>`).join('');
+}
+function renderAll() {
+  populateStoreSuggestions();
+  renderDashboard();
+  renderRecent();
+  renderHistory();
+  renderBudgets();
+  renderSubs();
+}
+
+function changeMonth(d) { dashMonth = new Date(dashMonth.getFullYear(), dashMonth.getMonth() + d, 1); renderDashboard(); }
+function goToNow() { dashMonth = new Date(); renderDashboard(); }
+function txForMonth(y, m) { const d = new Date(y, m, 1); return transactions.filter(t => { const td = new Date(t.date + 'T12:00:00'); return td.getFullYear() === d.getFullYear() && td.getMonth() === d.getMonth(); }); }
+function incForMonth(y, m) { const d = new Date(y, m, 1); return incomeEntries.filter(i => { const td = new Date(i.date + 'T12:00:00'); return td.getFullYear() === d.getFullYear() && td.getMonth() === d.getMonth(); }); }
+function netSpent(arr) { return arr.reduce((s,t) => s + Number(t.total || 0) * (t.is_return ? -1 : 1), 0); }
+function categoryTotals(arr) {
+  const totals = {};
+  arr.forEach(t => (t.splits || []).forEach(sp => { totals[sp.cat] = (totals[sp.cat] || 0) + Number(sp.amount || 0) * (t.is_return ? -1 : 1); }));
+  return totals;
+}
+function renderDashboard() {
+  const y = dashMonth.getFullYear(), m = dashMonth.getMonth();
+  const label = dashMonth.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+  document.getElementById('dash-month-label').textContent = label;
+  const tx = txForMonth(y,m), prev = txForMonth(y,m-1), inc = incForMonth(y,m);
+  const spent = netSpent(tx), prevSpent = netSpent(prev), income = inc.reduce((s,i) => s + Number(i.amount || 0), 0);
+  const saved = income - spent, savePct = income > 0 ? Math.round(saved / income * 100) : 0, delta = spent - prevSpent;
+  document.getElementById('dash-metrics').innerHTML = `
+    <div class="metric"><div class="metric-label">Spent</div><div class="metric-value danger-text">${fmt(spent)}</div><div class="metric-sub">${delta === 0 ? 'No change' : (delta > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(delta)) + ' vs prev'}</div></div>
+    <div class="metric"><div class="metric-label">Income</div><div class="metric-value success-text">${fmt(income)}</div><div class="metric-sub">${inc.length} source${inc.length !== 1 ? 's' : ''}</div></div>
+    <div class="metric"><div class="metric-label">Net Saved</div><div class="metric-value ${saved >= 0 ? 'success-text' : 'danger-text'}">${fmt(saved)}</div><div class="metric-sub">${savePct}% savings rate</div></div>
+    <div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${tx.length}</div><div class="metric-sub">${tx.filter(t => t.is_return).length} return(s)</div></div>`;
+  renderDashBudget(spent);
+  document.getElementById('savings-box').innerHTML = `<div class="savings-big ${saved >= 0 ? 'success-text' : 'danger-text'}">${fmt(saved)}</div><div class="summary-line">Income ${fmt(income)} · Expenses ${fmt(spent)} · ${savePct}% saved</div>`;
+  renderCatBreakdown(tx);
+  renderInsights(tx, prev);
+  renderCharts(y,m);
+}
+function renderDashBudget(spent) {
+  const limit = Number(settings.monthly_limit || 0), el = document.getElementById('dash-budget');
+  if (!limit) { el.innerHTML = '<div class="summary-line">No monthly limit set. Open Budgets to add one.</div>'; return; }
+  const pct = Math.min(100, spent / limit * 100);
+  el.innerHTML = budgetBar('vs Monthly Limit', spent, limit, pct);
+}
+function budgetBar(title, spent, limit, pct) {
+  const cls = pct >= 100 ? 'over' : pct >= 80 ? 'warn' : '';
+  const rem = limit - spent;
+  return `<div class="budget-header"><span>${title}</span><span>${fmt(spent)} / ${fmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${cls}" style="width:${Math.max(0, Math.min(100, pct)).toFixed(1)}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${rem >= 0 ? fmt(rem) + ' remaining' : fmt(Math.abs(rem)) + ' over'}</div>`;
+}
+function renderCatBreakdown(monthTx) {
+  const totals = categoryTotals(monthTx);
+  const rows = Object.entries(totals).filter(([,v]) => v > 0).sort((a,b) => b[1] - a[1]);
+  const max = rows[0]?.[1] || 1;
+  const el = document.getElementById('cat-breakdown');
+  if (!rows.length) { el.innerHTML = '<div class="empty">No spending this month.</div>'; return; }
+  el.innerHTML = rows.map(([id, amount]) => { const c = getCat(id); return `<div class="category-row"><span>${c.emoji}</span><span class="cat-name">${c.label}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amount/max*100}%;background:${c.color}"></div></div><span>${fmt(amount)}</span></div>`; }).join('');
+}
+function renderInsights(monthTx, prevTx) {
+  const insights = [];
+  const spent = netSpent(monthTx), prev = netSpent(prevTx), limit = Number(settings.monthly_limit || 0);
+  if (prev > 0 && Math.abs(spent-prev) > 10) insights.push(`You spent ${fmt(Math.abs(spent-prev))} ${spent > prev ? 'more' : 'less'} than last month.`);
+  const top = Object.entries(categoryTotals(monthTx)).sort((a,b)=>b[1]-a[1])[0];
+  if (top) insights.push(`Biggest category: ${getCat(top[0]).label} at ${fmt(top[1])}.`);
+  if (limit && spent > limit) insights.push(`You are ${fmt(spent-limit)} over your monthly limit.`);
+  if (!insights.length) insights.push('Add more transactions to see personalized insights.');
+  document.getElementById('smart-insights').innerHTML = insights.map(t => `<div class="insight">💡 ${esc(t)}</div>`).join('');
+}
+function renderCharts(y,m) {
+  if (!window.Chart) return;
+  const months = [];
+  for (let i=11; i>=0; i--) { const d = new Date(y, m-i, 1); months.push({ y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-US', {month:'short'}) }); }
+  const spentData = months.map(mo => Math.max(0, netSpent(txForMonth(mo.y, mo.m))));
+  const incData = months.map(mo => incForMonth(mo.y, mo.m).reduce((s,i)=>s+Number(i.amount||0),0));
+  const labels = months.map(mo => mo.label);
+  const base = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ color:'#888' }, grid:{ color:'rgba(255,255,255,0.05)' } }, y:{ ticks:{ color:'#888', callback:v=>'$'+v }, grid:{ color:'rgba(255,255,255,0.05)' } } } };
+  if (chartSpending) chartSpending.destroy();
+  chartSpending = new Chart(document.getElementById('chart-spending'), { type:'bar', data:{ labels, datasets:[{ data:spentData, backgroundColor:'rgba(232,200,64,0.65)', borderColor:'#e8c840', borderWidth:1 }] }, options:base });
+  const catRows = Object.entries(categoryTotals(txForMonth(y,m))).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if (chartCat) chartCat.destroy();
+  chartCat = new Chart(document.getElementById('chart-cat'), { type:'doughnut', data:{ labels:catRows.map(([id])=>getCat(id).label), datasets:[{ data:catRows.map(([,v])=>v), backgroundColor:catRows.map(([id])=>getCat(id).color), borderWidth:2, borderColor:'#1a1a1f' }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:'#888', boxWidth:10 } } } } });
+  if (chartIncome) chartIncome.destroy();
+  chartIncome = new Chart(document.getElementById('chart-income'), { type:'bar', data:{ labels, datasets:[{ label:'Income', data:incData, backgroundColor:'rgba(46,171,111,0.6)' }, { label:'Expenses', data:spentData, backgroundColor:'rgba(224,90,43,0.6)' }] }, options:{ ...base, plugins:{ legend:{ display:true, labels:{ color:'#888' } } } } });
+}
+
+function setTxType(type) {
+  txType = type;
+  ['expense','return','income'].forEach(t => document.getElementById('mode-' + t).classList.toggle('active', t === type));
+  document.getElementById('expense-form').classList.toggle('hidden', type === 'income');
+  document.getElementById('income-form').classList.toggle('hidden', type !== 'income');
+  document.getElementById('return-link-wrap').classList.toggle('hidden', type !== 'return');
+  if (type === 'return') populateReturnLink();
+}
+function populateReturnLink() {
+  document.getElementById('f-return-link').innerHTML = '<option value="">No link</option>' + transactions.filter(t=>!t.is_return).slice(0,80).map(t => `<option value="${t.id}">${t.date} — ${esc(t.store || 'Unknown')} — ${fmt(t.total)}</option>`).join('');
+}
+function setSplitMode(mode) {
+  splitMode = mode;
+  document.getElementById('split-quick-btn').classList.toggle('active', mode === 'quick');
+  document.getElementById('split-split-btn').classList.toggle('active', mode === 'split');
+  document.getElementById('split-quick').classList.toggle('hidden', mode !== 'quick');
+  document.getElementById('split-detail').classList.toggle('hidden', mode !== 'split');
+  if (mode === 'split' && !document.getElementById('split-lines').children.length) { addSplitLine(); addSplitLine(); }
+}
+function addSplitLine() {
+  const div = document.createElement('div');
+  div.className = 'split-line';
+  div.innerHTML = `<select class="form-select" data-role="cat" onchange="updateTally()">${CATS.map(c=>`<option value="${c.id}">${c.emoji} ${c.label}</option>`).join('')}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="updateTally()" placeholder="0.00" /><button class="small-btn danger-btn" onclick="this.closest('.split-line').remove();updateTally()">×</button>`;
+  document.getElementById('split-lines').appendChild(div);
+  updateTally();
+}
+function updateTally() {
+  const total = Number(document.getElementById('f-total').value || 0);
+  let alloc = 0;
+  document.querySelectorAll('#split-lines [data-role="amt"]').forEach(el => alloc += Number(el.value || 0));
+  const rem = total - alloc;
+  document.getElementById('tally-alloc').textContent = fmt(alloc);
+  document.getElementById('tally-rem').textContent = `Remaining: ${fmt(Math.abs(rem))}${rem < 0 ? ' over' : ''}`;
+}
+async function saveTransaction() {
+  const date = document.getElementById('f-date').value;
+  const store = document.getElementById('f-store').value.trim();
+  const total = Number(document.getElementById('f-total').value || 0);
+  const msg = document.getElementById('save-msg');
+  if (!date || !Number.isFinite(total) || total <= 0) return showMsg(msg, 'Date and amount greater than 0 required.', true);
+  let splits = [];
+  if (splitMode === 'quick') splits = [{ cat: document.getElementById('f-cat-quick').value, subcat: document.getElementById('f-subcat').value.trim(), amount: total }];
+  else {
+    document.querySelectorAll('#split-lines .split-line').forEach(line => { const amt = Number(line.querySelector('[data-role="amt"]').value || 0); if (amt > 0) splits.push({ cat: line.querySelector('[data-role="cat"]').value, subcat:'', amount: amt }); });
+    const alloc = splits.reduce((s,sp)=>s+sp.amount,0);
+    if (Math.abs(alloc-total) > 0.06) return showMsg(msg, `Split total ${fmt(alloc)} does not match ${fmt(total)}.`, true);
+  }
+  const tx = { id: genId(), date, store, total, splits, payment: document.getElementById('f-payment').value, notes: document.getElementById('f-notes').value.trim(), is_return: txType === 'return', linked_id: txType === 'return' ? document.getElementById('f-return-link').value || null : null, created_at: new Date().toISOString() };
+  transactions.unshift(tx); saveLS(); renderAll(); clearForm(); showMsg(msg, tx.is_return ? 'Return saved.' : 'Transaction saved.');
+  await upsertCloud('finance_transactions', { ...tx, splits });
+}
+function clearForm() { ['f-store','f-total','f-notes','f-subcat'].forEach(id=>document.getElementById(id).value=''); document.getElementById('f-date').value = new Date().toISOString().split('T')[0]; document.getElementById('split-lines').innerHTML=''; setSplitMode('quick'); setTxType('expense'); }
+async function saveIncome() {
+  const date = document.getElementById('fi-date').value, amount = Number(document.getElementById('fi-amount').value || 0), source = document.getElementById('fi-source').value.trim();
+  const msg = document.getElementById('income-msg');
+  if (!date || !Number.isFinite(amount) || amount <= 0) return showMsg(msg, 'Date and amount greater than 0 required.', true);
+  const entry = { id: genId(), date, source, amount, type: document.getElementById('fi-type').value, notes: document.getElementById('fi-notes').value.trim(), created_at: new Date().toISOString() };
+  incomeEntries.unshift(entry); saveLS(); renderAll(); ['fi-source','fi-amount','fi-notes'].forEach(id=>document.getElementById(id).value=''); showMsg(msg, 'Income saved.');
+  await upsertCloud('finance_income', entry);
+}
+function renderRecent() {
+  const el = document.getElementById('recent-list');
+  if (!transactions.length) { el.innerHTML = '<div class="empty">No transactions yet.</div>'; return; }
+  el.innerHTML = transactions.slice(0,5).map(t => `<div class="simple-row"><span>${t.date}</span><strong>${esc(t.store || '—')}</strong><span>${t.is_return ? '-' : ''}${fmt(t.total)}</span></div>`).join('');
+}
+function renderHistory() {
+  const search = (document.getElementById('hist-search')?.value || '').toLowerCase();
+  const cat = document.getElementById('hist-cat')?.value || '';
+  const month = document.getElementById('hist-month')?.value || '';
+  const filtered = transactions.filter(t => (!search || (t.store||'').toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search)) && (!cat || (t.splits||[]).some(s=>s.cat===cat)) && (!month || (t.date||'').startsWith(month)));
+  document.getElementById('hist-summary').textContent = `${filtered.length} transaction${filtered.length !== 1 ? 's' : ''} · ${fmt(netSpent(filtered))} net`;
+  const el = document.getElementById('hist-list');
+  if (!filtered.length) { el.innerHTML = '<div class="empty">No transactions found.</div>'; return; }
+  el.innerHTML = filtered.map(t => `<div class="tx-item"><div><div class="tx-title">${esc(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}</div><div class="tx-sub">${t.date} · ${(t.splits||[]).map(s=>getCat(s.cat).emoji + ' ' + getCat(s.cat).label).join(', ')}</div>${t.notes ? `<div class="tx-sub">${esc(t.notes)}</div>` : ''}</div><div class="tx-right"><strong>${t.is_return ? '-' : ''}${fmt(t.total)}</strong><button class="small-btn danger-btn" onclick="deleteTx('${t.id}')">Delete</button></div></div>`).join('');
+}
+async function deleteTx(id) { if (!confirm('Delete this transaction?')) return; transactions = transactions.filter(t=>t.id!==id); saveLS(); renderAll(); await deleteCloud('finance_transactions', id); }
+function clearHistFilters() { ['hist-search','hist-month'].forEach(id=>document.getElementById(id).value=''); document.getElementById('hist-cat').value=''; renderHistory(); }
+function exportCSV() {
+  const rows = [['Date','Store','Total','Return','Categories','Payment','Notes']];
+  transactions.forEach(t => rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',(t.splits||[]).map(s=>`${getCat(s.cat).label}:${fmt(s.amount)}`).join('; '),t.payment||'',t.notes||'']));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'})); a.download = `finance-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+function renderBudgets() {
+  const now = new Date();
+  const tx = txForMonth(now.getFullYear(), now.getMonth());
+  const spent = netSpent(tx), limit = Number(settings.monthly_limit || 0);
+  document.getElementById('budget-overview').innerHTML = limit ? budgetBar(now.toLocaleDateString('en-US', {month:'long', year:'numeric'}), spent, limit, spent/limit*100) : '<div class="summary-line">Set a monthly limit below.</div>';
+  const input = document.getElementById('budget-input'); if (input && !input.value && limit) input.value = limit;
+  renderCategoryBudgets(tx);
+  const inc = incForMonth(now.getFullYear(), now.getMonth()), totalInc = inc.reduce((s,i)=>s+Number(i.amount||0),0);
+  document.getElementById('income-summary-bar').innerHTML = `<div class="big-money success-text">${fmt(totalInc)}</div>`;
+  document.getElementById('income-list').innerHTML = incomeEntries.slice(0,8).map(i => `<div class="simple-row"><span>${i.date}</span><strong>${esc(i.source || 'Income')}</strong><span>${fmt(i.amount)}</span></div>`).join('') || '<div class="empty">No income logged yet.</div>';
+  renderGoals(); renderHeatmap();
+}
+async function saveBudgetLimit() {
+  const value = Number(document.getElementById('budget-input').value);
+  const msg = document.getElementById('budget-msg');
+  if (!Number.isFinite(value) || value < 0) return showMsg(msg, 'Enter a valid budget amount.', true);
+  settings.monthly_limit = value; saveLS(); renderAll(); showMsg(msg, 'Limit saved.');
+  await upsertCloud('finance_settings', { user_id: currentUser?.id, monthly_limit: settings.monthly_limit, category_budgets: settings.category_budgets });
+}
+function renderCategoryBudgets(monthTx) {
+  const totals = categoryTotals(monthTx);
+  const budgets = settings.category_budgets || {};
+  document.getElementById('category-budget-list').innerHTML = CATS.map(c => {
+    const spent = Math.max(0, totals[c.id] || 0), limit = Number(budgets[c.id] || 0), pct = limit ? spent/limit*100 : 0;
+    return `<div class="cat-budget-row"><div><strong>${c.emoji} ${c.label}</strong>${limit ? budgetBar('', spent, limit, pct) : '<div class="budget-pct">No budget set</div>'}</div><input class="form-input" type="number" step="1" data-cat-budget="${c.id}" value="${limit || ''}" placeholder="0" /></div>`;
+  }).join('');
+}
+async function saveCategoryBudgets() {
+  const budgets = {};
+  document.querySelectorAll('[data-cat-budget]').forEach(el => { const v = Number(el.value || 0); if (Number.isFinite(v) && v > 0) budgets[el.dataset.catBudget] = v; });
+  settings.category_budgets = budgets; saveLS(); renderAll(); showMsg(document.getElementById('cat-budget-msg'), 'Category budgets saved.');
+  await upsertCloud('finance_settings', { user_id: currentUser?.id, monthly_limit: settings.monthly_limit, category_budgets: settings.category_budgets });
+}
+function renderHeatmap() {
+  const year = new Date().getFullYear(); document.getElementById('heatmap-year').textContent = year;
+  const vals = Array.from({length:12}, (_,i)=>Math.max(0, netSpent(txForMonth(year,i)))); const max = Math.max(...vals, 1);
+  document.getElementById('heatmap-grid').innerHTML = vals.map((v,i)=>`<div class="heatmap-cell" title="${i+1}: ${fmt(v)}" style="opacity:${0.25 + (v/max)*0.75}">${new Date(year,i,1).toLocaleDateString('en-US',{month:'short'})}<br>${fmt(v)}</div>`).join('');
+}
+function toggleGoalForm() { goalFormOpen = !goalFormOpen; document.getElementById('goal-form').classList.toggle('hidden', !goalFormOpen); }
+async function saveGoal() {
+  const name = document.getElementById('g-name').value.trim(), target = Number(document.getElementById('g-target').value || 0), current = Number(document.getElementById('g-current').value || 0), date = document.getElementById('g-date').value;
+  const msg = document.getElementById('goal-msg'); if (!name || !Number.isFinite(target) || target <= 0) return showMsg(msg, 'Name and target greater than 0 required.', true);
+  const goal = { id: genId(), name, target, current: Number.isFinite(current) ? current : 0, target_date: date }; goals.push(goal); saveLS(); renderAll(); toggleGoalForm(); showMsg(msg, 'Goal saved.'); await upsertCloud('finance_goals', goal);
+}
+function renderGoals() {
+  const el = document.getElementById('goals-list'); if (!goals.length) { el.innerHTML = '<div class="empty">No goals yet.</div>'; return; }
+  el.innerHTML = goals.map(g => { const pct = Math.min(100, Number(g.current||0)/Number(g.target||1)*100); return `<div class="goal-item"><div class="budget-header"><span>🎯 ${esc(g.name)}</span><span>${fmt(g.current)} / ${fmt(g.target)}</span></div><div class="budget-bar-wrap"><div class="budget-bar blue" style="width:${pct}%"></div></div><div class="btn-row"><button class="small-btn" onclick="updateGoal('${g.id}')">Update</button><button class="small-btn danger-btn" onclick="deleteGoal('${g.id}')">Delete</button></div></div>`; }).join('');
+}
+async function updateGoal(id) { const g = goals.find(x=>x.id===id); if (!g) return; const v = prompt('Saved so far:', g.current); if (v === null) return; g.current = Number(v || 0); saveLS(); renderAll(); await upsertCloud('finance_goals', g); }
+async function deleteGoal(id) { if (!confirm('Delete goal?')) return; goals = goals.filter(g=>g.id!==id); saveLS(); renderAll(); await deleteCloud('finance_goals', id); }
+
+function subMonthly(s) { const a = Number(s.amount || 0); if (s.cycle === 'annual') return a/12; if (s.cycle === 'quarterly') return a/3; if (s.cycle === 'weekly') return a*4.33; return a; }
+function renderSubs() {
+  const monthly = subscriptions.reduce((s,x)=>s+subMonthly(x),0);
+  document.getElementById('sub-monthly').textContent = fmt(monthly); document.getElementById('sub-annual').textContent = fmt(monthly*12);
+  const grid = document.getElementById('sub-grid'); if (!subscriptions.length) { grid.innerHTML = '<div class="empty">No subscriptions yet.</div>'; return; }
+  grid.innerHTML = subscriptions.map(s => { const c = getCat(s.cat); return `<div class="sub-card"><div class="sub-card-name">${esc(s.name)}</div><div class="big-money">${fmt(s.amount)}</div><div class="summary-line">${s.cycle} · ${fmt(subMonthly(s))}/mo</div><div>${c.emoji} ${c.label}</div><div class="btn-row"><button class="small-btn" onclick="editSub('${s.id}')">Edit</button><button class="small-btn danger-btn" onclick="deleteSub('${s.id}')">Delete</button></div></div>`; }).join('');
+}
+async function saveSubscription() {
+  const name = document.getElementById('s-name').value.trim(), amount = Number(document.getElementById('s-amount').value || 0); const msg = document.getElementById('sub-msg');
+  if (!name || !Number.isFinite(amount) || amount <= 0) return showMsg(msg, 'Name and amount greater than 0 required.', true);
+  if (editingSubId) { const s = subscriptions.find(x=>x.id===editingSubId); Object.assign(s, { name, amount, cycle:document.getElementById('s-cycle').value, cat:document.getElementById('s-cat').value, next_date:document.getElementById('s-next').value }); editingSubId = null; await upsertCloud('finance_subscriptions', s); }
+  else { const s = { id: genId(), name, amount, cycle:document.getElementById('s-cycle').value, cat:document.getElementById('s-cat').value, next_date:document.getElementById('s-next').value }; subscriptions.push(s); await upsertCloud('finance_subscriptions', s); }
+  ['s-name','s-amount','s-next'].forEach(id=>document.getElementById(id).value=''); cancelSubEdit(); saveLS(); renderSubs(); showMsg(msg, 'Subscription saved.');
+}
+function editSub(id) { const s = subscriptions.find(x=>x.id===id); if (!s) return; editingSubId = id; document.getElementById('s-name').value=s.name; document.getElementById('s-amount').value=s.amount; document.getElementById('s-cycle').value=s.cycle; document.getElementById('s-cat').value=s.cat; document.getElementById('s-next').value=s.next_date||''; document.getElementById('sub-save-btn').textContent='Update'; document.getElementById('sub-cancel-btn').classList.remove('hidden'); }
+function cancelSubEdit() { editingSubId=null; document.getElementById('sub-save-btn').textContent='Add Subscription'; document.getElementById('sub-cancel-btn').classList.add('hidden'); }
+async function deleteSub(id) { if (!confirm('Remove subscription?')) return; subscriptions = subscriptions.filter(s=>s.id!==id); saveLS(); renderSubs(); await deleteCloud('finance_subscriptions', id); }
+
+function fmt(n) { const v = Number(n || 0); const sign = v < 0 ? '-' : ''; return sign + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+function genId() { return crypto.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function esc(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+function showMsg(el, msg, err=false) { if (!el) return; el.textContent = msg; el.style.color = err ? 'var(--danger)' : 'var(--success)'; setTimeout(()=>{ el.textContent=''; }, 3000); }
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
