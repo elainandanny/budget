@@ -525,6 +525,29 @@ textarea.form-input{height:auto;padding:12px;resize:vertical}
 
   <div class="card">
     <div class="section-header">
+      <h3>Category Budgets</h3>
+      <span class="text-muted" style="font-size:12px;">Optional limits by category</span>
+    </div>
+    <div id="category-budget-list"></div>
+    <hr class="divider"/>
+    <div class="form-row three">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="cat-budget-cat"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Monthly Limit ($)</label>
+        <input class="form-input" type="number" step="1" min="0" id="cat-budget-amount" placeholder="e.g. 500"/>
+      </div>
+      <div class="form-group" style="justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="saveCategoryBudget()" style="align-self:flex-end;">Save Category</button>
+      </div>
+    </div>
+    <div class="save-msg" id="cat-budget-msg"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-header">
       <h3>Income This Month</h3>
       <button class="btn btn-ghost btn-sm" onclick="switchTab('add');setTxType('income')">+ Add Income</button>
     </div>
@@ -568,7 +591,7 @@ textarea.form-input{height:auto;padding:12px;resize:vertical}
   </div>
 
   <div class="card">
-    <div class="card-title">Annual Spending Heatmap — <span id="heatmap-year"></span></div>
+    <div class="card-title">Annual Monthly Spending — <span id="heatmap-year"></span></div>
     <div class="heatmap-grid" id="heatmap-grid"></div>
     <div style="display:flex;justify-content:space-between;margin-top:5px;">
       <span style="font-size:10px;color:var(--muted);">Jan</span>
@@ -699,7 +722,7 @@ const getCat = id => CATS.find(c=>c.id===id) || CATS[CATS.length-1];
 // ══════════════════════════════════════════════════
 let sb=null, currentUser=null;
 let transactions=[], incomeEntries=[], subscriptions=[], goals=[];
-let settings={monthly_limit:0};
+let settings={monthly_limit:0,category_budgets:{}};
 let dashMonth=new Date();
 let splitMode='quick', txType='expense';
 let editingSubId=null;
@@ -797,7 +820,7 @@ function loadLocal(){
     incomeEntries=JSON.parse(localStorage.getItem('ft_inc')||'[]');
     subscriptions=JSON.parse(localStorage.getItem('ft_subs')||'[]');
     goals=JSON.parse(localStorage.getItem('ft_goals')||'[]');
-    settings=JSON.parse(localStorage.getItem('ft_settings')||'{"monthly_limit":0}');
+    settings={monthly_limit:0,category_budgets:{}, ...JSON.parse(localStorage.getItem('ft_settings')||'{"monthly_limit":0,"category_budgets":{}}')};
   }catch(e){}
 }
 
@@ -849,7 +872,7 @@ function setDefaultDates(){
 
 function populateCatDropdowns(){
   const opts=CATS.map(c=>`<option value="${c.id}">${c.emoji} ${c.label}</option>`).join('');
-  ['f-cat-quick','s-cat'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=opts;});
+  ['f-cat-quick','s-cat','cat-budget-cat'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=opts;});
   const hc=document.getElementById('hist-cat');
   if(hc)hc.innerHTML='<option value="">All Categories</option>'+opts;
 }
@@ -1246,8 +1269,7 @@ function exportCSV(){
     const cats=(t.splits||[]).map(s=>`${getCat(s.cat).label}:${t.is_return?'-':''}${fmt(s.amount)}`).join('; ');
     rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',t.linked_id||'',cats,t.payment||'',t.notes||'']);
   });
-  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('
-');
+  const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download=`finance-${new Date().toISOString().slice(0,10)}.csv`;a.click();
@@ -1263,8 +1285,9 @@ function renderBudgets(){
   const limit=parseFloat(settings.monthly_limit||0);
   const el=document.getElementById('budget-overview');
 
-  if(!limit){el.innerHTML='<div class="text-muted" style="font-size:13px;">Set a limit below to track spending.</div>';}
-  else{
+  if(!limit){
+    el.innerHTML='<div class="text-muted" style="font-size:13px;">Set a limit below to track spending.</div>';
+  } else {
     const pct=Math.min(100,(spent/limit)*100);
     const cls=pct>=100?'over':pct>=80?'warn':'';
     el.innerHTML=`<div class="budget-header">
@@ -1274,8 +1297,11 @@ function renderBudgets(){
     <div class="budget-bar-wrap"><div class="budget-bar ${cls}" style="width:${pct.toFixed(1)}%"></div></div>
     <div class="budget-pct">${pct.toFixed(0)}% used · ${limit-spent>=0?fmt(limit-spent)+' remaining':fmt(Math.abs(limit-spent))+' over'}</div>`;
   }
-  if(document.getElementById('budget-input')&&!document.getElementById('budget-input').value&&limit)
-    document.getElementById('budget-input').value=limit;
+
+  const budgetInput=document.getElementById('budget-input');
+  if(budgetInput&&!budgetInput.value&&limit)budgetInput.value=limit;
+
+  renderCategoryBudgets(monthTx);
 
   // Income this month
   const monthInc=incForMonth(now.getFullYear(),now.getMonth());
@@ -1297,10 +1323,85 @@ function renderBudgets(){
   renderHeatmap();
 }
 
+function getCategoryTotals(txArr){
+  const totals={};
+  txArr.forEach(t=>{
+    const sign=t.is_return?-1:1;
+    (t.splits||[]).forEach(s=>{
+      totals[s.cat]=(totals[s.cat]||0)+parseFloat(s.amount||0)*sign;
+    });
+  });
+  return totals;
+}
+
+function renderCategoryBudgets(monthTx){
+  if(!settings.category_budgets)settings.category_budgets={};
+  const list=document.getElementById('category-budget-list');
+  if(!list)return;
+  const budgets=settings.category_budgets||{};
+  const totals=getCategoryTotals(monthTx);
+  const entries=Object.entries(budgets).filter(([,limit])=>parseFloat(limit)>0);
+
+  if(!entries.length){
+    list.innerHTML='<div class="empty-state" style="padding:14px;">No category budgets set yet.</div>';
+    return;
+  }
+
+  list.innerHTML=entries.map(([catId,limit])=>{
+    const cat=getCat(catId);
+    const spent=Math.max(0,parseFloat(totals[catId]||0));
+    const pct=limit>0?Math.min(100,(spent/limit)*100):0;
+    const cls=pct>=100?'over':pct>=80?'warn':'';
+    const remaining=limit-spent;
+    return `<div style="margin-bottom:14px;">
+      <div class="budget-header">
+        <span class="budget-title">${cat.emoji} ${cat.label}</span>
+        <span class="budget-amounts">${fmt(spent)} / ${fmt(limit)}</span>
+      </div>
+      <div class="budget-bar-wrap"><div class="budget-bar ${cls}" style="width:${pct.toFixed(1)}%;background:${cls?'':cat.color}"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);font-family:var(--mono);">
+        <span>${pct.toFixed(0)}% used · ${remaining>=0?fmt(remaining)+' left':fmt(Math.abs(remaining))+' over'}</span>
+        <button class="btn btn-danger btn-sm" style="height:26px;padding:0 8px;" onclick="deleteCategoryBudget('${catId}')">Remove</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function saveBudgetLimit(){
-  settings.monthly_limit=parseFloat(document.getElementById('budget-input').value||0);
+  const msgEl=document.getElementById('budget-msg');
+  const value=parseFloat(document.getElementById('budget-input').value);
+  if(!Number.isFinite(value)||value<0){
+    showMsg(msgEl,'Enter a valid budget amount.',true);
+    return;
+  }
+  settings.monthly_limit=value;
+  if(!settings.category_budgets)settings.category_budgets={};
   await persist('settings',settings);
-  showMsg(document.getElementById('budget-msg'),'Limit saved!');
+  showMsg(msgEl,'Limit saved!');
+  renderAll();
+}
+
+async function saveCategoryBudget(){
+  const msgEl=document.getElementById('cat-budget-msg');
+  const catId=document.getElementById('cat-budget-cat').value;
+  const amount=parseFloat(document.getElementById('cat-budget-amount').value);
+  if(!catId||!Number.isFinite(amount)||amount<0){
+    showMsg(msgEl,'Enter a valid category budget.',true);
+    return;
+  }
+  if(!settings.category_budgets)settings.category_budgets={};
+  if(amount===0)delete settings.category_budgets[catId];
+  else settings.category_budgets[catId]=amount;
+  await persist('settings',settings);
+  document.getElementById('cat-budget-amount').value='';
+  showMsg(msgEl,amount===0?'Category budget removed.':'Category budget saved!');
+  renderAll();
+}
+
+async function deleteCategoryBudget(catId){
+  if(!settings.category_budgets)return;
+  delete settings.category_budgets[catId];
+  await persist('settings',settings);
   renderAll();
 }
 
@@ -1322,7 +1423,8 @@ async function saveGoal(){
   const current=parseFloat(document.getElementById('g-current').value||0);
   const date=document.getElementById('g-date').value;
   const msgEl=document.getElementById('goal-msg');
-  if(!name||!target){showMsg(msgEl,'Name and target required.',true);return;}
+  if(!name||!Number.isFinite(target)||target<=0){showMsg(msgEl,'Name and target greater than 0 required.',true);return;}
+  if(!Number.isFinite(current)||current<0){showMsg(msgEl,'Saved amount must be 0 or more.',true);return;}
   const goal={id:genId(),name,target,current,target_date:date};
   goals.push(goal);
   await persist('goals',goal);
@@ -1566,30 +1668,21 @@ function renderChat(){
 
 function fmtChat(text,role){
   if(role!=='assistant')return esc(text);
-  let t=text.replace(/
-/g,'
-').replace(/
-/g,'
-');
+
+  let t=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
   t=t.replace(/(Summary|Details)\s*:\s*/gi,'');
   t=t.replace(/^[-*_]{3,}\s*$/gm,'');
-  t=t.replace(/([^
-])
-([^
-])/g,'$1
+  t=t.replace(/([^\n])\n([^\n])/g,'$1\n\n$2');
+  t=t.replace(/\n{3,}/g,'\n\n');
 
-$2');
-  t=t.replace(/
-{3,}/g,'
-
-');
-  return t.trim().split(/
-{2,}/).map(block=>{
-    const trimmed=block.trim();if(!trimmed)return'';
-    const lines=trimmed.split('
-');
+  return t.trim().split(/\n{2,}/).map(block=>{
+    const trimmed=block.trim();
+    if(!trimmed)return'';
+    const lines=trimmed.split('\n');
     const isList=lines.length>1&&lines.every(l=>/^\s*([•●\-*]|\d+[.):])/.test(l));
+
     if(isList)return`<ul style="margin:4px 0 8px 16px;display:flex;flex-direction:column;gap:4px;">${lines.map(l=>`<li>${esc(l.replace(/^\s*([•●\-*]|\d+[.):]\s*)/,'').trim()).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(\$[\d,]+(?:\.\d+)?)/g,'<strong style="color:var(--gold)">$1</strong>')}</li>`).join('')}</ul>`;
+
     return`<p>${esc(trimmed).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(\$[\d,]+(?:\.\d+)?)/g,'<strong style="color:var(--gold)">$1</strong>')}</p>`;
   }).join('');
 }
@@ -1597,7 +1690,7 @@ $2');
 // ══════════════════════════════════════════════════
 // UTILS
 // ══════════════════════════════════════════════════
-function fmt(n){const v=parseFloat(n)||0;return'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmt(n){const v=parseFloat(n)||0;const sign=v<0?'-':'';return sign+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function esc(v){return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
 function showMsg(el,msg,isErr=false){if(!el)return;el.textContent=msg;el.className='save-msg'+(isErr?' err':'');if(!isErr)setTimeout(()=>{el.textContent='';},3000);}
