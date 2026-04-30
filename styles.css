@@ -664,3 +664,17 @@ tbody tr:hover td {
 .top-panel.active { display: block; }
 .gas-panel { display: none; }
 .gas-panel.active { display: block; }
+
+/* Finance layout updated to match Gas page structure */
+.finance-shell { display: block; }
+.finance-tabs { margin-bottom: 1rem; }
+.finance-subtab.active { background: var(--surface); color: var(--text); border-color: transparent; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+.finance-filter-grid {
+  grid-template-columns: repeat(4, minmax(0,1fr)) auto;
+}
+.finance-filter-grid .date-range-group { grid-column: 1 / -1; }
+#finance-dashboard-filter-card { margin-bottom: 1rem; }
+@media (max-width: 760px) {
+  .finance-filter-grid { grid-template-columns: 1fr; }
+  .finance-filter-grid .date-range-group { grid-column: auto; }
+}
