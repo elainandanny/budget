@@ -1,789 +1,2390 @@
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Finance + Gas Tracker</title>
+<link rel="stylesheet" href="styles.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-:root {
-  --bg: #f9f8f4;
-  --surface: #ffffff;
-  --surface2: #f2f1ec;
-  --border: rgba(0,0,0,0.1);
-  --text: #1a1a1a;
-  --muted: #666;
-  --hint: #999;
-  --accent: #e8c840;
-  --accent-dark: #1a1a2e;
-  --success: #2eab6f;
-  --danger: #e24b4a;
-  --radius: 10px;
-  --radius-lg: 14px;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111113;
-    --surface: #1c1c1f;
-    --surface2: #26262a;
-    --border: rgba(255,255,255,0.1);
-    --text: #f0efea;
-    --muted: #999;
-    --hint: #666;
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">
+        <svg viewBox="0 0 24 24"><path d="M17 5H3C1.9 5 1 5.9 1 7v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-7 11H4v-2h6v2zm0-4H4v-2h6v2zm0-4H4V6h6v2zm8 2-2-2V5h-2v3l2 2v7.5c0 .83-.67 1.5-1.5 1.5S13 18.33 13 17.5V13H7v-2h8v3h.5c.83 0 1.5.67 1.5 1.5V18c0 2.21-1.79 4-4 4s-4-1.79-4-4v-1h2v1c0 1.1.9 2 2 2s2-.9 2-2v-3.5L18 10z"/></svg>
+      </div>
+      <div>
+        <div class="app-title">Finance + Gas Tracker</div>
+        <div class="app-sub">Finance, gas, and AI insights · private cloud sync login</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="sync-pill" id="sync-status">Checking sync…</span>
+      <button class="small-btn hidden" id="logout-btn" onclick="logout()">Log out</button>
+    </div>
+  </div>
+
+  <div id="auth-view" class="auth-card hidden">
+    <div class="section-title">Log in</div>
+    <div class="banner info-banner">Log in to save and view only your own gas data across browsers and devices.</div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="auth-email" placeholder="you@example.com" />
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="auth-password" placeholder="Password" />
+    </div>
+    <div class="btn-row">
+      <button class="save-btn" onclick="login()">Log in</button>
+      <button class="small-btn" onclick="signup()">Create account</button>
+      <span class="save-msg" id="auth-msg"></span>
+    </div>
+  </div>
+
+  <div id="app-view" class="hidden">
+    <div class="tabs top-tabs">
+      <button class="tab top-tab active" onclick="switchTab('finance')">Finance</button>
+      <button class="tab top-tab" onclick="switchTab('gas')">Gas</button>
+      <button class="tab top-tab" onclick="switchTab('chat')">AI Chat</button>
+    </div>
+
+<div id="tab-finance" class="panel top-panel active">
+      <div class="finance-shell">
+        <div class="tabs finance-tabs">
+          <button class="tab finance-subtab active" type="button" onclick="financeSwitch('dashboard')">Dashboard</button>
+          <button class="tab finance-subtab" type="button" onclick="financeSwitch('add')">Add</button>
+          <button class="tab finance-subtab" type="button" onclick="financeSwitch('history')">History</button>
+          <button class="tab finance-subtab" type="button" onclick="financeSwitch('budgets')">Budgets</button>
+          <button class="tab finance-subtab" type="button" onclick="financeSwitch('subs')">Subscriptions</button>
+        </div>
+
+        <div id="finance-dashboard" class="finance-panel active">
+          <div class="filter-card collapsed" id="finance-dashboard-filter-card">
+            <div class="filter-header">
+              <div class="section-title">Dashboard filters</div>
+              <button class="small-btn filter-toggle" id="finance-filter-toggle-btn" type="button" onclick="toggleFinanceDashboardFilters()">Expand filters</button>
+            </div>
+            <div class="filter-grid finance-filter-grid">
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="fin-filter-category" onchange="financeRenderDashboard()"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Merchant</label>
+                <select class="form-select" id="fin-filter-merchant" onchange="financeRenderDashboard()"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Payment</label>
+                <select class="form-select" id="fin-filter-payment" onchange="financeRenderDashboard()">
+                  <option value="">All payments</option>
+                  <option value="credit">Credit Card</option>
+                  <option value="debit">Debit Card</option>
+                  <option value="cash">Cash</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Type</label>
+                <select class="form-select" id="fin-filter-type" onchange="financeRenderDashboard()">
+                  <option value="">All types</option>
+                  <option value="expense">Expenses only</option>
+                  <option value="return">Returns only</option>
+                </select>
+              </div>
+              <div class="form-group date-range-group">
+                <label class="form-label">Month range</label>
+                <div class="range-grid">
+                  <input class="form-input" type="month" id="fin-filter-month-start" onchange="financeRenderDashboard()" aria-label="Start month" />
+                  <input class="form-input" type="month" id="fin-filter-month-end" onchange="financeRenderDashboard()" aria-label="End month" />
+                </div>
+              </div>
+              <button class="small-btn" type="button" onclick="financeClearDashboardFilters()">Clear filters</button>
+            </div>
+          </div>
+          <div class="finance-month-card">
+            <button class="small-btn" type="button" onclick="financeChangeMonth(-1)">Prev</button>
+            <strong id="finance-month-label"></strong>
+            <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
+            <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
+          </div>
+          <div class="metrics" id="finance-metrics"></div>
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Spending — last 12 months</div><div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div></div>
+            <div class="chart-card"><div class="section-title">By category</div><div class="chart-wrap"><canvas id="finance-chart-category"></canvas></div></div>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Budget progress</div><div id="finance-budget-card"></div></div>
+            <div class="chart-card"><div class="section-title">Smart insights</div><div id="finance-insights"></div></div>
+          </div>
+          <div class="chart-card"><div class="section-title">Category breakdown</div><div class="category-list" id="finance-category-breakdown"></div></div>
+        </div>
+
+        <div id="finance-add" class="finance-panel">
+          <div class="form-card">
+            <div class="section-title">Transaction type</div>
+            <div class="mode-toggle">
+              <button class="mode-btn active" id="fin-mode-expense" type="button" onclick="financeSetTxType('expense')">Expense</button>
+              <button class="mode-btn" id="fin-mode-return" type="button" onclick="financeSetTxType('return')">Return</button>
+              <button class="mode-btn" id="fin-mode-income" type="button" onclick="financeSetTxType('income')">Income</button>
+            </div>
+            <div id="finance-expense-form">
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-date"></div>
+                <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon"><datalist id="finance-store-options"></datalist></div>
+              </div>
+              <div id="finance-return-wrap" class="form-group hidden"><label class="form-label">Link return to original purchase</label><select class="form-select" id="fin-return-link"></select></div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
+                <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
+              </div>
+              <div class="section-title small-title">Category</div>
+              <div class="mode-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
+              <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
+              <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
+              <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
+              <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
+            </div>
+            <div id="finance-income-form" class="hidden">
+              <div class="form-row three">
+                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-income-date"></div>
+                <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="fin-income-source" placeholder="Paycheck, freelance..."></div>
+                <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-income-amount" placeholder="0.00"></div>
+              </div>
+              <div class="form-row"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-income-type"><option value="salary">Salary / Wages</option><option value="freelance">Freelance</option><option value="investment">Investment</option><option value="gift">Gift / Transfer</option><option value="other">Other</option></select></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-income-notes"></div></div>
+              <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveIncome()">Save income</button><span class="save-msg" id="fin-income-msg"></span></div>
+            </div>
+          </div>
+          <div class="chart-card"><div class="section-title">Recently added</div><div id="finance-recent-list"></div></div>
+        </div>
+
+        <div id="finance-history" class="finance-panel">
+          <div class="filter-card">
+            <div class="history-controls finance-history-controls">
+              <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant or note"></div>
+              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
+              <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-history-month" onchange="financeRenderHistory()"></div>
+              <button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Clear</button>
+              <button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button>
+            </div>
+          </div>
+          <div class="summary-line" id="finance-history-summary"></div>
+          <div class="tx-list" id="finance-history-list"></div>
+        </div>
+
+        <div id="finance-budgets" class="finance-panel">
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Monthly spending limit</div><div id="finance-budget-overview"></div><div class="form-row"><div class="form-group"><label class="form-label">Set monthly limit</label><input class="form-input" type="number" step="1" id="fin-budget-input" placeholder="3500"></div><div class="form-group align-end"><button class="save-btn" type="button" onclick="financeSaveBudgetLimit()">Save limit</button></div></div><span class="save-msg" id="fin-budget-msg"></span></div>
+            <div class="chart-card"><div class="section-title">Income this month</div><div id="finance-income-summary-bar"></div><div class="income-list" id="finance-income-list"></div></div>
+          </div>
+          <div class="chart-card"><div class="section-title">Category budgets</div><div class="budget-list" id="finance-category-budgets"></div><button class="save-btn" type="button" onclick="financeSaveCategoryBudgets()">Save category budgets</button><span class="save-msg" id="fin-cat-budget-msg"></span></div>
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
+            <div class="chart-card"><div class="section-title">Annual monthly spending</div><div class="heatmap-grid" id="finance-heatmap-grid"></div></div>
+          </div>
+        </div>
+
+        <div id="finance-subs" class="finance-panel">
+          <div class="sub-total-bar"><div><div class="metric-label">Monthly recurring total</div><div class="big-money" id="finance-sub-monthly">$0.00</div></div><div><div class="metric-label">Annual cost</div><div class="metric-value" id="finance-sub-annual">$0.00</div></div></div>
+          <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
+          <div class="sub-grid" id="finance-sub-grid"></div><div id="finance-sub-creep"></div>
+        </div>
+
+        
+      </div>
+    </div>
+
+<div id="tab-gas" class="panel top-panel">
+      <div class="tabs gas-tabs">
+        <button class="tab gas-subtab active" type="button" onclick="switchGasTab('dashboard')">Dashboard</button>
+        <button class="tab gas-subtab" type="button" onclick="switchGasTab('log')">Add Fill-Up</button>
+        <button class="tab gas-subtab" type="button" onclick="switchGasTab('history')">History</button>
+      </div>
+<div id="gas-dashboard" class="gas-panel active">
+      <div class="filter-card collapsed" id="dashboard-filter-card">
+        <div class="filter-header">
+          <div class="section-title">Dashboard filters</div>
+          <button class="small-btn filter-toggle" id="filter-toggle-btn" onclick="toggleDashboardFilters()">Expand filters</button>
+        </div>
+        <div class="filter-grid">
+          <div class="form-group">
+            <label class="form-label">Brand</label>
+            <select class="form-select" id="filter-brand" onchange="renderAll()"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Station</label>
+            <select class="form-select" id="filter-station" onchange="renderAll()"></select>
+          </div>
+          <div class="form-group date-range-group">
+            <label class="form-label">Month range</label>
+            <div class="range-grid">
+              <input class="form-input" type="month" id="filter-month-start" onchange="renderAll()" aria-label="Start month" />
+              <input class="form-input" type="month" id="filter-month-end" onchange="renderAll()" aria-label="End month" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Chart x-axis</label>
+            <select class="form-select" id="filter-time-view" onchange="renderCharts()">
+              <option value="week">Week</option>
+              <option value="month" selected>Month</option>
+              <option value="year">Year</option>
+            </select>
+          </div>
+          <button class="small-btn" onclick="clearFilters()">Clear filters</button>
+        </div>
+      </div>
+
+      <div class="metrics" id="metrics-row"></div>
+      <div class="chart-card">
+        <div class="section-title">Total spend over time</div>
+        <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
+      </div>
+      <div class="chart-grid three">
+        <div class="chart-card">
+          <div class="section-title">Price per gallon over time</div>
+          <div class="chart-wrap-sm"><canvas id="chart-ppg"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">Gallons by brand</div>
+          <div class="chart-wrap-sm"><canvas id="chart-brands"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">MPG over time</div>
+          <div class="chart-wrap-sm"><canvas id="chart-mpg"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card map-card">
+        <div class="map-title-row">
+          <div class="section-title">Station map</div>
+        </div>
+        <div class="map-controls">
+          <div class="form-group">
+            <label class="form-label">Map brand</label>
+            <select class="form-select" id="map-brand" onchange="selectedMapStation=''; renderStationMap()"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Map station</label>
+            <select class="form-select" id="map-station" onchange="setMapStation(this.value)"></select>
+          </div>
+        </div>
+        <div class="map-stats" id="station-map-stats"></div>
+        <div class="station-map-list" id="station-map-list"></div>
+        <iframe id="station-map" class="station-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div class="station-edit-card collapsed" id="station-edit-card">
+          <div class="station-edit-header">
+            <div class="section-title">Edit station info</div>
+            <button class="small-btn" id="station-edit-toggle-btn" type="button" onclick="toggleStationEdit()">Expand</button>
+          </div>
+          <div class="station-edit-body">
+          <div class="station-edit-grid">
+            <div class="form-group"><label class="form-label">Station to edit</label><select class="form-select" id="edit-station-select" onchange="loadStationEditForm()"></select></div>
+            <div class="form-group"><label class="form-label">Brand</label><input class="form-input" id="edit-station-brand" placeholder="Brand" /></div>
+            <div class="form-group"><label class="form-label">Station name</label><input class="form-input" id="edit-station-name" placeholder="Station" /></div>
+            <div class="form-group"><label class="form-label">Address 1</label><input class="form-input" id="edit-station-address1" placeholder="Address 1" /></div>
+            <div class="form-group"><label class="form-label">City</label><input class="form-input" id="edit-station-city" placeholder="City" /></div>
+            <div class="form-group"><label class="form-label">State</label><input class="form-input" id="edit-station-state" placeholder="State" maxlength="2" /></div>
+            <div class="form-group"><label class="form-label">ZIP</label><input class="form-input" id="edit-station-zip" placeholder="ZIP" /></div>
+          </div>
+          <div class="form-actions">
+            <button class="small-btn" type="button" onclick="saveStationInfoEdit()">Update all matching entries</button>
+            <span class="save-msg" id="station-edit-msg"></span>
+          </div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card calendar-card">
+        <div class="section-title">Fill-up calendar</div>
+        <div class="calendar-head">
+          <button class="small-btn" type="button" onclick="changeCalendarMonth(-1)">Prev</button>
+          <div class="calendar-month-title" id="calendar-month-title"></div>
+          <button class="small-btn" type="button" onclick="changeCalendarMonth(1)">Next</button>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+        <div class="calendar-details" id="calendar-details"></div>
+      </div>
+    </div>
+<div id="gas-log" class="gas-panel">
+      <div class="form-card">
+        <div class="section-title" style="margin-bottom:14px;">Fill-up details</div>
+        <datalist id="brand-options"></datalist>
+        <datalist id="station-options"></datalist>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Brand</label>
+            <input class="form-input" id="f-brand" list="brand-options" placeholder="e.g. BJ's, Shell, Costco" />
+            <select class="form-select quick-select" id="f-brand-picker" onchange="chooseSuggestion('brand', this.value)">
+              <option value="">Select recent brand...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Station</label>
+            <input class="form-input" id="f-station" list="station-options" placeholder="e.g. BJ Route 10" oninput="autofillStationAddress()" onchange="autofillStationAddress()" />
+            <select class="form-select quick-select" id="f-station-picker" onchange="chooseSuggestion('station', this.value)">
+              <option value="">Select recent station...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="f-date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price / gallon ($)</label>
+            <input class="form-input" type="number" step="0.001" id="f-ppg" placeholder="3.499" oninput="calcTotal()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Gallons</label>
+            <input class="form-input" type="number" step="0.001" id="f-gallons" placeholder="12.500" oninput="calcTotal()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Total ($)</label>
+            <input class="form-input" type="number" step="0.01" id="f-total" placeholder="43.74" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Odometer</label>
+            <input class="form-input" type="number" step="1" id="f-odometer" placeholder="Optional" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tank status</label>
+            <label class="full-tank-row"><input type="checkbox" id="f-full-tank" checked /> Full tank</label>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:16px;">Address</div>
+        <div class="address-grid-2">
+          <div class="form-group">
+            <label class="form-label">Address 1</label>
+            <input class="form-input" id="f-address1" placeholder="831 State Route 10" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">City</label>
+            <input class="form-input" id="f-city" placeholder="Whippany" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <input class="form-input" id="f-state" placeholder="NJ" maxlength="2" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">ZIP</label>
+            <input class="form-input" id="f-zip" placeholder="07891" />
+          </div>
+        </div>
+
+        <div class="add-actions-grid">
+          <button class="save-btn" onclick="addEntry()">Save fill-up</button>
+          <button class="small-btn" type="button" onclick="resetAddDetails()">Reset details</button>
+        </div>
+        <div class="btn-row" style="margin-top:10px;"><span class="save-msg" id="save-msg"></span></div>
+      </div>
+    </div>
+<div id="gas-history" class="gas-panel">
+      <div class="filter-card history-filter-card collapsed" id="history-filter-card">
+        <div class="filter-header" style="margin-bottom:12px;">
+          <div class="section-title">History filters</div>
+          <button class="small-btn filter-toggle" id="history-filter-toggle-btn" type="button" onclick="toggleHistoryFilters()">Expand filters</button>
+        </div>
+        <div class="history-controls">
+          <div class="form-group"><label class="form-label">Brand</label><select class="form-select" id="history-brand" onchange="renderHistory()"></select></div>
+          <div class="form-group"><label class="form-label">Station</label><select class="form-select" id="history-station" onchange="renderHistory()"></select></div>
+          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
+          <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="history-sort" onchange="renderHistory()"><option value="date">Date</option><option value="brand">Brand</option><option value="station">Station</option><option value="ppg">$/gal</option><option value="gallons">Gallons</option><option value="total">Total</option><option value="odometer">Odometer</option><option value="mpg">MPG</option></select></div>
+          <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="history-direction" onchange="renderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
+        </div>
+        <div class="history-filter-actions"><button class="small-btn" type="button" onclick="clearHistoryFilters()">Reset history filters</button></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Brand</th>
+              <th>Station</th>
+              <th>$/gal</th>
+              <th>Gallons</th>
+              <th>Total</th>
+              <th>Odometer</th>
+              <th>MPG</th>
+              <th>Address</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <div id="history-empty" class="empty" style="display:none;">No fill-ups yet — add your first one!</div>
+      </div>
+    </div>
+    </div>
+
+<div id="tab-chat" class="panel top-panel">
+      <div class="chart-card chat-card">
+        <div class="section-title">AI assistant</div>
+        <div class="banner info-banner" style="margin:10px 0 12px;">Ask questions about your gas fill-ups, spending, budgets, subscriptions, goals, stations, price trends, MPG, or calendar history. The chat uses your loaded gas and finance data.</div>
+        <div class="chat-window" id="chat-window">
+          <div class="chat-message system">Try: “Which station is cheapest?” or “Where am I overspending?”</div>
+        </div>
+        <div class="chat-hints">
+          <button class="chat-hint" type="button" onclick="useAndSendChatHint('Which brand has my lowest average price per gallon?')">Cheapest gas brand</button>
+          <button class="chat-hint" type="button" onclick="useAndSendChatHint('How much did I spend on gas each month?')">Gas monthly spend</button>
+          <button class="chat-hint" type="button" onclick="useAndSendChatHint('Where am I overspending?')">Finance overspending</button>
+          <button class="chat-hint" type="button" onclick="useAndSendChatHint('What is my biggest spending category this month?')">Top finance category</button>
+          <button class="chat-hint" type="button" onclick="useAndSendChatHint('Compare this month vs last month across finance and gas.')">Compare months</button>
+        </div>
+        <div class="chat-input-row">
+          <textarea class="form-input" id="chat-question" placeholder="Ask about gas, spending, budgets, subscriptions, goals..." onkeydown="handleChatKey(event)"></textarea>
+          <button class="save-btn" id="chat-send-btn" type="button" onclick="askGasAgent()">Send</button>
+        </div>
+        <div class="save-msg" id="chat-msg" style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+
+    <div id="tab-history" class="panel">
+      <div class="filter-card history-filter-card collapsed" id="history-filter-card">
+        <div class="filter-header" style="margin-bottom:12px;">
+          <div class="section-title">History filters</div>
+          <button class="small-btn filter-toggle" id="history-filter-toggle-btn" type="button" onclick="toggleHistoryFilters()">Expand filters</button>
+        </div>
+        <div class="history-controls">
+          <div class="form-group"><label class="form-label">Brand</label><select class="form-select" id="history-brand" onchange="renderHistory()"></select></div>
+          <div class="form-group"><label class="form-label">Station</label><select class="form-select" id="history-station" onchange="renderHistory()"></select></div>
+          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="text" inputmode="numeric" placeholder="mm.dd.yy" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
+          <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="history-sort" onchange="renderHistory()"><option value="date">Date</option><option value="brand">Brand</option><option value="station">Station</option><option value="ppg">$/gal</option><option value="gallons">Gallons</option><option value="total">Total</option><option value="odometer">Odometer</option><option value="mpg">MPG</option></select></div>
+          <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="history-direction" onchange="renderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
+        </div>
+        <div class="history-filter-actions"><button class="small-btn" type="button" onclick="clearHistoryFilters()">Reset history filters</button></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Brand</th>
+              <th>Station</th>
+              <th>$/gal</th>
+              <th>Gallons</th>
+              <th>Total</th>
+              <th>Odometer</th>
+              <th>MPG</th>
+              <th>Address</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+        <div id="history-empty" class="empty" style="display:none;">No fill-ups yet — add your first one!</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'gas-tracker-entries-v5';
+
+// Supabase Dashboard -> Project Settings -> API
+const SUPABASE_URL = 'https://ykedfxitevfpioplirdy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrZWRmeGl0ZXZmcGlvcGxpcmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQ4ODIsImV4cCI6MjA5MzA0MDg4Mn0.EmfBzmig_fkITR2Uw5MPxkjvFTzwlevkTzbUCKgwI5o';
+const GAS_CHAT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gas-chat`;
+
+const supabaseReady =
+  !SUPABASE_URL.includes('PASTE_') &&
+  !SUPABASE_ANON_KEY.includes('REPLACE_') &&
+  window.supabase;
+
+const supabaseClient = supabaseReady
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let currentUser = null;
+let entries = loadLocalEntries();
+let chartSpending;
+let chartPPG;
+let chartBrands;
+let chartMPG;
+let selectedMapStation = "";
+let calendarMonth = new Date();
+let selectedCalendarDate = "";
+let editingId = null;
+let chatMessages = [];
+let chatFollowUps = [];
+
+function loadLocalEntries() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('gas-tracker-entries-v4') || '[]';
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? parsed.map(normalizeEntry).filter(Boolean).sort(sortNewest) : [];
+  } catch {
+    return [];
   }
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
+function saveLocalEntries() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 }
 
-.app {
-  max-width: 980px;
-  margin: 0 auto;
-  padding: 1.5rem 1rem 4rem;
+function sortNewest(a, b) {
+  return String(b.date).localeCompare(String(a.date)) ||
+    String(b.created_at || '').localeCompare(String(a.created_at || ''));
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2rem;
-  gap: 1rem;
-}
+function normalizeEntry(e) {
+  const brand = String(e?.brand || e?.station_brand || '').trim();
+  const station = String(e?.station || '').trim();
+  const date = String(e?.date || '').trim();
+  const ppg = Number(e?.ppg);
+  const gallons = Number(e?.gallons);
+  const total = Number(e?.total);
+  const odometerRaw = e?.odometer ?? e?.mileage ?? '';
+  const odometer = odometerRaw === '' || odometerRaw === null || typeof odometerRaw === 'undefined' ? null : Number(odometerRaw);
+  const full_tank = typeof e?.full_tank === 'undefined' ? true : Boolean(e.full_tank);
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.logo {
-  width: 38px;
-  height: 38px;
-  background: var(--accent-dark);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-
-.logo svg {
-  width: 22px;
-  height: 22px;
-  fill: var(--accent);
-}
-
-.app-title {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.app-sub {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.top-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.sync-pill {
-  font-size: 11px;
-  padding: 4px 9px;
-  border-radius: 20px;
-  background: rgba(46,171,111,0.12);
-  color: var(--success);
-  white-space: nowrap;
-}
-
-.tabs {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 1.5rem;
-  background: var(--surface2);
-  border-radius: var(--radius);
-  padding: 3px;
-}
-
-.tab {
-  flex: 1;
-  padding: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
-  cursor: pointer;
-  border: none;
-  background: none;
-  border-radius: 8px;
-  transition: all 0.15s;
-}
-
-.tab.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-}
-
-.panel { display: none; }
-.panel.active { display: block; }
-
-.banner {
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-size: 13px;
-  margin-bottom: 1rem;
-  line-height: 1.45;
-}
-
-.info-banner {
-  background: rgba(46,171,111,0.08);
-  border: 1px solid rgba(46,171,111,0.2);
-  color: var(--success);
-}
-
-.warning-banner {
-  background: rgba(226,75,74,0.08);
-  border: 1px solid rgba(226,75,74,0.2);
-  color: var(--danger);
-}
-
-.auth-card,
-.chart-card,
-.form-card,
-.filter-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  margin-bottom: 1rem;
-}
-
-.auth-card {
-  max-width: 440px;
-  margin: 3rem auto;
-}
-
-.section-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
-}
-
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-  margin-bottom: 1.5rem;
-}
-
-.metric {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-}
-
-.metric-label {
-  font-size: 11px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-bottom: 6px;
-}
-
-.metric-value {
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.metric-sub {
-  font-size: 11px;
-  color: var(--hint);
-  margin-top: 3px;
-}
-
-.chart-wrap {
-  position: relative;
-  width: 100%;
-  height: 230px;
-}
-
-.chart-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.chart-wrap-sm {
-  position: relative;
-  width: 100%;
-  height: 190px;
-}
-
-.form-row,
-.form-row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.form-row-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.form-row-4 {
-  display: grid;
-  grid-template-columns: 1.4fr 1fr 0.65fr 0.8fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.filter-grid {
-  display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1fr auto;
-  gap: 10px;
-  align-items: end;
-}
-
-@media (max-width: 760px) {
-  .header {
-    align-items: flex-start;
+  if (!brand || !station || !date || Number.isNaN(ppg) || Number.isNaN(gallons) || Number.isNaN(total) || (odometer !== null && Number.isNaN(odometer))) {
+    return null;
   }
 
-  .form-row,
-  .form-row-2,
-  .form-row-3,
-  .form-row-4,
-  .chart-grid,
-  .filter-grid {
-    grid-template-columns: 1fr;
+  return {
+    id: e.id || crypto.randomUUID?.() || String(Date.now()),
+    user_id: e.user_id || '',
+    created_at: e.created_at || '',
+    brand,
+    station,
+    date,
+    ppg,
+    gallons,
+    total,
+    odometer,
+    full_tank,
+    address1: String(e?.address1 || '').trim(),
+    city: String(e?.city || '').trim(),
+    state: String(e?.state || '').trim(),
+    zip: String(e?.zip || '').trim()
+  };
+}
+
+async function init() {
+  setSyncStatus('Checking session…');
+
+  if (!supabaseClient) {
+    showAuthError('Supabase is not configured. Add your anon public key in index.html.');
+    return;
+  }
+
+  const { data } = await supabaseClient.auth.getSession();
+  currentUser = data?.session?.user || null;
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    currentUser = session?.user || null;
+    showCorrectView();
+    if (currentUser) loadEntriesFromCloud();
+  });
+
+  showCorrectView();
+  if (currentUser) await loadEntriesFromCloud();
+}
+
+function showCorrectView() {
+  const loggedIn = Boolean(currentUser);
+  document.getElementById('auth-view').classList.toggle('hidden', loggedIn);
+  document.getElementById('app-view').classList.toggle('hidden', !loggedIn);
+  document.getElementById('logout-btn').classList.toggle('hidden', !loggedIn);
+  setSyncStatus(loggedIn ? 'Cloud sync on' : 'Logged out');
+
+  if (loggedIn) {
   }
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+function setSyncStatus(text) {
+  document.getElementById('sync-status').textContent = text;
 }
 
-.form-label {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 500;
+function showAuthMessage(message, isError = false) {
+  const el = document.getElementById('auth-msg');
+  el.textContent = message;
+  el.style.color = isError ? 'var(--danger)' : 'var(--success)';
 }
 
-.form-input,
-.form-select {
-  padding: 9px 11px;
-  font-size: 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface2);
-  color: var(--text);
-  font-family: inherit;
-  transition: border-color 0.15s;
-  width: 100%;
+function showAuthError(message) {
+  document.getElementById('auth-view').classList.remove('hidden');
+  document.getElementById('app-view').classList.add('hidden');
+  showAuthMessage(message, true);
+  setSyncStatus('Setup needed');
 }
 
-.form-input:focus,
-.form-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(232,200,64,0.15);
-}
+async function signup() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
 
-.btn-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.save-btn,
-.small-btn {
-  padding: 10px 20px;
-  background: var(--accent);
-  color: var(--accent-dark);
-  border: none;
-  border-radius: var(--radius);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.small-btn {
-  padding: 8px 12px;
-  font-size: 12px;
-  background: var(--surface2);
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-
-.small-btn:hover,
-.save-btn:hover {
-  opacity: 0.9;
-}
-
-.save-msg {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.table-wrap {
-  overflow-x: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  min-width: 940px;
-}
-
-thead th {
-  text-align: left;
-  padding: 10px 12px;
-  color: var(--muted);
-  font-weight: 500;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-
-tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-
-tbody tr:last-child td {
-  border-bottom: none;
-}
-
-tbody tr:hover td {
-  background: var(--surface2);
-}
-
-.table-input {
-  width: 100%;
-  min-width: 90px;
-  padding: 7px 8px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12px;
-}
-
-.table-actions {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.icon-btn {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 6px 8px;
-  border-radius: 7px;
-}
-
-.icon-btn:hover {
-  border-color: var(--accent);
-  color: var(--text);
-}
-
-.danger:hover {
-  background: rgba(226,75,74,0.1);
-  color: var(--danger);
-  border-color: rgba(226,75,74,0.25);
-}
-
-.empty {
-  text-align: center;
-  padding: 2.5rem;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.hidden {
-  display: none !important;
-}
-/* =========================================================
-   Added styles for combined Gas + Finance app
-   Source visual system remains the older Gas Tracker theme above.
-   ========================================================= */
-
-/* Layout helpers used by the combined app */
-.form-row.three { grid-template-columns: repeat(3, 1fr); }
-.span-2 { grid-column: span 2; }
-.align-end { justify-content: flex-end; }
-.full { width: 100%; }
-.small-title { margin-top: 12px; }
-.big-money { font-size: 24px; font-weight: 700; color: var(--text); }
-.success-text { color: var(--success) !important; }
-.danger-text { color: var(--danger) !important; }
-.badge {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  background: rgba(46,171,111,0.08);
-  border: 1px solid rgba(46,171,111,0.2);
-  color: var(--success);
-  font-size: 10px;
-  padding: 2px 7px;
-  font-weight: 700;
-}
-
-/* Gas app inline layout rules moved from the old HTML into CSS */
-.filter-card.collapsed .filter-grid { display: none; }
-.history-filter-card.collapsed .history-controls,
-.history-filter-card.collapsed .history-filter-actions { display: none; }
-.filter-card .filter-header,
-.station-edit-header,
-.chart-title-row,
-.map-title-row,
-.finance-head,
-.budget-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-.filter-card .filter-toggle { white-space: nowrap; }
-.range-grid {
-  display: grid;
-  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
-  gap: 14px;
-  width: 100%;
-}
-.form-grid-2,
-.address-grid-2,
-.station-edit-grid {
-  display: grid;
-  grid-template-columns: repeat(2,minmax(0,1fr));
-  column-gap: 18px;
-  row-gap: 12px;
-  align-items: start;
-}
-.form-grid-2 .form-group,
-.address-grid-2 .form-group,
-.range-grid .form-input { min-width: 0 !important; overflow: hidden; }
-.form-grid-2 .form-input,
-.address-grid-2 .form-input,
-.range-grid .form-input { width: 100% !important; max-width: 100%; min-width: 0 !important; box-sizing: border-box; }
-.form-grid-2 input[type="date"] { -webkit-appearance: none; appearance: none; display: block; font-size: 14px; padding-left: 6px; padding-right: 6px; text-align: center; min-width: 0; overflow: hidden; }
-.quick-select { margin-top: 8px; }
-.chart-controls,
-.map-controls,
-.history-controls {
-  display: grid;
-  grid-template-columns: repeat(2,minmax(0,1fr));
-  gap: 10px;
-  margin-top: 12px;
-}
-.history-controls { margin: 0 0 14px; }
-.inline-control { max-width: 180px; }
-.map-stats { margin-top: 10px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
-.map-stat { border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: var(--surface2); }
-.map-stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.map-stat-value { font-weight: 700; font-size: 15px; margin-top: 3px; }
-.history-filter-card { margin-bottom: 14px; }
-.map-card { margin-top: 16px; }
-.station-map-frame { width: 100%; height: 280px; border: 0; border-radius: 16px; background: rgba(0,0,0,0.04); margin-top: 14px; }
-.station-map-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.station-chip { border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 999px; padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
-.station-chip.active { background: var(--accent); color: var(--accent-dark); border-color: var(--accent); }
-.station-edit-card { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
-.station-edit-card.collapsed .station-edit-body { display: none; }
-.station-edit-card.collapsed .station-edit-header { margin-bottom: 0; }
-.form-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
-.full-tank-row { display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 0 4px; color: var(--muted); font-size: 14px; }
-.full-tank-row input { width: 18px; height: 18px; }
-.add-actions-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; margin-top: 18px; align-items: center; }
-.add-actions-grid .save-btn,
-.add-actions-grid .small-btn { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; }
-.date-range-group { grid-column: 1 / -1; width: 100%; min-width: 0; overflow: hidden; }
-.date-range-group .range-grid { display: flex !important; flex-direction: row !important; gap: 12px !important; width: 100% !important; max-width: 100% !important; min-width: 0 !important; overflow: hidden !important; box-sizing: border-box !important; }
-.date-range-group .range-grid .form-input { flex: 1 1 0 !important; width: 0 !important; min-width: 0 !important; max-width: none !important; height: 42px !important; box-sizing: border-box !important; text-align: center !important; overflow: hidden !important; -webkit-appearance: none; appearance: none; }
-.chart-grid.three { grid-template-columns: repeat(3,minmax(0,1fr)); }
-
-/* Calendar */
-.calendar-card { margin-top: 16px; }
-.calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; }
-.calendar-month-title { font-weight: 700; font-size: 16px; }
-.calendar-nav { display: flex; gap: 8px; }
-.calendar-grid { display: grid; grid-template-columns: repeat(7,minmax(0,1fr)); gap: 6px; }
-.calendar-weekday { text-align: center; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 4px 0; }
-.calendar-day { border: 1px solid var(--border); background: var(--surface2); color: var(--text); border-radius: 12px; min-height: 48px; padding: 6px; font: inherit; text-align: left; position: relative; cursor: pointer; }
-.calendar-day.muted { opacity: .35; }
-.calendar-day.has-fill { background: rgba(232,200,64,0.32); border-color: rgba(232,200,64,0.75); font-weight: 700; }
-.calendar-day.selected { outline: 2px solid var(--accent); }
-.calendar-dot { position: absolute; right: 6px; bottom: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.calendar-details { margin-top: 12px; display: grid; gap: 8px; }
-.calendar-entry { border: 1px solid var(--border); border-radius: 14px; padding: 10px; background: var(--surface2); }
-.calendar-entry-title { font-weight: 700; }
-.calendar-entry-sub { color: var(--muted); font-size: 13px; margin-top: 3px; }
-
-/* Chat */
-.chat-card { margin-top: 16px; }
-.chat-window { min-height: 320px; max-height: 52vh; overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface2); }
-.chat-bubble-wrap { display: flex; flex-direction: column; gap: 3px; }
-.chat-bubble-wrap.user { align-items: flex-end; }
-.chat-bubble-wrap.assistant { align-items: flex-start; }
-.chat-bubble-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 4px; }
-.chat-bubble-wrap.user .chat-bubble-label { color: #a08800; }
-.chat-message { max-width: 88%; border-radius: 16px; padding: 10px 12px; line-height: 1.45; white-space: pre-wrap; }
-.chat-message.user { align-self: flex-end; background: var(--accent); color: var(--accent-dark); }
-.chat-message.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); }
-.chat-message.system { align-self: center; max-width: 100%; color: var(--muted); background: transparent; font-size: 13px; text-align: center; }
-.chat-message.assistant { word-break: normal; overflow-wrap: anywhere; }
-.chat-message.assistant p { margin: 0 0 8px; line-height: 1.55; }
-.chat-message.assistant p:last-child { margin-bottom: 0; }
-.chat-message.assistant ul { margin: 4px 0 8px 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
-.chat-message.assistant li { line-height: 1.5; }
-.chat-message.assistant p.ai-label { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 10px 0 2px; }
-.chat-message.assistant p.ai-label:first-child { margin-top: 0; }
-.chat-message.assistant code { background: rgba(0,0,0,0.07); border-radius: 4px; padding: 1px 5px; font-size: .88em; font-family: monospace; }
-.chat-message.assistant .ai-num { font-weight: 700; color: #5a4400; }
-.chat-input-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 10px; margin-top: 12px; align-items: end; }
-.chat-input-row textarea { min-height: 58px; resize: vertical; }
-.chat-hints { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.chat-hint,
-.chat-followup { border: 1px solid var(--border); border-radius: 999px; background: var(--surface2); color: var(--text); padding: 8px 10px; font: inherit; font-size: 13px; cursor: pointer; }
-.chat-followups { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.chat-followup { border-color: rgba(232,200,64,0.5); background: rgba(232,200,64,0.12); color: #6b5800; transition: background .15s; }
-.chat-followup:hover { background: rgba(232,200,64,0.28); }
-.chat-thinking { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; }
-.chat-thinking span { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .35; animation: chatDot 1.2s infinite ease-in-out; }
-.chat-thinking span:nth-child(2) { animation-delay: .2s; }
-.chat-thinking span:nth-child(3) { animation-delay: .4s; }
-@keyframes chatDot { 0%,80%,100%{opacity:.2;transform:scale(.85)} 40%{opacity:.9;transform:scale(1.15)} }
-
-/* Finance tracker additions styled to match old Gas UI */
-.finance-panel { display: none; }
-.finance-panel.active { display: block; }
-.finance-head { flex-wrap: wrap; margin-bottom: 12px; }
-.finance-title { font-size: 18px; font-weight: 700; margin-top: 4px; }
-.finance-subtabs { display: flex; flex-wrap: wrap; gap: 8px; }
-.finance-subtab.active { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); }
-.finance-month-card { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; margin-bottom: 16px; }
-.finance-history-controls { grid-template-columns: repeat(3,minmax(0,1fr)) auto auto !important; }
-.mode-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
-.mode-btn { flex: 1; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
-.mode-btn.active { background: rgba(232,200,64,0.18); border-color: var(--accent); color: var(--text); }
-.summary-line { font-size: 13px; color: var(--muted); margin: 8px 0 12px; }
-.budget-header { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
-.budget-bar-wrap { height: 10px; background: var(--surface2); border-radius: 999px; overflow: hidden; margin-bottom: 5px; border: 1px solid var(--border); }
-.budget-bar { height: 100%; background: var(--accent); border-radius: 999px; transition: width .25s; }
-.budget-bar.warn { background: #e09940; }
-.budget-bar.over { background: var(--danger); }
-.budget-bar.blue { background: #4a90d9; }
-.budget-pct { font-size: 12px; color: var(--muted); }
-.category-list { display: grid; gap: 10px; }
-.category-row { display: grid; grid-template-columns: auto minmax(120px,1fr) 2fr auto; gap: 10px; align-items: center; font-size: 13px; }
-.cat-bar-wrap { height: 7px; background: var(--surface2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border); }
-.cat-bar { height: 100%; border-radius: 999px; }
-.simple-row { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-.tx-list { display: grid; gap: 9px; }
-.tx-item { display: flex; justify-content: space-between; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; }
-.tx-title { font-weight: 700; }
-.tx-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
-.tx-right { text-align: right; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
-.split-tally { display: flex; justify-content: space-between; gap: 12px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
-.split-lines { display: grid; gap: 8px; margin-bottom: 10px; }
-.split-line { display: grid; grid-template-columns: minmax(0,1fr) 130px 44px; gap: 8px; }
-.budget-list { display: grid; gap: 12px; margin-bottom: 14px; }
-.cat-budget-row { display: grid; grid-template-columns: minmax(0,1fr) 130px; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface2); }
-.income-list { display: grid; gap: 4px; }
-.goal-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
-.goal-item { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 10px; background: var(--surface2); }
-.heatmap-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
-.heatmap-cell { background: var(--accent); color: var(--accent-dark); border-radius: var(--radius-lg); padding: 12px; text-align: center; font-size: 12px; font-weight: 700; }
-.sub-total-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; }
-.sub-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(230px,1fr)); gap: 12px; }
-.sub-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
-.sub-card-name { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
-.insight { padding: 12px 13px; background: rgba(232,200,64,0.12); border: 1px solid rgba(232,200,64,0.32); border-radius: var(--radius-lg); margin-bottom: 8px; font-size: 13px; }
-
-@media (max-width: 900px) {
-  .chart-grid.three { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 760px) {
-  .form-row.three,
-  .form-grid-2,
-  .address-grid-2,
-  .station-edit-grid,
-  .chart-controls,
-  .map-controls,
-  .history-controls,
-  .finance-history-controls,
-  .cat-budget-row {
-    grid-template-columns: 1fr !important;
-  }
-  .span-2 { grid-column: auto; }
-  .range-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
-  .date-range-group .range-grid .form-input { font-size: 12px !important; padding-left: 2px; padding-right: 2px; }
-  .add-actions-grid { gap: 14px !important; row-gap: 18px !important; margin-top: 22px; }
-  .map-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .map-stat:last-child { grid-column: 1 / -1; }
-  .calendar-day { min-height: 42px; padding: 5px; border-radius: 10px; }
-  .station-map-frame { height: 240px; }
-  .chat-input-row { grid-template-columns: 1fr; }
-  .chat-message { max-width: 96%; }
-  .chat-bubble-wrap { max-width: 96%; }
-  .category-row { grid-template-columns: auto 1fr auto; }
-  .cat-bar-wrap { grid-column: 2 / -1; }
-  .split-line { grid-template-columns: 1fr 110px 44px; }
-  .simple-row { grid-template-columns: 1fr auto; }
-  .tx-item { flex-direction: column; }
-  .tx-right { text-align: left; align-items: flex-start; }
-  .sub-total-bar { align-items: flex-start; gap: 14px; flex-direction: column; }
-}
-
-/* Top-level / nested tab layout */
-.top-tabs { margin-bottom: 1.25rem; }
-.gas-tabs { margin-bottom: 1rem; }
-.top-panel { display: none; }
-.top-panel.active { display: block; }
-.gas-panel { display: none; }
-.gas-panel.active { display: block; }
-
-/* Finance layout updated to match Gas page structure */
-.finance-shell { display: block; }
-.finance-tabs { margin-bottom: 1rem; }
-.finance-subtab.active { background: var(--surface); color: var(--text); border-color: transparent; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
-.finance-filter-grid {
-  grid-template-columns: repeat(4, minmax(0,1fr)) auto;
-}
-.finance-filter-grid .date-range-group { grid-column: 1 / -1; }
-#finance-dashboard-filter-card { margin-bottom: 1rem; }
-@media (max-width: 760px) {
-  .finance-filter-grid { grid-template-columns: 1fr; }
-  .finance-filter-grid .date-range-group { grid-column: auto; }
-}
-
-/* Finance toggle pills updated to match Gas tab design */
-.mode-toggle {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 1.5rem;
-  background: var(--surface2);
-  border-radius: var(--radius);
-  padding: 3px;
-}
-.mode-btn {
-  flex: 1;
-  padding: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
-  cursor: pointer;
-  border: none;
-  background: none;
-  border-radius: 8px;
-  transition: all 0.15s;
-  font-family: inherit;
-}
-.mode-btn.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
-}
-.mode-btn:hover {
-  color: var(--text);
-}
-.tx-title .badge { margin-left: 6px; }
-
-/* Global pill containment and no-spill fixes */
-.tabs,
-.mode-toggle,
-.chat-hints,
-.chat-followups,
-.station-map-list,
-.btn-row {
-  max-width: 100%;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.tabs,
-.mode-toggle {
-  display: flex;
-  flex-wrap: nowrap;
-}
-
-.tab,
-.mode-btn,
-.chat-hint,
-.chat-followup,
-.station-chip,
-.save-btn,
-.small-btn {
-  min-width: 0;
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tab,
-.mode-btn {
-  flex: 1 1 0;
-}
-
-.chat-hints,
-.chat-followups,
-.station-map-list,
-.btn-row {
-  overflow: visible;
-  flex-wrap: wrap;
-}
-
-.chat-hint,
-.chat-followup,
-.station-chip {
-  flex: 0 1 auto;
-}
-
-@media (max-width: 640px) {
-  .tabs,
-  .mode-toggle {
-    gap: 3px;
-    padding: 3px;
+  if (!email || !password) {
+    showAuthMessage('Enter email and password.', true);
+    return;
   }
 
-  .tab,
-  .mode-btn {
-    font-size: 12px;
-    padding-left: 4px;
-    padding-right: 4px;
-  }
-
-  .finance-tabs .tab,
-  .gas-tabs .tab {
-    font-size: 12px;
-  }
-
-  .chat-hint,
-  .chat-followup,
-  .station-chip {
-    max-width: 100%;
+  const { error } = await supabaseClient.auth.signUp({ email, password });
+  if (error) {
+    showAuthMessage(error.message, true);
+  } else {
+    showAuthMessage('Account created. Check your email if confirmation is enabled.');
   }
 }
+
+async function login() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+
+  if (!email || !password) {
+    showAuthMessage('Enter email and password.', true);
+    return;
+  }
+
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    showAuthMessage(error.message, true);
+  } else {
+    showAuthMessage('');
+  }
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  entries = [];
+  saveLocalEntries();
+  renderAll();
+}
+
+async function loadEntriesFromCloud() {
+  if (!currentUser) return;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('gas_entries')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    entries = (data || []).map(normalizeEntry).filter(Boolean).sort(sortNewest);
+    saveLocalEntries();
+    renderAll();
+  } catch (err) {
+    console.error('Supabase load failed:', err);
+    const syncBanner = document.getElementById('sync-banner');
+    if (syncBanner) {
+      syncBanner.className = 'banner warning-banner';
+      syncBanner.textContent = 'Could not load from Supabase. Check the SQL schema and policies.';
+    }
+    renderAll();
+  }
+}
+
+async function saveEntryToCloud(entry) {
+  const { error } = await supabaseClient.from('gas_entries').insert({
+    user_id: currentUser.id,
+    brand: entry.brand,
+    station: entry.station,
+    date: entry.date,
+    ppg: entry.ppg,
+    gallons: entry.gallons,
+    total: entry.total,
+    odometer: entry.odometer,
+    full_tank: entry.full_tank,
+    address1: entry.address1,
+    city: entry.city,
+    state: entry.state,
+    zip: entry.zip
+  });
+
+  if (error) throw error;
+}
+
+async function updateEntryInCloud(entry) {
+  const { error } = await supabaseClient.from('gas_entries').update({
+    brand: entry.brand,
+    station: entry.station,
+    date: entry.date,
+    ppg: entry.ppg,
+    gallons: entry.gallons,
+    total: entry.total,
+    odometer: entry.odometer,
+    full_tank: entry.full_tank,
+    address1: entry.address1,
+    city: entry.city,
+    state: entry.state,
+    zip: entry.zip
+  }).eq('id', entry.id);
+
+  if (error) throw error;
+}
+
+async function updateEntriesStationInfoInCloud(ids, stationInfo) {
+  for (const id of ids) {
+    const { error } = await supabaseClient.from('gas_entries').update({
+      brand: stationInfo.brand,
+      station: stationInfo.station,
+      address1: stationInfo.address1,
+      city: stationInfo.city,
+      state: stationInfo.state,
+      zip: stationInfo.zip
+    }).eq('id', id);
+    if (error) throw error;
+  }
+}
+
+async function deleteEntryFromCloud(id) {
+  const { error } = await supabaseClient.from('gas_entries').delete().eq('id', id);
+  if (error) throw error;
+}
+
+function switchTab(name) {
+  const names = ['finance', 'gas', 'chat'];
+  document.querySelectorAll('.top-tab').forEach((tab, i) => tab.classList.toggle('active', names[i] === name));
+  document.querySelectorAll('.top-panel').forEach(panel => panel.classList.remove('active'));
+  document.getElementById('tab-' + name)?.classList.add('active');
+
+  if (name === 'finance') { financeRenderAll(); }
+  if (name === 'gas') { renderAll(); renderCharts(); renderStationMap(); renderCalendar(); }
+  if (name === 'chat') { renderChatMessages(); }
+}
+
+function switchGasTab(name) {
+  const names = ['dashboard', 'log', 'history'];
+  document.querySelectorAll('.gas-subtab').forEach((tab, i) => tab.classList.toggle('active', names[i] === name));
+  document.querySelectorAll('.gas-panel').forEach(panel => panel.classList.remove('active'));
+  document.getElementById('gas-' + name)?.classList.add('active');
+
+  if (name === 'dashboard') { renderCharts(); renderStationMap(); renderCalendar(); }
+  if (name === 'history') { renderHistory(); }
+}
+
+function calcTotal(prefix = 'f') {
+  const p = parseFloat(document.getElementById(`${prefix}-ppg`).value);
+  const g = parseFloat(document.getElementById(`${prefix}-gallons`).value);
+
+  if (!Number.isNaN(p) && !Number.isNaN(g)) {
+    document.getElementById(`${prefix}-total`).value = (p * g).toFixed(2);
+  }
+}
+
+async function addEntry() {
+  const entry = readFormEntry('f');
+
+  if (!entry) {
+    showMsg('Please fill in brand, station, date, price, gallons, and total.', true);
+    return;
+  }
+
+  entry.id = crypto.randomUUID?.() || String(Date.now());
+
+  try {
+    await saveEntryToCloud(entry);
+    await loadEntriesFromCloud();
+    clearAddForm();
+    showMsg('Saved!');
+  } catch (err) {
+    console.error('Save failed:', err);
+    showMsg('Could not save. Check Supabase schema and policies.', true);
+  }
+}
+
+function readFormEntry(prefix, existingId = null) {
+  const brand = document.getElementById(`${prefix}-brand`).value.trim();
+  const station = document.getElementById(`${prefix}-station`).value.trim();
+  const date = normalizeDateValue(document.getElementById(`${prefix}-date`).value);
+  const ppg = parseFloat(document.getElementById(`${prefix}-ppg`).value);
+  const gallons = parseFloat(document.getElementById(`${prefix}-gallons`).value);
+  const total = parseFloat(document.getElementById(`${prefix}-total`).value);
+  const odometerEl = document.getElementById(`${prefix}-odometer`);
+  const fullTankEl = document.getElementById(`${prefix}-full-tank`);
+  const odometerValue = odometerEl ? odometerEl.value.trim() : '';
+  const odometer = odometerValue ? parseFloat(odometerValue) : null;
+  const full_tank = fullTankEl ? Boolean(fullTankEl.checked) : true;
+  const address1 = document.getElementById(`${prefix}-address1`).value.trim();
+  const city = document.getElementById(`${prefix}-city`).value.trim();
+  const state = document.getElementById(`${prefix}-state`).value.trim().toUpperCase();
+  const zip = document.getElementById(`${prefix}-zip`).value.trim();
+
+  if (!brand || !station || !date || Number.isNaN(ppg) || Number.isNaN(gallons) || Number.isNaN(total) || (odometer !== null && Number.isNaN(odometer))) {
+    return null;
+  }
+
+  return { id: existingId, brand, station, date, ppg, gallons, total, odometer, full_tank, address1, city, state, zip };
+}
+
+function clearAddForm() {
+  ['f-brand', 'f-station', 'f-ppg', 'f-gallons', 'f-total', 'f-odometer', 'f-address1', 'f-city', 'f-state', 'f-zip']
+    .forEach(id => document.getElementById(id).value = '');
+  ['f-brand-picker', 'f-station-picker'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  const fullTank = document.getElementById('f-full-tank'); if (fullTank) fullTank.checked = true;
+  
+function looksFinanceQuestion(question) {
+  const q = String(question || '').toLowerCase();
+  return /finance|budget|budgets|purchase|purchases|transaction|transactions|merchant|merchant|grocer|groceries|dining|income|subscription|subscriptions|goal|goals|saving|savings|overspend|category|categories/.test(q);
+}
+
+function handleUnifiedChatKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    askUnifiedAI();
+  }
+}
+
+async function askUnifiedAI() {
+  const input = document.getElementById('chat-question');
+  const btn = document.getElementById('chat-send-btn');
+  const msg = document.getElementById('chat-msg');
+  const q = (input?.value || '').trim();
+  if (!q) return;
+
+  if (looksFinanceQuestion(q)) {
+    appendChat('user', q);
+    input.value = '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Thinking...'; }
+    if (msg) msg.textContent = '';
+    chatFollowUps = [];
+    chatMessages.push({ role: 'assistant', content: financeLocalAnswer(q) });
+    renderChatMessages();
+    if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
+    return;
+  }
+
+  return askGasAgent();
+}
+
+document.getElementById('f-date').value = dateForInput(new Date().toISOString().split('T')[0]);
+}
+
+function resetAddDetails() {
+  clearAddForm();
+  showMsg('Details reset.');
+}
+
+function chooseSuggestion(type, value) {
+  if (!value) return;
+  if (type === 'brand') {
+    document.getElementById('f-brand').value = value;
+  } else if (type === 'station') {
+    document.getElementById('f-station').value = value;
+    autofillStationAddress();
+  }
+}
+
+function showMsg(msg, err = false) {
+  const el = document.getElementById('save-msg');
+  el.textContent = msg;
+  el.style.color = err ? 'var(--danger)' : 'var(--success)';
+  setTimeout(() => { el.textContent = ''; }, 3000);
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Delete this fill-up?')) return;
+
+  try {
+    await deleteEntryFromCloud(id);
+    await loadEntriesFromCloud();
+  } catch (err) {
+    console.error('Delete failed:', err);
+    alert('Could not delete from Supabase.');
+  }
+}
+
+function startEdit(id) {
+  editingId = id;
+  renderHistory();
+}
+
+function cancelEdit() {
+  editingId = null;
+  renderHistory();
+}
+
+async function saveEdit(id) {
+  const edited = readFormEntry('e', id);
+
+  if (!edited) {
+    alert('Please fill in all required fields.');
+    return;
+  }
+
+  try {
+    await updateEntryInCloud(edited);
+    editingId = null;
+    await loadEntriesFromCloud();
+  } catch (err) {
+    console.error('Update failed:', err);
+    alert('Could not update entry.');
+  }
+}
+
+function getSelectedMonthRange() {
+  const start = document.getElementById('filter-month-start')?.value || '';
+  const end = document.getElementById('filter-month-end')?.value || '';
+  return { start: start && end && start > end ? end : start, end: start && end && start > end ? start : end };
+}
+
+function getFilteredEntries() {
+  const brand = document.getElementById('filter-brand')?.value || '';
+  const station = document.getElementById('filter-station')?.value || '';
+  const { start, end } = getSelectedMonthRange();
+
+  return entries.filter(e => {
+    const entryMonth = e.date.slice(0, 7);
+    return (!brand || e.brand === brand) &&
+      (!station || e.station === station) &&
+      (!start || entryMonth >= start) &&
+      (!end || entryMonth <= end);
+  });
+}
+
+function clearFilters() {
+  document.getElementById('filter-brand').value = '';
+  document.getElementById('filter-station').value = '';
+  document.getElementById('filter-month-start').value = '';
+  document.getElementById('filter-month-end').value = '';
+  document.getElementById('filter-time-view').value = 'month';
+  selectedMapStation = '';
+  renderAll();
+}
+
+function toggleDashboardFilters() {
+  const card = document.getElementById('dashboard-filter-card');
+  const btn = document.getElementById('filter-toggle-btn');
+  const collapsed = card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Expand filters' : 'Hide filters';
+}
+
+function toggleHistoryFilters() {
+  const card = document.getElementById('history-filter-card');
+  const btn = document.getElementById('history-filter-toggle-btn');
+  if (!card || !btn) return;
+  const collapsed = card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Expand filters' : 'Hide filters';
+}
+
+function toggleStationEdit() {
+  const card = document.getElementById('station-edit-card');
+  const btn = document.getElementById('station-edit-toggle-btn');
+  if (!card || !btn) return;
+  const collapsed = card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Expand' : 'Collapse';
+}
+
+function renderAll() {
+  renderSuggestions();
+  renderFilters();
+  renderHistoryFilterOptions();
+  renderMetrics();
+  renderHistory();
+  renderCharts();
+  renderStationMap();
+  renderStationEditOptions();
+  renderCalendar();
+  if (document.getElementById('finance-dashboard')) financeRenderAll();
+}
+
+function uniqueByRecent(key) {
+  const seen = new Set();
+
+  return [...entries]
+    .sort(sortNewest)
+    .map(e => e[key])
+    .filter(v => {
+      const value = String(v || '').trim();
+      if (!value || seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
+}
+
+function latestStationMap() {
+  const map = new Map();
+
+  [...entries].sort(sortNewest).forEach(e => {
+    if (!map.has(e.station)) map.set(e.station, e);
+  });
+
+  return map;
+}
+
+
+function getStationRecord(stationName) {
+  return latestStationMap().get(stationName) || null;
+}
+
+function renderStationEditOptions() {
+  const select = document.getElementById('edit-station-select');
+  if (!select) return;
+  const current = select.value || selectedMapStation || '';
+  const stations = uniqueByRecent('station');
+  select.innerHTML = '<option value="">Select station...</option>' + stations.map(v => '<option value="' + escapeHtml(v) + '">' + escapeHtml(v) + '</option>').join('');
+  if (stations.includes(current)) select.value = current;
+  loadStationEditForm(false);
+}
+
+function loadStationEditForm(showEmpty = true) {
+  const stationName = document.getElementById('edit-station-select')?.value || '';
+  const record = getStationRecord(stationName);
+  const fields = {
+    'edit-station-brand': record?.brand || '',
+    'edit-station-name': record?.station || '',
+    'edit-station-address1': record?.address1 || '',
+    'edit-station-city': record?.city || '',
+    'edit-station-state': record?.state || '',
+    'edit-station-zip': record?.zip || ''
+  };
+  Object.entries(fields).forEach(([id, value]) => { const el = document.getElementById(id); if (el) el.value = value; });
+  if (showEmpty && !record) showStationEditMsg('Select a station to edit.', true);
+}
+
+function showStationEditMsg(message, isError = false) {
+  const el = document.getElementById('station-edit-msg');
+  if (!el) return;
+  el.textContent = message;
+  el.style.color = isError ? 'var(--danger)' : 'var(--success)';
+  setTimeout(() => { el.textContent = ''; }, 3500);
+}
+
+async function saveStationInfoEdit() {
+  const oldStation = document.getElementById('edit-station-select')?.value || '';
+  if (!oldStation) { showStationEditMsg('Select a station first.', true); return; }
+
+  const stationInfo = {
+    brand: document.getElementById('edit-station-brand').value.trim(),
+    station: document.getElementById('edit-station-name').value.trim(),
+    address1: document.getElementById('edit-station-address1').value.trim(),
+    city: document.getElementById('edit-station-city').value.trim(),
+    state: document.getElementById('edit-station-state').value.trim().toUpperCase(),
+    zip: document.getElementById('edit-station-zip').value.trim()
+  };
+
+  if (!stationInfo.brand || !stationInfo.station) {
+    showStationEditMsg('Brand and station name are required.', true);
+    return;
+  }
+
+  const matching = entries.filter(e => e.station === oldStation);
+  if (!matching.length) { showStationEditMsg('No matching entries found.', true); return; }
+  if (!confirm('Update ' + matching.length + ' previous gas entr' + (matching.length === 1 ? 'y' : 'ies') + ' for ' + oldStation + '?')) return;
+
+  try {
+    await updateEntriesStationInfoInCloud(matching.map(e => e.id), stationInfo);
+    await loadEntriesFromCloud();
+    selectedMapStation = stationInfo.station;
+    renderAll();
+    const select = document.getElementById('edit-station-select');
+    if (select) select.value = stationInfo.station;
+    showStationEditMsg('Updated ' + matching.length + ' entr' + (matching.length === 1 ? 'y' : 'ies') + '.');
+  } catch (err) {
+    console.error('Station update failed:', err);
+    showStationEditMsg('Could not update station info.', true);
+  }
+}
+
+function renderSuggestions() {
+  document.getElementById('brand-options').innerHTML =
+    uniqueByRecent('brand').map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+
+  document.getElementById('station-options').innerHTML =
+    uniqueByRecent('station').map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+
+  const brandPicker = document.getElementById('f-brand-picker');
+  const stationPicker = document.getElementById('f-station-picker');
+  if (brandPicker) brandPicker.innerHTML = '<option value="">Select recent brand...</option>' +
+    uniqueByRecent('brand').map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if (stationPicker) stationPicker.innerHTML = '<option value="">Select recent station...</option>' +
+    uniqueByRecent('station').map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+}
+
+function renderFilters() {
+  const brandEl = document.getElementById('filter-brand');
+  const stationEl = document.getElementById('filter-station');
+  const currentBrand = brandEl.value;
+  const currentStation = stationEl.value;
+
+  brandEl.innerHTML =
+    '<option value="">All brands</option>' +
+    uniqueByRecent('brand').map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+  stationEl.innerHTML =
+    '<option value="">All stations</option>' +
+    uniqueByRecent('station').map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+  brandEl.value = currentBrand;
+  stationEl.value = currentStation;
+}
+
+function autofillStationAddress() {
+  const station = document.getElementById('f-station').value.trim();
+  const match = latestStationMap().get(station);
+
+  if (!match) return;
+
+  if (!document.getElementById('f-brand').value) document.getElementById('f-brand').value = match.brand;
+  document.getElementById('f-address1').value = match.address1 || '';
+  document.getElementById('f-city').value = match.city || '';
+  document.getElementById('f-state').value = match.state || '';
+  document.getElementById('f-zip').value = match.zip || '';
+}
+
+function renderMetrics() {
+  const data = getFilteredEntries();
+  const el = document.getElementById('metrics-row');
+
+  if (!data.length) {
+    el.innerHTML = '<div class="metric"><div class="metric-label">No matching data</div><div class="metric-value" style="font-size:15px;">Try another filter</div></div>';
+    return;
+  }
+
+  const totalSpend = data.reduce((sum, e) => sum + e.total, 0);
+  const avgPPG = data.reduce((sum, e) => sum + e.ppg, 0) / data.length;
+  const totalGal = data.reduce((sum, e) => sum + e.gallons, 0);
+  const mpgValues = calculateMpgSeries(data).map(item => item.mpg).filter(v => Number.isFinite(v));
+  const avgMpg = mpgValues.length ? mpgValues.reduce((sum, v) => sum + v, 0) / mpgValues.length : null;
+
+  el.innerHTML = `
+    <div class="metric"><div class="metric-label">Total spent</div><div class="metric-value">$${totalSpend.toFixed(2)}</div><div class="metric-sub">${data.length} fill-up${data.length !== 1 ? 's' : ''}</div></div>
+    <div class="metric"><div class="metric-label">Avg price / gal</div><div class="metric-value">$${avgPPG.toFixed(3)}</div></div>
+    <div class="metric"><div class="metric-label">Total gallons</div><div class="metric-value">${totalGal.toFixed(1)}</div></div>
+    <div class="metric"><div class="metric-label">Avg MPG</div><div class="metric-value">${avgMpg ? avgMpg.toFixed(1) : '-'}</div></div>
+  `;
+}
+
+function renderHistoryFilterOptions() {
+  const brandEl = document.getElementById('history-brand');
+  const stationEl = document.getElementById('history-station');
+  if (!brandEl || !stationEl) return;
+  const currentBrand = brandEl.value;
+  const currentStation = stationEl.value;
+  brandEl.innerHTML = '<option value="">All brands</option>' + uniqueByRecent('brand').map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  stationEl.innerHTML = '<option value="">All stations</option>' + uniqueByRecent('station').map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  brandEl.value = currentBrand;
+  stationEl.value = currentStation;
+}
+
+function clearHistoryFilters() {
+  ['history-brand', 'history-station', 'history-date-start', 'history-date-end'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  document.getElementById('history-sort').value = 'date';
+  document.getElementById('history-direction').value = 'desc';
+  renderHistory();
+}
+
+function getHistoryEntries() {
+  const brand = document.getElementById('history-brand')?.value || '';
+  const station = document.getElementById('history-station')?.value || '';
+  const start = normalizeDateValue(document.getElementById('history-date-start')?.value || '');
+  const end = normalizeDateValue(document.getElementById('history-date-end')?.value || '');
+  const sort = document.getElementById('history-sort')?.value || 'date';
+  const direction = document.getElementById('history-direction')?.value || 'desc';
+  const data = entries.filter(e => (!brand || e.brand === brand) && (!station || e.station === station) && (!start || e.date >= start) && (!end || e.date <= end));
+  const sorted = [...data].sort((a, b) => {
+    let av = a[sort];
+    let bv = b[sort];
+    if (sort === 'mpg') { av = calculateMpgForEntry(a); bv = calculateMpgForEntry(b); }
+    if (['ppg', 'gallons', 'total', 'odometer', 'mpg'].includes(sort)) return (Number.isFinite(Number(av)) ? Number(av) : -Infinity) - (Number.isFinite(Number(bv)) ? Number(bv) : -Infinity);
+    return String(av || '').localeCompare(String(bv || ''));
+  });
+  return direction === 'desc' ? sorted.reverse() : sorted;
+}
+
+function renderHistory() {
+  const tbody = document.getElementById('history-body');
+  const empty = document.getElementById('history-empty');
+
+  const historyData = getHistoryEntries();
+  if (!historyData.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = entries.length ? 'No entries match these history filters.' : 'No fill-ups yet — add your first one!';
+    return;
+  }
+
+  empty.style.display = 'none';
+  tbody.innerHTML = historyData.map(e => String(e.id) === String(editingId) ? editRow(e) : displayRow(e)).join('');
+}
+
+function fullAddress(e) {
+  return [e.address1, e.city, e.state, e.zip].filter(Boolean).join(', ');
+}
+
+function formatDateShort(value) {
+  const text = String(value || '');
+  const m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[2]}.${m[3]}.${m[1].slice(2)}`;
+  const m2 = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2}|\d{4})$/);
+  if (m2) {
+    const mm = String(m2[1]).padStart(2, '0');
+    const dd = String(m2[2]).padStart(2, '0');
+    const yy = String(m2[3]).slice(-2);
+    return `${mm}.${dd}.${yy}`;
+  }
+  return text;
+}
+
+function normalizeDateValue(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const m = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2}|\d{4})$/);
+  if (!m) return text;
+  const mm = String(m[1]).padStart(2, '0');
+  const dd = String(m[2]).padStart(2, '0');
+  const y = String(m[3]);
+  const yyyy = y.length === 2 ? `20${y}` : y;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function dateForInput(value) {
+  return formatDateShort(value);
+}
+
+function displayRow(e) {
+  return `
+    <tr>
+      <td>${escapeHtml(formatDateShort(e.date))}</td>
+      <td>${escapeHtml(e.brand)}</td>
+      <td>${escapeHtml(e.station)}</td>
+      <td>$${e.ppg.toFixed(3)}</td>
+      <td>${e.gallons.toFixed(3)}</td>
+      <td>${e.total.toFixed(2)}</td>
+      <td>${e.odometer === null || typeof e.odometer === 'undefined' ? '-' : Number(e.odometer).toLocaleString()}</td>
+      <td>${formatMpg(calculateMpgForEntry(e))}</td>
+      <td>${escapeHtml(fullAddress(e))}</td>
+      <td><div class="table-actions"><button class="icon-btn" onclick="startEdit('${e.id}')">Edit</button><button class="icon-btn danger" onclick="deleteEntry('${e.id}')">Delete</button></div></td>
+    </tr>
+  `;
+}
+
+function editRow(e) {
+  return `
+    <tr>
+      <td><input class="table-input" id="e-date" type="text" inputmode="numeric" placeholder="mm.dd.yy" value="${escapeHtml(formatDateShort(e.date))}"></td>
+      <td><input class="table-input" id="e-brand" list="brand-options" value="${escapeHtml(e.brand)}"></td>
+      <td><input class="table-input" id="e-station" list="station-options" value="${escapeHtml(e.station)}"></td>
+      <td><input class="table-input" id="e-ppg" type="number" step="0.001" value="${e.ppg}" oninput="calcTotal('e')"></td>
+      <td><input class="table-input" id="e-gallons" type="number" step="0.001" value="${e.gallons}" oninput="calcTotal('e')"></td>
+      <td><input class="table-input" id="e-total" type="number" step="0.01" value="${e.total}"></td>
+      <td><input class="table-input" id="e-odometer" type="number" step="1" value="${e.odometer ?? ''}"><label style="display:block;margin-top:4px;font-size:11px;"><input id="e-full-tank" type="checkbox" ${e.full_tank ? 'checked' : ''}> Full</label></td>
+      <td>${formatMpg(calculateMpgForEntry(e))}</td>
+      <td>
+        <input class="table-input" id="e-address1" value="${escapeHtml(e.address1)}" placeholder="Address 1" style="margin-bottom:4px;">
+        <input class="table-input" id="e-city" value="${escapeHtml(e.city)}" placeholder="City" style="margin-bottom:4px;">
+        <input class="table-input" id="e-state" value="${escapeHtml(e.state)}" placeholder="State" maxlength="2" style="margin-bottom:4px;">
+        <input class="table-input" id="e-zip" value="${escapeHtml(e.zip)}" placeholder="ZIP">
+      </td>
+      <td><div class="table-actions"><button class="icon-btn" onclick="saveEdit('${e.id}')">Save</button><button class="icon-btn" onclick="cancelEdit()">Cancel</button></div></td>
+    </tr>
+  `;
+}
+
+
+function parseLocalDate(dateString) {
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day || 1);
+}
+
+function monthKey(dateString) {
+  return dateString.slice(0, 7);
+}
+
+function weekKey(dateString) {
+  const date = parseLocalDate(dateString);
+  const day = date.getDay();
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - ((day + 6) % 7));
+  return monday.toISOString().slice(0, 10);
+}
+
+function monthLabel(key) {
+  const [year, month] = key.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+}
+
+function weekLabel(key) {
+  const start = parseLocalDate(key);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}–${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
+
+function monthsBetween(start, end) {
+  if (!start || !end) return Infinity;
+  const [sy, sm] = start.split('-').map(Number);
+  const [ey, em] = end.split('-').map(Number);
+  return (ey - sy) * 12 + (em - sm) + 1;
+}
+
+function yearKey(dateString) {
+  return dateString.slice(0, 4);
+}
+
+function yearLabel(key) {
+  return key;
+}
+
+function getTimeBucket(dateString) {
+  const view = document.getElementById('filter-time-view')?.value || 'month';
+  if (view === 'week') {
+    const key = weekKey(dateString);
+    return { key, label: weekLabel(key) };
+  }
+  if (view === 'year') {
+    const key = yearKey(dateString);
+    return { key, label: yearLabel(key) };
+  }
+  const key = monthKey(dateString);
+  return { key, label: monthLabel(key) };
+}
+
+function groupByTime(data) {
+  const buckets = new Map();
+  data.forEach(e => {
+    const bucket = getTimeBucket(e.date);
+    if (!buckets.has(bucket.key)) buckets.set(bucket.key, { key: bucket.key, label: bucket.label, total: 0, ppgWeighted: 0, gallons: 0 });
+    const item = buckets.get(bucket.key);
+    item.total += e.total;
+    item.gallons += e.gallons;
+    item.ppgWeighted += e.ppg * e.gallons;
+  });
+
+  return [...buckets.values()].sort((a, b) => a.key.localeCompare(b.key)).map(item => ({
+    ...item,
+    total: Number(item.total.toFixed(2)),
+    avgPpg: item.gallons ? Number((item.ppgWeighted / item.gallons).toFixed(3)) : 0
+  }));
+}
+
+
+function stationMapQuery(e) {
+  const address = fullAddress(e);
+  return [e.station, e.brand, address].filter(Boolean).join(', ');
+}
+
+function setMapStation(station) {
+  selectedMapStation = station;
+  renderStationMap();
+}
+
+function renderStationMap() {
+  const iframe = document.getElementById('station-map');
+  const list = document.getElementById('station-map-list');
+  const stats = document.getElementById('station-map-stats');
+  const brandSelect = document.getElementById('map-brand');
+  const stationSelect = document.getElementById('map-station');
+  if (!iframe || !list || !brandSelect || !stationSelect) return;
+
+  const filtered = getFilteredEntries();
+  const currentBrand = brandSelect.value;
+  const brands = uniqueValues(filtered, 'brand');
+  brandSelect.innerHTML = '<option value="">All brands</option>' + brands.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if (brands.includes(currentBrand)) brandSelect.value = currentBrand;
+
+  const brandForMap = brandSelect.value;
+  const mapData = filtered.filter(e => !brandForMap || e.brand === brandForMap);
+  const stationNames = uniqueValues(mapData, 'station');
+  stationSelect.innerHTML = '<option value="">Select station...</option>' + stationNames.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  if (stationNames.includes(selectedMapStation)) stationSelect.value = selectedMapStation;
+
+  const data = mapData.filter(e => e.station || fullAddress(e));
+  if (!data.length) {
+    iframe.removeAttribute('src');
+    list.innerHTML = '<span class="metric-sub">Choose a brand or add a station address to see it on the map.</span>';
+    if (stats) stats.innerHTML = '';
+    return;
+  }
+
+  const uniqueStations = [];
+  const seen = new Set();
+  [...data].sort(sortNewest).forEach(e => {
+    const key = e.station || fullAddress(e);
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueStations.push(e);
+    }
+  });
+
+  const selected = uniqueStations.find(e => e.station === selectedMapStation) || uniqueStations[0];
+  selectedMapStation = selected.station;
+  stationSelect.value = selectedMapStation;
+  const editSelect = document.getElementById('edit-station-select');
+  if (editSelect && !editSelect.value) { editSelect.value = selectedMapStation; loadStationEditForm(false); }
+  iframe.src = `https://www.google.com/maps?q=${encodeURIComponent(stationMapQuery(selected))}&output=embed`;
+
+  const selectedVisits = mapData.filter(e => e.station === selectedMapStation);
+  const selectedBrandVisits = selected.brand ? filtered.filter(e => e.brand === selected.brand) : [];
+  const lastVisit = [...selectedVisits].sort(sortNewest)[0];
+  const totalSpent = selectedVisits.reduce((sum, e) => sum + e.total, 0);
+  if (stats) {
+    stats.innerHTML = `
+      <div class="map-stat"><div class="map-stat-label">Brand visits</div><div class="map-stat-value">${selectedBrandVisits.length}</div></div>
+      <div class="map-stat"><div class="map-stat-label">Station visits</div><div class="map-stat-value">${selectedVisits.length}</div></div>
+      <div class="map-stat"><div class="map-stat-label">Last / spent</div><div class="map-stat-value">${escapeHtml(formatDateShort(lastVisit?.date || '-'))} · $${totalSpent.toFixed(2)}</div></div>
+    `;
+  }
+
+  list.innerHTML = uniqueStations.map(e => `
+    <button class="station-chip ${e.station === selectedMapStation ? 'active' : ''}" type="button" onclick="setMapStation('${escapeJs(e.station)}')">
+      ${escapeHtml(e.station || e.brand || 'Station')}
+    </button>
+  `).join('');
+}
+
+function uniqueValues(data, key) {
+  const seen = new Set();
+  return [...data].sort(sortNewest).map(e => String(e[key] || '').trim()).filter(v => {
+    if (!v || seen.has(v)) return false;
+    seen.add(v);
+    return true;
+  });
+}
+
+
+function toDateKey(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function changeCalendarMonth(delta) {
+  calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + delta, 1);
+  selectedCalendarDate = '';
+  renderCalendar();
+}
+
+function selectCalendarDate(dateKey) {
+  selectedCalendarDate = dateKey;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const title = document.getElementById('calendar-month-title');
+  const grid = document.getElementById('calendar-grid');
+  const details = document.getElementById('calendar-details');
+  if (!title || !grid || !details) return;
+
+  const data = getFilteredEntries();
+  if (!data.length) {
+    title.textContent = 'No fill-ups';
+    grid.innerHTML = '';
+    details.innerHTML = '<div class="metric-sub">Add a fill-up or adjust filters to see calendar entries.</div>';
+    return;
+  }
+
+  if (!calendarMonth || Number.isNaN(calendarMonth.getTime())) {
+    const latest = [...data].sort(sortNewest)[0];
+    calendarMonth = latest?.date ? new Date(latest.date + 'T00:00:00') : new Date();
+  }
+
+  const y = calendarMonth.getFullYear();
+  const m = calendarMonth.getMonth();
+  title.textContent = calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  const byDate = new Map();
+  data.forEach(e => {
+    if (!byDate.has(e.date)) byDate.set(e.date, []);
+    byDate.get(e.date).push(e);
+  });
+
+  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const first = new Date(y, m, 1);
+  const start = new Date(y, m, 1 - first.getDay());
+  const cells = [];
+  weekdays.forEach(w => cells.push(`<div class="calendar-weekday">${w}</div>`));
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const key = toDateKey(d);
+    const hasFill = byDate.has(key);
+    const muted = d.getMonth() !== m;
+    const selected = selectedCalendarDate === key;
+    cells.push(`
+      <button class="calendar-day ${muted ? 'muted' : ''} ${hasFill ? 'has-fill' : ''} ${selected ? 'selected' : ''}" type="button" onclick="selectCalendarDate('${key}')">
+        ${d.getDate()}${hasFill ? '<span class="calendar-dot"></span>' : ''}
+      </button>
+    `);
+  }
+  grid.innerHTML = cells.join('');
+
+  const monthPrefix = `${y}-${String(m + 1).padStart(2, '0')}`;
+  const defaultDate = selectedCalendarDate || [...byDate.keys()].filter(k => k.startsWith(monthPrefix)).sort().pop() || '';
+  const selectedEntries = byDate.get(defaultDate) || [];
+  if (!selectedEntries.length) {
+    details.innerHTML = '<div class="metric-sub">Tap a shaded day to see fill-up details.</div>';
+    return;
+  }
+  details.innerHTML = selectedEntries.sort(sortNewest).map(e => `
+    <div class="calendar-entry">
+      <div class="calendar-entry-title">${escapeHtml(e.brand)} · ${escapeHtml(e.station)}</div>
+      <div class="calendar-entry-sub">${escapeHtml(formatDateShort(e.date))} · $${e.total.toFixed(2)} · ${e.gallons.toFixed(3)} gal · ${e.ppg.toFixed(3)}/gal</div>
+      ${e.odometer ? `<div class="calendar-entry-sub">Odometer: ${Number(e.odometer).toLocaleString()} · MPG: ${formatMpg(calculateMpgForEntry(e))}</div>` : ''}
+      ${fullAddress(e) ? `<div class="calendar-entry-sub">${escapeHtml(fullAddress(e))}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+
+function sortedByDateAsc(data = entries) {
+  return [...data].sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.created_at || '').localeCompare(String(b.created_at || '')));
+}
+
+function calculateMpgSeries(data = entries) {
+  const results = [];
+  let lastFull = null;
+  let gallonsSinceLastFull = 0;
+  sortedByDateAsc(data).forEach(e => {
+    if (e.odometer === null || typeof e.odometer === 'undefined' || Number.isNaN(Number(e.odometer))) return;
+    gallonsSinceLastFull += Number(e.gallons) || 0;
+    if (e.full_tank) {
+      if (lastFull) {
+        const miles = Number(e.odometer) - Number(lastFull.odometer);
+        if (miles > 0 && gallonsSinceLastFull > 0) {
+          results.push({ id: e.id, date: e.date, mpg: miles / gallonsSinceLastFull, miles, gallons: gallonsSinceLastFull });
+        }
+      }
+      lastFull = e;
+      gallonsSinceLastFull = 0;
+    }
+  });
+  return results;
+}
+
+function calculateMpgForEntry(entry) {
+  const match = calculateMpgSeries(entries).find(item => String(item.id) === String(entry.id));
+  return match ? match.mpg : null;
+}
+
+function formatMpg(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toFixed(1) : '-';
+}
+
+function groupMpgByTime(data) {
+  const view = document.getElementById('filter-time-view')?.value || 'month';
+  const groups = new Map();
+  calculateMpgSeries(data).forEach(item => {
+    const bucket = getTimeBucket(item.date);
+    if (!groups.has(bucket.key)) groups.set(bucket.key, { key: bucket.key, label: bucket.label, weighted: 0, gallons: 0 });
+    const g = groups.get(bucket.key);
+    g.weighted += item.mpg * item.gallons;
+    g.gallons += item.gallons;
+  });
+  return [...groups.values()].sort((a,b) => a.key.localeCompare(b.key)).map(g => ({ ...g, mpg: g.gallons ? Number((g.weighted / g.gallons).toFixed(1)) : null }));
+}
+
+function renderCharts() {
+  if (chartSpending) chartSpending.destroy();
+  if (chartPPG) chartPPG.destroy();
+  if (chartBrands) chartBrands.destroy();
+  if (chartMPG) chartMPG.destroy();
+
+  const data = getFilteredEntries();
+  if (!data.length) return;
+
+  const grouped = groupByTime(data);
+  const labels = grouped.map(item => item.label);
+  const totals = grouped.map(item => item.total);
+  const ppgs = grouped.map(item => item.avgPpg);
+
+  const brandMap = {};
+  data.forEach(e => {
+    brandMap[e.brand] = (brandMap[e.brand] || 0) + e.gallons;
+  });
+
+  const brandLabels = Object.keys(brandMap);
+  const brandData = brandLabels.map(k => Number(brandMap[k].toFixed(2)));
+
+  const dark = matchMedia('(prefers-color-scheme:dark)').matches;
+  const grid = dark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+  const tick = dark ? '#999' : '#777';
+
+  const base = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: grid }, ticks: { color: tick, font: { size: 11 }, autoSkip: true, maxTicksLimit: 8 } },
+      y: { grid: { color: grid }, ticks: { color: tick, font: { size: 11 } }, beginAtZero: false }
+    }
+  };
+
+  chartSpending = new Chart(document.getElementById('chart-spending'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: totals, backgroundColor: 'rgba(232,200,64,0.75)', borderColor: '#e8c840', borderWidth: 1 }] },
+    options: { ...base, scales: { ...base.scales, y: { ...base.scales.y, ticks: { ...base.scales.y.ticks, callback: v => '$' + v } } } }
+  });
+
+  chartPPG = new Chart(document.getElementById('chart-ppg'), {
+    type: 'line',
+    data: { labels, datasets: [{ data: ppgs, borderColor: '#e8c840', backgroundColor: 'rgba(232,200,64,0.1)', tension: 0.3, pointRadius: 4, fill: true }] },
+    options: { ...base, scales: { ...base.scales, y: { ...base.scales.y, ticks: { ...base.scales.y.ticks, callback: v => '$' + Number(v).toFixed(2) } } } }
+  });
+
+  const palette = ['#e8c840', '#1a6eb5', '#e05a2b', '#2eab6f', '#9b5de5', '#f4845f'];
+
+  chartBrands = new Chart(document.getElementById('chart-brands'), {
+    type: 'doughnut',
+    data: { labels: brandLabels, datasets: [{ data: brandData, backgroundColor: brandLabels.map((_, i) => palette[i % palette.length]), borderWidth: 2, borderColor: dark ? '#1c1c1f' : '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: tick, font: { size: 11 }, boxWidth: 10, padding: 8 } } } }
+  });
+
+  const mpgGrouped = groupMpgByTime(data);
+  const mpgCanvas = document.getElementById('chart-mpg');
+  if (mpgCanvas) {
+    chartMPG = new Chart(mpgCanvas, {
+      type: 'line',
+      data: { labels: mpgGrouped.map(i => i.label), datasets: [{ data: mpgGrouped.map(i => i.mpg), borderColor: '#1a6eb5', backgroundColor: 'rgba(26,110,181,0.1)', tension: 0.3, pointRadius: 4, fill: true }] },
+      options: { ...base, scales: { ...base.scales, y: { ...base.scales.y, ticks: { ...base.scales.y.ticks, callback: v => Number(v).toFixed(1) + ' mpg' } } } }
+    });
+  }
+}
+
+
+function escapeJs(value) {
+  return String(value ?? '')
+    .replaceAll('\\', '\\\\')
+    .replaceAll("'", "\\'")
+    .replaceAll('\n', ' ')
+    .replaceAll('\r', ' ');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+
+function useChatHint(text) {
+  const input = document.getElementById('chat-question');
+  if (!input) return;
+  input.value = text;
+  input.focus();
+}
+
+function useAndSendChatHint(text) {
+  const input = document.getElementById('chat-question');
+  if (!input) return;
+  input.value = text;
+  askGasAgent();
+}
+
+function handleChatKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    askGasAgent();
+  }
+}
+
+function appendChat(role, content) {
+  chatMessages.push({ role, content });
+  renderChatMessages();
+}
+
+function formatAIContent(content, role = 'assistant') {
+  const raw = String(content || '');
+  if (role !== 'assistant') return escapeHtml(raw);
+  if (!raw.trim()) return '';
+
+  // ── 1. Normalise line endings ──────────────────────────────────────────────
+  let text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // ── 2. Strip "Summary:" / "Details:" labels and related cruft ─────────────
+  // Remove lines that are just "Summary:", "Details:", "Summary", "Details"
+  text = text.replace(/^(Summary|Details)\s*:\s*/gim, '');
+  // Remove inline occurrences like "Summary:You spent..." → "You spent..."
+  text = text.replace(/(Summary|Details)\s*:\s*/gi, '');
+  // Remove horizontal rules
+  text = text.replace(/^[-*_]{3,}\s*$/gm, '');
+  // Treat single newlines as paragraph breaks (normalize to double newline)
+  text = text.replace(/([^\n])\n([^\n])/g, '$1\n\n$2');
+  // Collapse 3+ newlines to 2
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // ── 3. Split into blocks (paragraphs / list runs) ──────────────────────────
+  const rawBlocks = text.trim().split(/\n{2,}/);
+  const htmlParts = [];
+
+  for (const block of rawBlocks) {
+    const trimmed = block.trim();
+    if (!trimmed) continue;
+
+    // Detect if this block is entirely list lines (-, *, •, numbers)
+    const lines = trimmed.split('\n');
+    const isListBlock = lines.length > 1 && lines.every(l => /^\s*([•●▪◦\-*]|\d+[.):])\s/.test(l));
+
+    if (isListBlock) {
+      const items = lines.map(l => {
+        const itemText = l.replace(/^\s*([•●▪◦\-*]|\d+[.):])\s*/, '').trim();
+        return `<li>${inlineFormat(itemText)}</li>`;
+      }).join('');
+      htmlParts.push(`<ul>${items}</ul>`);
+      continue;
+    }
+
+    // Detect a heading-style line: short (≤60 chars), ends without sentence punct,
+    // followed by more content — treat as a subtle label, not a loud header
+    if (lines.length === 1 && /^[A-Z*#]/.test(trimmed)) {
+      // Strip markdown heading markers and bold markers
+      const cleaned = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '').replace(/:/g, '').trim();
+      // Only treat as a label if it's short and looks like a heading (no mid-sentence punctuation)
+      if (cleaned.length <= 55 && !/[.!?]/.test(cleaned)) {
+        htmlParts.push(`<p class="ai-label">${escapeHtml(cleaned)}</p>`);
+        continue;
+      }
+    }
+
+    // Mixed block: may have some bullet lines mixed with prose
+    const hasBullets = lines.some(l => /^\s*([•●▪◦\-*]|\d+[.):])\s/.test(l));
+    if (hasBullets) {
+      let html = '';
+      let inList = false;
+      for (const line of lines) {
+        const isBullet = /^\s*([•●▪◦\-*]|\d+[.):])\s/.test(line);
+        if (isBullet) {
+          if (!inList) { html += '<ul>'; inList = true; }
+          const itemText = line.replace(/^\s*([•●▪◦\-*]|\d+[.):])\s*/, '').trim();
+          html += `<li>${inlineFormat(itemText)}</li>`;
+        } else {
+          if (inList) { html += '</ul>'; inList = false; }
+          if (line.trim()) html += `<p>${inlineFormat(line.trim())}</p>`;
+        }
+      }
+      if (inList) html += '</ul>';
+      htmlParts.push(html);
+      continue;
+    }
+
+    // Plain prose block — join lines into a single paragraph
+    const para = lines.map(l => l.trim()).join(' ');
+    htmlParts.push(`<p>${inlineFormat(para)}</p>`);
+  }
+
+  return htmlParts.join('') || '';
+}
+
+// Render inline markdown: **bold**, *italic*, `code`, numbers/prices highlighted
+function inlineFormat(text) {
+  let s = escapeHtml(text);
+  // Bold
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  // Italic
+  s = s.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  s = s.replace(/_([^_]+)_/g, '<em>$1</em>');
+  // Inline code
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Highlight dollar amounts and numbers that look like data points
+  s = s.replace(/(\$[\d,]+(?:\.\d+)?)/g, '<span class="ai-num">$1</span>');
+  return s;
+}
+
+function renderChatMessages() {
+  const win = document.getElementById('chat-window');
+  if (!win) return;
+  if (!chatMessages.length) {
+    win.innerHTML = '<div class="chat-message system">Try: “Which station is cheapest?” or “How much did I spend by month?”</div>';
+    return;
+  }
+
+  // Find index of last completed assistant message (non-empty, not thinking)
+  let lastAssistantIdx = -1;
+  for (let i = chatMessages.length - 1; i >= 0; i--) {
+    if (chatMessages[i].role === 'assistant' && chatMessages[i].content && chatMessages[i].content !== 'Thinking...') {
+      lastAssistantIdx = i;
+      break;
+    }
+  }
+
+  win.innerHTML = chatMessages.map((m, idx) => {
+    if (m.role === 'system') {
+      return `<div class="chat-message system">${escapeHtml(m.content)}</div>`;
+    }
+    const label = m.role === 'user' ? 'You' : 'AI';
+    const isThinking = m.role === 'assistant' && (!m.content || m.content === 'Thinking...');
+    const msgHtml = isThinking
+      ? `<span class="chat-thinking"><span></span><span></span><span></span></span>`
+      : formatAIContent(m.content, m.role);
+    const isLastAssistant = idx === lastAssistantIdx;
+    const followups = (isLastAssistant && chatFollowUps && chatFollowUps.length)
+      ? `<div class="chat-followups">${chatFollowUps.map(q => `<button class="chat-followup" type="button" data-hint="${escapeHtml(q)}">${escapeHtml(q)}</button>`).join('')}</div>`
+      : '';
+    return `<div class="chat-bubble-wrap ${escapeHtml(m.role)}">
+      <div class="chat-bubble-label">${label}</div>
+      <div class="chat-message ${escapeHtml(m.role)}">${msgHtml}</div>
+      ${followups}
+    </div>`;
+  }).join('');
+
+  win.scrollTop = win.scrollHeight;
+}
+
+function compactEntriesForAI() {
+  const gasData = entries.map(e => ({
+    kind: 'gas_fillup',
+    date: e.date,
+    display_date: formatDateShort(e.date),
+    brand: e.brand,
+    station: e.station,
+    price_per_gallon: e.ppg,
+    gallons: e.gallons,
+    total: e.total,
+    odometer: e.odometer,
+    full_tank: e.full_tank,
+    address: fullAddress(e)
+  }));
+
+  let financeData = [];
+  try {
+    financeData = financeAllTransactions().map(t => ({
+      kind: t.source === 'gas' ? 'finance_gas_import' : 'finance_transaction',
+      date: t.date,
+      display_date: formatDateShort(t.date),
+      merchant: t.store,
+      total: t.total,
+      is_return: Boolean(t.is_return),
+      payment: t.payment || '',
+      notes: t.notes || '',
+      categories: (t.splits || []).map(s => ({
+        category: financeCat(s.cat).label,
+        category_id: s.cat,
+        subcategory: s.subcat || '',
+        amount: Number(s.amount || 0)
+      }))
+    }));
+  } catch (err) {
+    financeData = [];
+  }
+
+  let financeSummary = [];
+  try {
+    financeSummary = [
+      { kind: 'finance_settings', monthly_limit: financeState.settings.monthly_limit || 0, category_budgets: financeState.settings.category_budgets || {} },
+      ...financeState.income.map(i => ({ kind: 'finance_income', date: i.date, display_date: formatDateShort(i.date), source: i.source, amount: i.amount, type: i.type || '', notes: i.notes || '' })),
+      ...financeState.subscriptions.map(s => ({ kind: 'finance_subscription', name: s.name, amount: s.amount, cycle: s.cycle, category: financeCat(s.cat).label, next_date: s.next_date || '', display_next_date: s.next_date ? formatDateShort(s.next_date) : '' })),
+      ...financeState.goals.map(g => ({ kind: 'finance_goal', name: g.name, target: g.target, current: g.current, target_date: g.target_date || '', display_target_date: g.target_date ? formatDateShort(g.target_date) : '' }))
+    ];
+  } catch (err) {
+    financeSummary = [];
+  }
+
+  return [...gasData, ...financeData, ...financeSummary];
+}
+
+function extractGeminiStreamText(rawChunk) {
+  const chunk = String(rawChunk || '');
+  let text = '';
+
+  // Gemini streaming can arrive as SSE lines, JSON objects, JSON arrays, or partial JSON chunks.
+  // This parser is intentionally tolerant so the UI still updates instead of showing raw JSON.
+  const lines = chunk.split('\n').map(line => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    let payload = line.startsWith('data:') ? line.slice(5).trim() : line;
+    if (!payload || payload === '[DONE]') continue;
+
+    try {
+      const parsed = JSON.parse(payload);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      for (const item of items) {
+        const parts = item?.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+          if (typeof part?.text === 'string') text += part.text;
+        }
+      }
+    } catch {
+      // If the backend streams plain text, use it directly.
+      if (!payload.includes('"candidates"') && !payload.includes('"content"')) {
+        text += payload;
+      }
+    }
+  }
+
+  return text;
+}
+
+function friendlyAIError(error, status = null) {
+  const text = String(error?.message || error || '');
+  const lower = text.toLowerCase();
+
+  // Gemini API rate limit / quota exhausted
+  if (
+    status === 429 ||
+    text.includes('429') ||
+    text.includes('RESOURCE_EXHAUSTED') ||
+    lower.includes('quota') ||
+    lower.includes('rate limit') ||
+    lower.includes('high demand')
+  ) {
+    const retryAt = new Date(Date.now() + 60 * 1000);
+    const retryStr = retryAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `The Gemini AI usage limit has been reached. This is a temporary quota restriction — please try again after ${retryStr}.`;
+  }
+
+  // Auth / permission errors
+  if (
+    status === 401 ||
+    status === 403 ||
+    text.includes('401') ||
+    text.includes('403') ||
+    lower.includes('unauthorized') ||
+    lower.includes('forbidden') ||
+    lower.includes('api key') ||
+    lower.includes('invalid key') ||
+    lower.includes('permission denied')
+  ) {
+    return 'Authentication failed. The AI service key may be invalid or expired — please contact support.';
+  }
+
+  // Service unavailable / gateway errors
+  if (
+    status === 503 ||
+    status === 502 ||
+    status === 504 ||
+    text.includes('503') ||
+    text.includes('502') ||
+    text.includes('504') ||
+    lower.includes('service unavailable') ||
+    lower.includes('bad gateway') ||
+    lower.includes('gateway timeout') ||
+    lower.includes('overloaded')
+  ) {
+    return 'The AI service is temporarily unavailable. Please wait a moment and try again.';
+  }
+
+  // Network / connectivity errors
+  if (
+    lower.includes('networkerror') ||
+    lower.includes('network error') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('load failed') ||
+    lower.includes('net::err')
+  ) {
+    return 'A network error occurred. Please check your connection and try again.';
+  }
+
+  // Request too large
+  if (
+    status === 413 ||
+    text.includes('413') ||
+    lower.includes('too large') ||
+    lower.includes('payload') ||
+    lower.includes('context length') ||
+    lower.includes('tokens')
+  ) {
+    return 'Your request contains too much data for the AI to process. Try asking a more specific question.';
+  }
+
+  // Generic server error with status code
+  if (status && status >= 500) {
+    return `The AI service returned an error (${status}). Please try again in a moment.`;
+  }
+
+  if (status && status >= 400) {
+    return `The request was rejected by the AI service (${status}). Please try rephrasing your question.`;
+  }
+
+  // Unknown / unclassified — include raw message if short enough to be useful
+  const displayText = text && text.length < 120 ? ` (${text})` : '';
+  return `The AI couldn't respond right now.${displayText} Please try again in a moment.`;
+}
+
+async function askGasAgent() {
+  const input = document.getElementById('chat-question');
+  const btn = document.getElementById('chat-send-btn');
+  const msg = document.getElementById('chat-msg');
+  const win = document.getElementById('chat-window');
+  const question = (input?.value || '').trim();
+
+  if (!question) return;
+
+  if (!currentUser || !supabaseClient) {
+    msg.textContent = 'Log in first so the chat can securely use your gas data.';
+    msg.style.color = 'var(--danger)';
+    return;
+  }
+
+  appendChat('user', question);
+  input.value = '';
+  btn.disabled = true;
+  btn.textContent = 'Streaming...';
+  msg.textContent = '';
+  chatFollowUps = [];
+
+  const assistantMessage = { role: 'assistant', content: '' };
+  chatMessages.push(assistantMessage);
+  renderChatMessages();
+
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const accessToken = sessionData?.session?.access_token || '';
+
+    const response = await fetch(GAS_CHAT_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+      },
+      body: JSON.stringify({
+        question,
+        entries: compactEntriesForAI()
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      let backendMessage = errorText || `Request failed with status ${response.status}`;
+
+      try {
+        const parsed = JSON.parse(errorText);
+        backendMessage = parsed?.error || parsed?.message || parsed?.[0]?.error?.message || backendMessage;
+      } catch {}
+
+      const friendly = friendlyAIError(backendMessage, response.status);
+      throw new Error(friendly);
+    }
+
+    if (!response.body) {
+      const data = await response.json().catch(() => ({}));
+      assistantMessage.content = data?.answer || '';
+      renderChatMessages();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let streamedText = '';
+    let rawFallback = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      rawFallback += chunk;
+      const extracted = extractGeminiStreamText(chunk);
+
+      if (extracted) {
+        streamedText += extracted;
+        assistantMessage.content = streamedText;
+      } else if (!streamedText) {
+        assistantMessage.content = 'Thinking...';
+      }
+
+      renderChatMessages();
+      if (win) win.scrollTop = win.scrollHeight;
+    }
+
+    if (!streamedText) {
+      try {
+        const parsed = JSON.parse(rawFallback);
+        assistantMessage.content = parsed?.answer || parsed?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+      } catch {
+        assistantMessage.content = rawFallback.trim() || 'I could not generate an answer.';
+      }
+      renderChatMessages();
+    }
+
+    // Generate follow-up suggestions based on the AI response and user question
+    if (assistantMessage.content && assistantMessage.content !== 'Thinking...' && assistantMessage.content !== 'I could not generate an answer.') {
+      generateFollowUps(question, assistantMessage.content).then(() => renderChatMessages());
+    }
+
+  } catch (err) {
+    console.error('AI chat failed:', err);
+    assistantMessage.content = friendlyAIError(err);
+    chatFollowUps = [];
+    renderChatMessages();
+    msg.textContent = '';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send';
+  }
+}
+
+async function generateFollowUps(question, answer) {
+  try {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const accessToken = sessionData?.session?.access_token || '';
+
+    const followUpQuestion = `Based on this gas tracking Q&A, suggest exactly 3 short follow-up questions the user might want to ask next. Return ONLY a JSON array of 3 strings, no markdown, no preamble. Keep each question under 8 words.
+
+User asked: ${question}
+AI answered: ${answer.slice(0, 300)}`;
+
+    const response = await fetch(GAS_CHAT_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+      },
+      body: JSON.stringify({
+        question: followUpQuestion,
+        entries: []
+      })
+    });
+
+    if (!response.ok) { chatFollowUps = []; return; }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let raw = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      raw += decoder.decode(value, { stream: true });
+    }
+
+    // Strip any markdown fences and parse
+    const cleaned = raw.replace(/```json|```/gi, '').trim();
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (match) {
+      const parsed = JSON.parse(match[0]);
+      if (Array.isArray(parsed)) {
+        chatFollowUps = parsed.slice(0, 3).map(s => String(s).trim());
+        return;
+      }
+    }
+    chatFollowUps = [];
+  } catch {
+    chatFollowUps = [];
+  }
+}
+
+
+
+
+// ══════════════════════════════════════════════════
+// FINANCE TRACKER MODULE
+// ══════════════════════════════════════════════════
+const FINANCE_STORAGE_KEY = 'finance-tracker-data-v1';
+const FINANCE_CATS = [
+  {id:'groceries',label:'Groceries',emoji:'🛒',color:'#1a6eb5'},
+  {id:'household',label:'Household',emoji:'🏠',color:'#2eab6f'},
+  {id:'health',label:'Health & Meds',emoji:'💊',color:'#e05a2b'},
+  {id:'dining',label:'Dining Out',emoji:'🍽️',color:'#e8c840'},
+  {id:'hobbies',label:'Hobbies',emoji:'🎯',color:'#9b5de5'},
+  {id:'clothing',label:'Clothing',emoji:'👕',color:'#f4845f'},
+  {id:'gas',label:'Gas',emoji:'⛽',color:'#fbbf24'},
+  {id:'transport',label:'Transport',emoji:'🚗',color:'#60a5fa'},
+  {id:'subscriptions',label:'Subscriptions',emoji:'📱',color:'#a78bfa'},
+  {id:'utilities',label:'Utilities',emoji:'💡',color:'#34d399'},
+  {id:'insurance',label:'Insurance',emoji:'🛡️',color:'#94a3b8'},
+  {id:'housing',label:'Housing / Rent',emoji:'🏡',color:'#fb923c'},
+  {id:'entertainment',label:'Entertainment',emoji:'🎬',color:'#f472b6'},
+  {id:'education',label:'Education',emoji:'📚',color:'#38bdf8'},
+  {id:'gifts',label:'Gifts',emoji:'🎁',color:'#e879f9'},
+  {id:'travel',label:'Travel',emoji:'✈️',color:'#22d3ee'},
+  {id:'savings',label:'Savings',emoji:'🏦',color:'#86efac'},
+  {id:'other',label:'Other',emoji:'📦',color:'#6b7280'}
+];
+const financeCat = id => FINANCE_CATS.find(c => c.id === id) || FINANCE_CATS[FINANCE_CATS.length - 1];
+let financeState = loadFinanceLocal();
+let financeMonth = new Date();
+let financeSplitMode = 'quick';
+let financeTxType = 'expense';
+let financeChartSpending = null;
+let financeChartCategory = null;
+let financeEditingSubId = null;
+let financeChatMessages = [];
+
+function loadFinanceLocal(){
+  try { const saved = JSON.parse(localStorage.getItem(FINANCE_STORAGE_KEY) || '{}');
+    return { transactions: saved.transactions || [], income: saved.income || [], subscriptions: saved.subscriptions || [], goals: saved.goals || [], settings: saved.settings || { monthly_limit:0, category_budgets:{} } };
+  } catch { return { transactions: [], income: [], subscriptions: [], goals: [], settings: { monthly_limit:0, category_budgets:{} } }; }
+}
+function saveFinanceLocal(){ localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(financeState)); }
+async function financePersist(){ saveFinanceLocal(); }
+function financeFmt(n){ const v = Number(n) || 0; return (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function financeId(){ return crypto.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2)); }
+function financeShowMsg(id, msg, isError=false){ const el = document.getElementById(id); if(!el) return; el.textContent = msg; el.style.color = isError ? 'var(--danger)' : 'var(--success)'; if(!isError) setTimeout(()=>{ el.textContent=''; }, 3000); }
+function financeDateToday(){ return new Date().toISOString().split('T')[0]; }
+function financeYM(date){ const d = new Date(date + 'T12:00:00'); return {y:d.getFullYear(), m:d.getMonth()}; }
+function financeForMonth(arr, y, m){ const d = new Date(y, m, 1); return arr.filter(item => { const x = financeYM(item.date); return x.y === d.getFullYear() && x.m === d.getMonth(); }); }
+function financeNetSpent(txs){ return txs.reduce((sum,t)=>sum + Number(t.total || 0) * (t.is_return ? -1 : 1), 0); }
+function financeIncomeTotal(arr){ return arr.reduce((sum,i)=>sum + Number(i.amount || 0), 0); }
+function financeGasTransactions(){
+  return (Array.isArray(entries) ? entries : []).map(e => ({
+    id: 'gas-' + e.id,
+    source: 'gas',
+    date: e.date,
+    store: [e.brand, e.station].filter(Boolean).join(' · ') || 'Gas',
+    total: Number(e.total || 0),
+    payment: 'gas',
+    notes: 'Imported from Gas Tracker',
+    splits: [{ cat: 'gas', subcat: e.brand || '', amount: Number(e.total || 0) }],
+    is_return: false,
+    linked_id: null,
+    created_at: e.created_at || ''
+  })).filter(t => t.date && Number.isFinite(t.total) && t.total > 0);
+}
+function financeAllTransactions(){
+  return [...financeState.transactions, ...financeGasTransactions()].sort((a,b) => String(b.date).localeCompare(String(a.date)) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
+}
+
+function financeInitUI(){
+  const opts = FINANCE_CATS.map(c => `<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
+  ['fin-cat-quick','fin-sub-cat'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = opts; });
+  const hist = document.getElementById('fin-history-cat'); if(hist) hist.innerHTML = '<option value="">All categories</option>' + opts;
+  ['fin-date','fin-income-date','fin-sub-next'].forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = dateForInput(financeDateToday()); });
+  financeRenderStoreOptions();
+  financeRenderDashboardFilterOptions();
+}
+function financeRenderStoreOptions(){ const dl = document.getElementById('finance-store-options'); if(!dl) return; const stores = [...new Set(financeAllTransactions().map(t=>t.store).filter(Boolean))].sort(); dl.innerHTML = stores.map(s=>`<option value="${escapeHtml(s)}"></option>`).join(''); }
+function financeRenderDashboardFilterOptions(){
+  const catEl = document.getElementById('fin-filter-category');
+  const merchantEl = document.getElementById('fin-filter-merchant');
+  if(catEl){ const current = catEl.value; catEl.innerHTML = '<option value="">All categories</option>' + FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); catEl.value = current; }
+  if(merchantEl){ const current = merchantEl.value; const stores = [...new Set(financeAllTransactions().map(t=>t.store).filter(Boolean))].sort(); merchantEl.innerHTML = '<option value="">All merchants</option>' + stores.map(store=>`<option value="${escapeHtml(store)}">${escapeHtml(store)}</option>`).join(''); merchantEl.value = stores.includes(current) ? current : ''; }
+}
+function toggleFinanceDashboardFilters(){
+  const card = document.getElementById('finance-dashboard-filter-card');
+  const btn = document.getElementById('finance-filter-toggle-btn');
+  if(!card || !btn) return;
+  const collapsed = card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Expand filters' : 'Hide filters';
+}
+function financeClearDashboardFilters(){
+  ['fin-filter-category','fin-filter-merchant','fin-filter-payment','fin-filter-type','fin-filter-month-start','fin-filter-month-end'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  financeRenderDashboard();
+}
+function financeDashboardFilterState(){
+  const startRaw = document.getElementById('fin-filter-month-start')?.value || '';
+  const endRaw = document.getElementById('fin-filter-month-end')?.value || '';
+  const start = startRaw && endRaw && startRaw > endRaw ? endRaw : startRaw;
+  const end = startRaw && endRaw && startRaw > endRaw ? startRaw : endRaw;
+  return {
+    category: document.getElementById('fin-filter-category')?.value || '',
+    merchant: document.getElementById('fin-filter-merchant')?.value || '',
+    payment: document.getElementById('fin-filter-payment')?.value || '',
+    type: document.getElementById('fin-filter-type')?.value || '',
+    start,
+    end,
+    hasRange: Boolean(start || end)
+  };
+}
+function financeTransactionMatchesFilters(t, f, includeDate=true){
+  if(includeDate){
+    const month = String(t.date || '').slice(0,7);
+    if(f.hasRange){ if(f.start && month < f.start) return false; if(f.end && month > f.end) return false; }
+    else { const current = `${financeMonth.getFullYear()}-${String(financeMonth.getMonth()+1).padStart(2,'0')}`; if(month !== current) return false; }
+  }
+  if(f.category && !(t.splits || []).some(s=>s.cat === f.category)) return false;
+  if(f.merchant && t.store !== f.merchant) return false;
+  if(f.payment && t.payment !== f.payment) return false;
+  if(f.type === 'expense' && t.is_return) return false;
+  if(f.type === 'return' && !t.is_return) return false;
+  return true;
+}
+function financeDashboardTransactions(){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>financeTransactionMatchesFilters(t,f,true)); }
+function financeDashboardIncome(){ const f=financeDashboardFilterState(); return financeState.income.filter(i=>{ const month=String(i.date||'').slice(0,7); if(f.hasRange){ if(f.start && month < f.start) return false; if(f.end && month > f.end) return false; return true; } const current = `${financeMonth.getFullYear()}-${String(financeMonth.getMonth()+1).padStart(2,'0')}`; return month === current; }); }
+function financeTransactionsForChartMonth(y,m){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>{ const x=financeYM(t.date); return x.y===y && x.m===m && financeTransactionMatchesFilters(t,{...f,hasRange:false,start:'',end:''},false); }); }
+function financeSwitch(name){
+  document.querySelectorAll('.finance-subtab').forEach((b,i)=>b.classList.toggle('active', ['dashboard','add','history','budgets','subs'][i] === name));
+  document.querySelectorAll('.finance-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('finance-' + name)?.classList.add('active');
+  financeRenderAll();
+}
+function financeRenderAll(){ financeInitUI(); financeRenderDashboard(); financeRenderRecent(); financeRenderHistory(); financeRenderBudgets(); financeRenderSubs(); }
+function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeRenderDashboard(); }
+function financeGoNow(){ financeMonth = new Date(); financeRenderDashboard(); }
+function financeSetTxType(type){ financeTxType = type; ['expense','return','income'].forEach(t => document.getElementById('fin-mode-'+t)?.classList.toggle('active', t === type)); document.getElementById('finance-expense-form')?.classList.toggle('hidden', type === 'income'); document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income'); document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return'); if(type === 'return') financePopulateReturnLinks(); }
+function financePopulateReturnLinks(){ const sel = document.getElementById('fin-return-link'); if(!sel) return; sel.innerHTML = '<option value="">No link</option>' + financeState.transactions.filter(t=>!t.is_return).slice(0,80).map(t=>`<option value="${t.id}">${formatDateShort(t.date)} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join(''); }
+function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } }
+function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
+function financeUpdateTally(){ const total = Number(document.getElementById('fin-total')?.value || 0); let alloc = 0; document.querySelectorAll('#fin-split-lines [data-role="amt"]').forEach(el => alloc += Number(el.value || 0)); const rem = total - alloc; const a = document.getElementById('fin-tally-alloc'); const r = document.getElementById('fin-tally-rem'); if(a) a.textContent = financeFmt(alloc); if(r){ r.textContent = `Remaining: ${financeFmt(rem)}`; r.style.color = Math.abs(rem) < .02 ? 'var(--success)' : rem < 0 ? 'var(--danger)' : 'var(--muted)'; } }
+async function financeSaveTransaction(){
+  const date = normalizeDateValue(document.getElementById('fin-date').value); const store = document.getElementById('fin-store').value.trim(); const total = Number(document.getElementById('fin-total').value); const payment = document.getElementById('fin-payment').value; const notes = document.getElementById('fin-notes').value.trim();
+  if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
+  let splits = [];
+  if(financeSplitMode === 'quick') splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat').value.trim(), amount: total }];
+  else { document.querySelectorAll('#fin-split-lines .split-line').forEach(line => { const cat = line.querySelector('[data-role="cat"]').value; const amount = Number(line.querySelector('[data-role="amt"]').value || 0); if(amount > 0) splits.push({cat, subcat:'', amount}); }); const alloc = splits.reduce((s,x)=>s+x.amount,0); if(Math.abs(alloc-total) > .06){ financeShowMsg('fin-save-msg', `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; } }
+  financeState.transactions.unshift({ id: financeId(), date, store, total, payment, notes, splits, is_return: financeTxType === 'return', linked_id: financeTxType === 'return' ? (document.getElementById('fin-return-link').value || null) : null, created_at: new Date().toISOString() });
+  await financePersist(); financeShowMsg('fin-save-msg', financeTxType === 'return' ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
+}
+function financeClearForm(){ ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday()); const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = ''; financeSetSplitMode('quick'); financeSetTxType('expense'); }
+async function financeSaveIncome(){ const date = normalizeDateValue(document.getElementById('fin-income-date').value); const source = document.getElementById('fin-income-source').value.trim(); const amount = Number(document.getElementById('fin-income-amount').value); const type = document.getElementById('fin-income-type').value; const notes = document.getElementById('fin-income-notes').value.trim(); if(!date || !Number.isFinite(amount) || amount <= 0){ financeShowMsg('fin-income-msg','Date and positive amount required.',true); return; } financeState.income.unshift({id:financeId(), date, source, amount, type, notes, created_at:new Date().toISOString()}); await financePersist(); ['fin-income-source','fin-income-amount','fin-income-notes'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('fin-income-msg','Income saved.'); financeRenderAll(); }
+
+function financeRenderDashboard(){
+  if(!document.getElementById('finance-dashboard')) return;
+  const y = financeMonth.getFullYear(), m = financeMonth.getMonth();
+  const filters = financeDashboardFilterState();
+  const label = filters.hasRange
+    ? `${filters.start || 'Start'} → ${filters.end || 'Now'}`
+    : financeMonth.toLocaleDateString(undefined,{month:'long', year:'numeric'});
+  document.getElementById('finance-month-label').textContent = label;
+  financeRenderDashboardFilterOptions();
+  const monthTx = financeDashboardTransactions();
+  const prevTx = filters.hasRange ? [] : financeForMonth(financeAllTransactions(), y, m-1).filter(t=>financeTransactionMatchesFilters(t,{...filters,hasRange:false,start:'',end:''},false));
+  const monthInc = financeDashboardIncome();
+  const spent = financeNetSpent(monthTx); const prevSpent = financeNetSpent(prevTx); const income = financeIncomeTotal(monthInc); const saved = income - spent; const delta = spent - prevSpent; const rate = income > 0 ? Math.round((saved/income)*100) : 0;
+  const deltaText = filters.hasRange ? `${monthTx.length} filtered transactions` : (delta===0?'No change':(delta>0?'Up ':'Down ') + financeFmt(Math.abs(delta)) + ' vs prev');
+  document.getElementById('finance-metrics').innerHTML = `<div class="metric"><div class="metric-label">Spent</div><div class="metric-value danger-text">${financeFmt(spent)}</div><div class="metric-sub">${deltaText}</div></div><div class="metric"><div class="metric-label">Income</div><div class="metric-value success-text">${financeFmt(income)}</div><div class="metric-sub">${monthInc.length} source${monthInc.length===1?'':'s'}</div></div><div class="metric"><div class="metric-label">Net saved</div><div class="metric-value ${saved>=0?'success-text':'danger-text'}">${financeFmt(saved)}</div><div class="metric-sub">${rate}% savings rate</div></div><div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${monthTx.length}</div><div class="metric-sub">${monthTx.filter(t=>t.is_return).length} returns</div></div>`;
+  financeRenderBudgetCard(spent); financeRenderCategoryBreakdown(monthTx); financeRenderInsights(monthTx, prevTx); financeRenderCharts();
+}
+function financeCategoryTotals(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
+function financeRenderBudgetCard(spent){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const pct = Math.max(0, Math.min(100, spent/limit*100)); el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-spent)} remaining</div>`; }
+function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotals(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
+function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
+function financeRenderCharts(){ const spendCanvas=document.getElementById('finance-chart-spending'); if(!spendCanvas) return; if(financeChartSpending) financeChartSpending.destroy(); if(financeChartCategory) financeChartCategory.destroy(); const y=financeMonth.getFullYear(), m=financeMonth.getMonth(); const months=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1); months.push({y:d.getFullYear(),m:d.getMonth(),label:d.toLocaleDateString(undefined,{month:'short'})}); } const data=months.map(x=>Math.max(0,financeNetSpent(financeTransactionsForChartMonth(x.y,x.m)))); financeChartSpending = new Chart(spendCanvas, {type:'bar', data:{labels:months.map(x=>x.label), datasets:[{data, backgroundColor:'rgba(232,200,64,.75)', borderColor:'#e8c840', borderWidth:1}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>'$'+v}}}}}); const totals=financeCategoryTotals(financeDashboardTransactions()); const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8); financeChartCategory = new Chart(document.getElementById('finance-chart-category'), {type:'doughnut', data:{labels:rows.map(([id])=>financeCat(id).label), datasets:[{data:rows.map(([,v])=>v), backgroundColor:rows.map(([id])=>financeCat(id).color)}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}}); }
+function financeRenderRecent(){ const el=document.getElementById('finance-recent-list'); if(!el) return; const recent=financeAllTransactions().slice(0,6); el.innerHTML = recent.length ? recent.map(t=>`<div class="simple-row"><span>${formatDateShort(t.date)}</span><span><strong>${escapeHtml(t.store||'—')}</strong> ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</span><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong></div>`).join('') : '<div class="empty">No transactions yet.</div>'; }
+function financeRenderHistory(){ const el=document.getElementById('finance-history-list'); if(!el) return; const search=(document.getElementById('fin-history-search')?.value||'').toLowerCase(); const cat=document.getElementById('fin-history-cat')?.value||''; const month=document.getElementById('fin-history-month')?.value||''; const rows=financeAllTransactions().filter(t=>(!search || (t.store||'').toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search)) && (!cat || (t.splits||[]).some(s=>s.cat===cat)) && (!month || t.date.startsWith(month))); const net=financeNetSpent(rows); document.getElementById('finance-history-summary').textContent = `${rows.length} transaction${rows.length===1?'':'s'} · ${financeFmt(net)} net`; el.innerHTML = rows.length ? rows.map(t=>`<div class="tx-item"><div><div class="tx-title">${escapeHtml(t.store||'—')} ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</div><div class="tx-sub">${formatDateShort(t.date)} · ${(t.splits||[]).map(s=>financeCat(s.cat).emoji+' '+financeCat(s.cat).label).join(', ')}${t.notes?' · '+escapeHtml(t.notes):''}</div></div><div class="tx-right"><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong>${t.source==='gas'?'<span class="metric-sub">Edit in Gas History</span>':`<button class="small-btn danger-btn" type="button" onclick="financeDeleteTransaction('${t.id}')">Delete</button>`}</div></div>`).join('') : '<div class="empty">No transactions found.</div>'; }
+async function financeDeleteTransaction(id){ if(!confirm('Delete this transaction?')) return; financeState.transactions = financeState.transactions.filter(t=>t.id!==id); await financePersist(); financeRenderAll(); }
+function financeClearHistoryFilters(){ ['fin-history-search','fin-history-month'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const cat=document.getElementById('fin-history-cat'); if(cat) cat.value=''; financeRenderHistory(); }
+function financeExportCSV(){ const rows=[['Date','Merchant','Total','Return','Categories','Payment','Notes']]; financeState.transactions.forEach(t=>rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',(t.splits||[]).map(s=>`${financeCat(s.cat).label}:${s.amount}`).join('; '),t.payment||'',t.notes||''])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`finance-${financeDateToday()}.csv`; a.click(); }
+
+function financeRenderBudgets(){ const now=new Date(); const tx=financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth()); const spent=financeNetSpent(tx); const limit=Number(financeState.settings.monthly_limit||0); const overview=document.getElementById('finance-budget-overview'); if(!overview) return; overview.innerHTML = limit ? `<div class="budget-header"><span>${now.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${spent/limit>=1?'over':spent/limit>=.8?'warn':''}" style="width:${Math.min(100,spent/limit*100)}%"></div></div><div class="budget-pct">${Math.round(spent/limit*100)}% used · ${financeFmt(limit-spent)} remaining</div>` : '<div class="summary-line">Set a monthly limit to track total spending.</div>'; const input=document.getElementById('fin-budget-input'); if(input && !input.value && limit) input.value=limit; financeRenderIncomeList(); financeRenderCategoryBudgetInputs(); financeRenderGoals(); financeRenderHeatmap(); }
+async function financeSaveBudgetLimit(){ const v=Number(document.getElementById('fin-budget-input').value); if(!Number.isFinite(v)||v<0){ financeShowMsg('fin-budget-msg','Enter a valid budget amount.',true); return; } financeState.settings.monthly_limit=v; await financePersist(); financeShowMsg('fin-budget-msg','Limit saved.'); financeRenderAll(); }
+function financeRenderIncomeList(){ const now=new Date(); const inc=financeForMonth(financeState.income, now.getFullYear(), now.getMonth()); const total=financeIncomeTotal(inc); document.getElementById('finance-income-summary-bar').innerHTML = `<div class="summary-line">Total income this month: <strong class="success-text">${financeFmt(total)}</strong></div>`; const list=document.getElementById('finance-income-list'); list.innerHTML = financeState.income.slice(0,10).map(i=>`<div class="simple-row"><span>${formatDateShort(i.date)}</span><span>${escapeHtml(i.source||'Income')}</span><span><strong>${financeFmt(i.amount)}</strong> <button class="small-btn danger-btn" onclick="financeDeleteIncome('${i.id}')">×</button></span></div>`).join('') || '<div class="empty">No income logged.</div>'; }
+async function financeDeleteIncome(id){ financeState.income=financeState.income.filter(i=>i.id!==id); await financePersist(); financeRenderAll(); }
+function financeRenderCategoryBudgetInputs(){ const wrap=document.getElementById('finance-category-budgets'); if(!wrap) return; const now=new Date(); const totals=financeCategoryTotals(financeForMonth(financeState.transactions, now.getFullYear(), now.getMonth())); const budgets=financeState.settings.category_budgets || {}; wrap.innerHTML=FINANCE_CATS.map(c=>{ const spent=Math.max(0, totals[c.id]||0); const limit=Number(budgets[c.id]||0); const pct=limit?Math.min(100,spent/limit*100):0; return `<div class="cat-budget-row"><div><div class="budget-header"><span>${c.emoji} ${escapeHtml(c.label)}</span><span>${financeFmt(spent)}${limit?' / '+financeFmt(limit):''}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${limit&&spent/limit>=1?'over':limit&&spent/limit>=.8?'warn':''}" style="width:${pct}%"></div></div></div><input class="form-input" type="number" step="1" data-cat-budget="${c.id}" value="${limit||''}" placeholder="Budget"></div>`; }).join(''); }
+async function financeSaveCategoryBudgets(){ const budgets={}; document.querySelectorAll('[data-cat-budget]').forEach(el=>{ const v=Number(el.value); if(Number.isFinite(v)&&v>0) budgets[el.dataset.catBudget]=v; }); financeState.settings.category_budgets=budgets; await financePersist(); financeShowMsg('fin-cat-budget-msg','Category budgets saved.'); financeRenderAll(); }
+let financeGoalOpen=false; function financeToggleGoalForm(){ financeGoalOpen=!financeGoalOpen; document.getElementById('finance-goal-form')?.classList.toggle('hidden', !financeGoalOpen); }
+async function financeSaveGoal(){ const name=document.getElementById('fin-goal-name').value.trim(); const target=Number(document.getElementById('fin-goal-target').value); const current=Number(document.getElementById('fin-goal-current').value||0); const date=normalizeDateValue(document.getElementById('fin-goal-date').value); if(!name||!Number.isFinite(target)||target<=0){ financeShowMsg('fin-goal-msg','Name and target greater than 0 required.',true); return; } financeState.goals.push({id:financeId(),name,target,current,target_date:date}); await financePersist(); financeShowMsg('fin-goal-msg','Goal saved.'); financeToggleGoalForm(); financeRenderAll(); }
+function financeRenderGoals(){ const el=document.getElementById('finance-goals-list'); if(!el) return; el.innerHTML = financeState.goals.length ? financeState.goals.map(g=>{ const pct=Math.min(100,(Number(g.current||0)/Number(g.target||1))*100); return `<div class="goal-item"><div class="budget-header"><span>🎯 ${escapeHtml(g.name)}</span><span>${financeFmt(g.current)} / ${financeFmt(g.target)}</span></div><div class="budget-bar-wrap"><div class="budget-bar blue" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}%${g.target_date?' · Target: '+formatDateShort(g.target_date):''}</div><div class="btn-row"><button class="small-btn" onclick="financeUpdateGoal('${g.id}')">Update</button><button class="small-btn danger-btn" onclick="financeDeleteGoal('${g.id}')">Delete</button></div></div>`; }).join('') : '<div class="empty">No goals yet.</div>'; }
+async function financeUpdateGoal(id){ const g=financeState.goals.find(x=>x.id===id); if(!g) return; const val=prompt('Saved so far:', g.current); if(val===null) return; g.current=Number(val)||0; await financePersist(); financeRenderAll(); }
+async function financeDeleteGoal(id){ financeState.goals=financeState.goals.filter(g=>g.id!==id); await financePersist(); financeRenderAll(); }
+function financeRenderHeatmap(){ const year=new Date().getFullYear(); const el=document.getElementById('finance-heatmap-grid'); if(!el) return; const vals=Array.from({length:12},(_,i)=>Math.max(0,financeNetSpent(financeForMonth(financeAllTransactions(),year,i)))); const max=Math.max(...vals,1); const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el.innerHTML=vals.map((v,i)=>`<div class="heatmap-cell" style="opacity:${v?(.35+v/max*.65):.18}"><strong>${months[i]}</strong><br>${financeFmt(v)}</div>`).join(''); }
+
+function financeSubMonthly(s){ const amt=Number(s.amount||0); return s.cycle==='annual'?amt/12:s.cycle==='quarterly'?amt/3:s.cycle==='weekly'?amt*4.33:amt; }
+function financeRenderSubs(){ const m=financeState.subscriptions.reduce((s,x)=>s+financeSubMonthly(x),0); const monthly=document.getElementById('finance-sub-monthly'); if(!monthly) return; monthly.textContent=financeFmt(m); document.getElementById('finance-sub-annual').textContent=financeFmt(m*12); const grid=document.getElementById('finance-sub-grid'); grid.innerHTML = financeState.subscriptions.length ? financeState.subscriptions.map(s=>`<div class="sub-card"><div class="sub-card-name">${escapeHtml(s.name)}</div><div class="big-money">${financeFmt(s.amount)}</div><div class="metric-sub">${s.cycle} · ${financeFmt(financeSubMonthly(s))}/mo</div><div class="metric-sub">${financeCat(s.cat).emoji} ${financeCat(s.cat).label}${s.next_date?' · Next '+formatDateShort(s.next_date):''}</div><div class="btn-row"><button class="small-btn" onclick="financeEditSub('${s.id}')">Edit</button><button class="small-btn danger-btn" onclick="financeDeleteSub('${s.id}')">Delete</button></div></div>`).join('') : '<div class="empty">No subscriptions yet.</div>'; document.getElementById('finance-sub-creep').innerHTML = m>150 ? `<div class="insight">Subscriptions total <strong>${financeFmt(m)}/mo</strong> (${financeFmt(m*12)}/yr). Review services you no longer use.</div>` : ''; }
+async function financeSaveSubscription(){ const name=document.getElementById('fin-sub-name').value.trim(); const amount=Number(document.getElementById('fin-sub-amount').value); const cycle=document.getElementById('fin-sub-cycle').value; const cat=document.getElementById('fin-sub-cat').value; const next_date=normalizeDateValue(document.getElementById('fin-sub-next').value); if(!name||!Number.isFinite(amount)||amount<=0){ financeShowMsg('finance-sub-msg','Name and positive amount required.',true); return; } if(financeEditingSubId){ const s=financeState.subscriptions.find(x=>x.id===financeEditingSubId); Object.assign(s,{name,amount,cycle,cat,next_date}); financeEditingSubId=null; document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); } else financeState.subscriptions.push({id:financeId(),name,amount,cycle,cat,next_date}); await financePersist(); ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('finance-sub-msg','Saved.'); financeRenderAll(); }
+function financeEditSub(id){ const s=financeState.subscriptions.find(x=>x.id===id); if(!s) return; financeEditingSubId=id; document.getElementById('fin-sub-name').value=s.name; document.getElementById('fin-sub-amount').value=s.amount; document.getElementById('fin-sub-cycle').value=s.cycle; document.getElementById('fin-sub-cat').value=s.cat; document.getElementById('fin-sub-next').value=s.next_date||''; document.getElementById('finance-sub-save-btn').textContent='Update'; document.getElementById('finance-sub-cancel-btn').classList.remove('hidden'); }
+function financeCancelSubEdit(){ financeEditingSubId=null; ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); }
+async function financeDeleteSub(id){ financeState.subscriptions=financeState.subscriptions.filter(s=>s.id!==id); await financePersist(); financeRenderAll(); }
+
+function financeBuildContext(){ const now=new Date(); const tx=financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth()); const inc=financeForMonth(financeState.income, now.getFullYear(), now.getMonth()); const totals=financeCategoryTotals(tx); return { month: now.toLocaleDateString(undefined,{month:'long',year:'numeric'}), spent: financeNetSpent(tx), income: financeIncomeTotal(inc), budget: financeState.settings.monthly_limit||0, top_categories:Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([id,v])=>({category:financeCat(id).label, amount:v})), recent: financeAllTransactions().slice(0,10), subscriptions_monthly: financeState.subscriptions.reduce((s,x)=>s+financeSubMonthly(x),0), goals: financeState.goals }; }
+function financeHandleChatKey(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); financeAskAI(); } }
+function financeUseAndSendHint(text){ const input=document.getElementById('finance-chat-question'); input.value=text; financeAskAI(); }
+function financeRenderChat(){ const win=document.getElementById('finance-chat-window'); if(!win) return; if(!financeChatMessages.length){ win.innerHTML='<div class="chat-message system">Try: “Where am I overspending?” or “Summarize this month.”</div>'; return; } win.innerHTML=financeChatMessages.map(m=>`<div class="chat-bubble-wrap ${m.role}"><div class="chat-bubble-label">${m.role==='user'?'You':'AI'}</div><div class="chat-message ${m.role}">${formatAIContent(m.content,m.role)}</div></div>`).join(''); win.scrollTop=win.scrollHeight; }
+function financeLocalAnswer(q){ const c=financeBuildContext(); const lower=q.toLowerCase(); if(lower.includes('overspend')||lower.includes('budget')){ const over=[]; const budgets=financeState.settings.category_budgets||{}; const totals=financeCategoryTotals(financeForMonth(financeAllTransactions(), new Date().getFullYear(), new Date().getMonth())); Object.entries(budgets).forEach(([id,b])=>{ if((totals[id]||0)>b) over.push(`${financeCat(id).label}: ${financeFmt(totals[id]-b)} over`); }); return over.length ? `You are over budget in:\n- ${over.join('\n- ')}` : `You are not over any category budgets right now. Total spent this month is ${financeFmt(c.spent)} against a monthly limit of ${financeFmt(c.budget)}.`; }
+  if(lower.includes('biggest')||lower.includes('top category')) return c.top_categories.length ? `Your biggest category this month is ${c.top_categories[0].category} at ${financeFmt(c.top_categories[0].amount)}.` : 'No category spending this month yet.';
+  if(lower.includes('compare')){ const n=new Date(); const prev=new Date(n.getFullYear(), n.getMonth()-1,1); const cur=financeNetSpent(financeForMonth(financeAllTransactions(),n.getFullYear(),n.getMonth())); const p=financeNetSpent(financeForMonth(financeAllTransactions(),prev.getFullYear(),prev.getMonth())); return `This month: ${financeFmt(cur)}. Last month: ${financeFmt(p)}. Difference: ${financeFmt(cur-p)}.`; }
+  return `For ${c.month}, you spent ${financeFmt(c.spent)}, logged ${financeFmt(c.income)} income, and have ${financeFmt(c.income-c.spent)} net saved. Top categories: ${c.top_categories.map(x=>`${x.category} ${financeFmt(x.amount)}`).join(', ') || 'none yet'}.`;
+}
+async function financeAskAI(){ const input=document.getElementById('finance-chat-question'); const btn=document.getElementById('finance-chat-send-btn'); const q=(input.value||'').trim(); if(!q) return; financeChatMessages.push({role:'user',content:q}); input.value=''; btn.disabled=true; btn.textContent='Thinking...'; financeChatMessages.push({role:'assistant',content:financeLocalAnswer(q)}); financeRenderChat(); btn.disabled=false; btn.textContent='Send'; }
+
+
+document.getElementById('f-date').value = dateForInput(new Date().toISOString().split('T')[0]);
+financeInitUI();
+init();
+
+// Event delegation for follow-up suggestion buttons
+document.addEventListener("click", function(e) {
+  var btn = e.target.closest("button.chat-followup[data-hint]");
+  if (btn) {
+    var hint = btn.getAttribute("data-hint");
+    if (hint) useAndSendChatHint(hint);
+  }
+});
+</script>
+</body>
+</html>
