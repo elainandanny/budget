@@ -135,9 +135,20 @@
             <div id="finance-expense-form">
               <div class="form-row">
                 <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
-                <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
+                <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon" oninput="financePopulateReturnLinks()"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
               </div>
-              <div id="finance-return-wrap" class="form-group hidden"><label class="form-label">Link return to original purchase</label><select class="form-select" id="fin-return-link"></select></div>
+              <div id="finance-return-wrap" class="hidden return-link-card">
+                <div class="section-title small-title">Link return to original purchase</div>
+                <div class="form-row three finance-return-filters">
+                  <div class="form-group"><label class="form-label">Filter by merchant</label><input class="form-input" id="fin-return-merchant-filter" list="finance-store-options" placeholder="Auto uses merchant above" oninput="financePopulateReturnLinks()"></div>
+                  <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-return-month-filter" onchange="financePopulateReturnLinks()"></div>
+                  <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-return-cat-filter" onchange="financePopulateReturnLinks()"></select></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
+                  <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link"></select></div>
+                </div>
+              </div>
               <div class="form-row">
                 <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
                 <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
@@ -159,19 +170,29 @@
               <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveIncome()">Save income</button><span class="save-msg" id="fin-income-msg"></span></div>
             </div>
           </div>
-          <div class="chart-card"><div class="section-title">Recently added</div><div id="finance-recent-list"></div></div>
+          <div class="chart-card" id="finance-recent-card">
+            <div class="filter-header"><div class="section-title">Recently added</div><button class="small-btn filter-toggle" id="finance-recent-toggle-btn" type="button" onclick="financeToggleRecent()">Hide</button></div>
+            <div class="finance-recent-body" id="finance-recent-list"></div>
+          </div>
         </div>
 
         <div id="finance-history" class="finance-panel">
-          <div class="filter-card">
-            <div class="history-controls finance-history-controls">
-              <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant or note"></div>
-              <div class="form-group"><label class="form-label">Merchant</label><select class="form-select" id="fin-history-merchant" onchange="financeRenderHistory()"><option value="">All merchants</option></select></div>
-              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
-              <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-history-month" onchange="financeRenderHistory()"></div>
-              <button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Clear</button>
-              <button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button>
+          <div class="filter-card history-filter-card collapsed" id="finance-history-filter-card">
+            <div class="filter-header" style="margin-bottom:12px;">
+              <div class="section-title">Finance history filters</div>
+              <button class="small-btn filter-toggle" id="finance-history-filter-toggle-btn" type="button" onclick="financeToggleHistoryFilters()">Expand filters</button>
             </div>
+            <div class="history-controls finance-history-controls">
+              <div class="form-group"><label class="form-label">Merchant</label><select class="form-select" id="fin-history-merchant" onchange="financeRenderHistory()"><option value="">All merchants</option></select></div>
+              <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant, note, category"></div>
+              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
+              <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-history-type" onchange="financeRenderHistory()"><option value="">All types</option><option value="expense">Expenses</option><option value="return">Returns</option><option value="gas">Gas imports</option></select></div>
+              <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="fin-history-payment" onchange="financeRenderHistory()"><option value="">All payments</option><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option><option value="gas">Gas</option></select></div>
+              <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="fin-history-date-start" onchange="financeRenderHistory()" aria-label="Start date"><input class="form-input" type="date" id="fin-history-date-end" onchange="financeRenderHistory()" aria-label="End date"></div></div>
+              <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="fin-history-sort" onchange="financeRenderHistory()"><option value="date">Date</option><option value="merchant">Merchant</option><option value="amount">Amount</option><option value="category">Category</option><option value="payment">Payment</option><option value="type">Type</option></select></div>
+              <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="fin-history-direction" onchange="financeRenderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
+            </div>
+            <div class="history-filter-actions"><button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Reset history filters</button><button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button></div>
           </div>
           <div class="summary-line" id="finance-history-summary"></div>
           <div class="tx-list" id="finance-history-list"></div>
@@ -2189,6 +2210,7 @@ const financeCat = id => FINANCE_CATS.find(c => c.id === id) || FINANCE_CATS[FIN
 let financeState = loadFinanceLocal();
 let financeMonth = new Date();
 let financeEditingTransactionId = null;
+let financeEditSplitMode = 'quick';
 let financeSplitMode = 'quick';
 let financeTxType = 'expense';
 let financeChartSpending = null;
@@ -2239,10 +2261,10 @@ function financeInitUI(){
   financeRenderDashboardFilterOptions();
 }
 function financeMerchantOptions(){
+  // Finance merchants should be finance-entered merchants plus Gas brands only. Never include Gas station names.
   return [...new Set([
-    ...financeAllTransactions().map(t=>t.store),
-    ...(Array.isArray(entries) ? entries.map(e=>e.brand).filter(Boolean) : []),
-    ...(Array.isArray(entries) ? entries.map(e=>e.station).filter(Boolean) : [])
+    ...financeState.transactions.map(t=>t.store),
+    ...(Array.isArray(entries) ? entries.map(e=>e.brand).filter(Boolean) : [])
   ].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
 }
 function financeRenderStoreOptions(){
@@ -2253,9 +2275,10 @@ function financeRenderStoreOptions(){
   if(picker){ const current = picker.value; picker.innerHTML = '<option value="">Select recent merchant...</option>' + stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join(''); picker.value = stores.includes(current) ? current : ''; }
   const histMerchant = document.getElementById('fin-history-merchant');
   if(histMerchant){ const current = histMerchant.value; histMerchant.innerHTML = '<option value="">All merchants</option>' + stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join(''); histMerchant.value = stores.includes(current) ? current : ''; }
+  const returnCat = document.getElementById('fin-return-cat-filter');
+  if(returnCat){ const current=returnCat.value; returnCat.innerHTML='<option value="">All categories</option>' + FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); returnCat.value=current; }
 }
-function financeChooseMerchant(value){ if(!value) return; const el=document.getElementById('fin-store'); if(el) el.value=value; }
-
+function financeChooseMerchant(value){ if(!value) return; const el=document.getElementById('fin-store'); if(el) el.value=value; financePopulateReturnLinks(); }
 function financeRenderDashboardFilterOptions(){
   const catEl = document.getElementById('fin-filter-category');
   const merchantEl = document.getElementById('fin-filter-merchant');
@@ -2313,8 +2336,32 @@ function financeSwitch(name){
 function financeRenderAll(){ financeInitUI(); financeRenderDashboard(); financeRenderRecent(); financeRenderHistory(); financeRenderBudgets(); financeRenderSubs(); }
 function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeRenderDashboard(); }
 function financeGoNow(){ financeMonth = new Date(); financeRenderDashboard(); }
-function financeSetTxType(type){ financeTxType = type; ['expense','return','income'].forEach(t => document.getElementById('fin-mode-'+t)?.classList.toggle('active', t === type)); document.getElementById('finance-expense-form')?.classList.toggle('hidden', type === 'income'); document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income'); document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return'); if(type === 'return') financePopulateReturnLinks(); }
-function financePopulateReturnLinks(){ const sel = document.getElementById('fin-return-link'); if(!sel) return; sel.innerHTML = '<option value="">No link</option>' + financeState.transactions.filter(t=>!t.is_return).slice(0,80).map(t=>`<option value="${t.id}">${formatDateShort(t.date)} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join(''); }
+function financeSetTxType(type){
+  financeTxType = type;
+  ['expense','return','income'].forEach(t => document.getElementById('fin-mode-'+t)?.classList.toggle('active', t === type));
+  document.getElementById('finance-expense-form')?.classList.toggle('hidden', type === 'income');
+  document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income');
+  document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return');
+  if(type === 'return') financePopulateReturnLinks();
+}
+function financePopulateReturnLinks(){
+  const sel = document.getElementById('fin-return-link');
+  if(!sel) return;
+  const merchantTyped = (document.getElementById('fin-store')?.value || '').trim();
+  const merchantFilter = (document.getElementById('fin-return-merchant-filter')?.value || '').trim();
+  const merchant = merchantFilter || merchantTyped;
+  const month = document.getElementById('fin-return-month-filter')?.value || '';
+  const cat = document.getElementById('fin-return-cat-filter')?.value || '';
+  const search = (document.getElementById('fin-return-search-filter')?.value || '').trim().toLowerCase();
+  let rows = financeState.transactions.filter(t=>!t.is_return);
+  if(merchant) rows = rows.filter(t => String(t.store || '').toLowerCase().includes(merchant.toLowerCase()));
+  if(month) rows = rows.filter(t => String(t.date || '').startsWith(month));
+  if(cat) rows = rows.filter(t => (t.splits||[]).some(s=>s.cat===cat));
+  if(search) rows = rows.filter(t => [t.store, t.notes, ...(t.splits||[]).map(s=>financeCat(s.cat).label)].join(' ').toLowerCase().includes(search));
+  rows = rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,80);
+  const helper = rows.length ? '' : '<option value="">No matching purchases</option>';
+  sel.innerHTML = '<option value="">No link</option>' + helper + rows.map(t=>`<option value="${t.id}">${formatDateShort(t.date)} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join('');
+}
 function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } }
 function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
 function financeUpdateTally(){ const total = Number(document.getElementById('fin-total')?.value || 0); let alloc = 0; document.querySelectorAll('#fin-split-lines [data-role="amt"]').forEach(el => alloc += Number(el.value || 0)); const rem = total - alloc; const a = document.getElementById('fin-tally-alloc'); const r = document.getElementById('fin-tally-rem'); if(a) a.textContent = financeFmt(alloc); if(r){ r.textContent = `Remaining: ${financeFmt(rem)}`; r.style.color = Math.abs(rem) < .02 ? 'var(--success)' : rem < 0 ? 'var(--danger)' : 'var(--muted)'; } }
@@ -2352,15 +2399,67 @@ function financeRenderBudgetCard(spent){ const limit = Number(financeState.setti
 function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotals(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
 function financeRenderCharts(){ const spendCanvas=document.getElementById('finance-chart-spending'); if(!spendCanvas) return; if(financeChartSpending) financeChartSpending.destroy(); if(financeChartCategory) financeChartCategory.destroy(); const y=financeMonth.getFullYear(), m=financeMonth.getMonth(); const months=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1); months.push({y:d.getFullYear(),m:d.getMonth(),label:d.toLocaleDateString(undefined,{month:'short'})}); } const data=months.map(x=>Math.max(0,financeNetSpent(financeTransactionsForChartMonth(x.y,x.m)))); financeChartSpending = new Chart(spendCanvas, {type:'bar', data:{labels:months.map(x=>x.label), datasets:[{data, backgroundColor:'rgba(232,200,64,.75)', borderColor:'#e8c840', borderWidth:1}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>'$'+v}}}}}); const totals=financeCategoryTotals(financeDashboardTransactions()); const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8); financeChartCategory = new Chart(document.getElementById('finance-chart-category'), {type:'doughnut', data:{labels:rows.map(([id])=>financeCat(id).label), datasets:[{data:rows.map(([,v])=>v), backgroundColor:rows.map(([id])=>financeCat(id).color)}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}}); }
+function financeToggleRecent(){
+  const card=document.getElementById('finance-recent-card');
+  const btn=document.getElementById('finance-recent-toggle-btn');
+  if(!card||!btn) return;
+  const collapsed=card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Expand' : 'Hide';
+}
 function financeRenderRecent(){ const el=document.getElementById('finance-recent-list'); if(!el) return; const recent=financeAllTransactions().slice(0,6); el.innerHTML = recent.length ? recent.map(t=>`<div class="simple-row"><span>${formatDateShort(t.date)}</span><span><strong>${escapeHtml(t.store||'—')}</strong> ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</span><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong></div>`).join('') : '<div class="empty">No transactions yet.</div>'; }
+function financeToggleHistoryFilters(){
+  const card=document.getElementById('finance-history-filter-card');
+  const btn=document.getElementById('finance-history-filter-toggle-btn');
+  if(!card||!btn) return;
+  const collapsed=card.classList.toggle('collapsed');
+  btn.textContent = collapsed ? 'Expand filters' : 'Hide filters';
+}
+function financeHistoryFilterState(){
+  const startRaw=document.getElementById('fin-history-date-start')?.value||'';
+  const endRaw=document.getElementById('fin-history-date-end')?.value||'';
+  const start=startRaw && endRaw && startRaw>endRaw ? endRaw : startRaw;
+  const end=startRaw && endRaw && startRaw>endRaw ? startRaw : endRaw;
+  return {
+    search:(document.getElementById('fin-history-search')?.value||'').trim().toLowerCase(),
+    merchant:document.getElementById('fin-history-merchant')?.value||'',
+    cat:document.getElementById('fin-history-cat')?.value||'',
+    type:document.getElementById('fin-history-type')?.value||'',
+    payment:document.getElementById('fin-history-payment')?.value||'',
+    start,end,
+    sort:document.getElementById('fin-history-sort')?.value||'date',
+    direction:document.getElementById('fin-history-direction')?.value||'desc'
+  };
+}
+function financeHistoryRows(){
+  const f=financeHistoryFilterState();
+  let rows=financeAllTransactions().filter(t=>{
+    if(f.search){ const text=[t.store,t.notes,t.payment,t.is_return?'return':'expense',t.source==='gas'?'gas import':'',...(t.splits||[]).flatMap(s=>[s.cat,financeCat(s.cat).label,s.subcat])].join(' ').toLowerCase(); if(!text.includes(f.search)) return false; }
+    if(f.merchant && t.store!==f.merchant) return false;
+    if(f.cat && !(t.splits||[]).some(s=>s.cat===f.cat)) return false;
+    if(f.type==='expense' && (t.is_return || t.source==='gas')) return false;
+    if(f.type==='return' && !t.is_return) return false;
+    if(f.type==='gas' && t.source!=='gas') return false;
+    if(f.payment && t.payment!==f.payment) return false;
+    if(f.start && String(t.date||'') < f.start) return false;
+    if(f.end && String(t.date||'') > f.end) return false;
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let av='', bv='';
+    if(f.sort==='merchant'){ av=a.store||''; bv=b.store||''; }
+    else if(f.sort==='amount'){ av=Number(a.total||0); bv=Number(b.total||0); return av-bv; }
+    else if(f.sort==='category'){ av=(a.splits||[]).map(s=>financeCat(s.cat).label).join(', '); bv=(b.splits||[]).map(s=>financeCat(s.cat).label).join(', '); }
+    else if(f.sort==='payment'){ av=a.payment||''; bv=b.payment||''; }
+    else if(f.sort==='type'){ av=a.source==='gas'?'gas':a.is_return?'return':'expense'; bv=b.source==='gas'?'gas':b.is_return?'return':'expense'; }
+    else { av=a.date||''; bv=b.date||''; }
+    return String(av).localeCompare(String(bv));
+  });
+  if(f.direction==='desc') rows.reverse();
+  return rows;
+}
 function financeRenderHistory(){
   const el=document.getElementById('finance-history-list'); if(!el) return;
-  financeRenderStoreOptions();
-  const search=(document.getElementById('fin-history-search')?.value||'').toLowerCase();
-  const merchant=document.getElementById('fin-history-merchant')?.value||'';
-  const cat=document.getElementById('fin-history-cat')?.value||'';
-  const month=document.getElementById('fin-history-month')?.value||'';
-  const rows=financeAllTransactions().filter(t=>(!search || (t.store||'').toLowerCase().includes(search) || (t.notes||'').toLowerCase().includes(search)) && (!merchant || t.store===merchant) && (!cat || (t.splits||[]).some(s=>s.cat===cat)) && (!month || t.date.startsWith(month)));
+  const rows=financeHistoryRows();
   const net=financeNetSpent(rows);
   document.getElementById('finance-history-summary').textContent = `${rows.length} transaction${rows.length===1?'':'s'} · ${financeFmt(net)} net`;
   el.innerHTML = rows.length ? rows.map(t=> t.id===financeEditingTransactionId ? financeEditTransactionCard(t) : financeTransactionCard(t)).join('') : '<div class="empty">No transactions found.</div>';
@@ -2369,18 +2468,25 @@ function financeTransactionCard(t){
   return `<div class="tx-item"><div><div class="tx-title">${escapeHtml(t.store||'—')} ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</div><div class="tx-sub">${formatDateShort(t.date)} · ${(t.splits||[]).map(s=>financeCat(s.cat).emoji+' '+financeCat(s.cat).label).join(', ')}${t.notes?' · '+escapeHtml(t.notes):''}</div></div><div class="tx-right"><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong>${t.source==='gas'?'<span class="metric-sub">Edit in Gas History</span>':`<div class="btn-row compact-actions"><button class="small-btn" type="button" onclick="financeStartEditTransaction('${t.id}')">Edit</button><button class="small-btn danger-btn" type="button" onclick="financeDeleteTransaction('${t.id}')">Delete</button></div>`}</div></div>`;
 }
 function financeEditTransactionCard(t){
-  const split=t.splits?.[0]||{cat:'other',subcat:'',amount:t.total};
+  const splits=(t.splits&&t.splits.length?t.splits:[{cat:'other',subcat:'',amount:t.total}]);
+  const isSplit=financeEditSplitMode==='split';
+  const quick=splits[0]||{cat:'other',subcat:'',amount:t.total};
   return `<div class="tx-item tx-edit"><div class="finance-edit-grid">
     <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="edit-fin-date" value="${escapeHtml(t.date)}"></div>
     <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="edit-fin-store" list="finance-store-options" value="${escapeHtml(t.store||'')}"></div>
-    <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="edit-fin-total" value="${Number(t.total||0)}"></div>
+    <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="edit-fin-total" value="${Number(t.total||0)}" oninput="financeEditUpdateTally()"></div>
     <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="edit-fin-payment"><option value="credit" ${t.payment==='credit'?'selected':''}>Credit Card</option><option value="debit" ${t.payment==='debit'?'selected':''}>Debit Card</option><option value="cash" ${t.payment==='cash'?'selected':''}>Cash</option><option value="other" ${t.payment==='other'?'selected':''}>Other</option></select></div>
-    <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="edit-fin-cat">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${split.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
-    <div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="edit-fin-subcat" value="${escapeHtml(split.subcat||'')}"></div>
+    <div class="form-grid-full"><div class="section-title small-title">Category</div><div class="mode-toggle finance-category-toggle"><button class="mode-btn ${!isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('quick')">One category</button><button class="mode-btn ${isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('split')">Split categories</button></div></div>
+    <div id="finance-edit-quick" class="form-row ${isSplit?'hidden':''}"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="edit-fin-cat">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${quick.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="edit-fin-subcat" value="${escapeHtml(quick.subcat||'')}"></div></div>
+    <div id="finance-edit-split" class="form-grid-full ${isSplit?'':'hidden'}"><div class="split-tally"><span>Allocated: <strong id="edit-fin-tally-alloc">$0.00</strong></span><span id="edit-fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="edit-fin-split-lines">${splits.map(s=>financeEditSplitLineHtml(s)).join('')}</div><button class="small-btn full" type="button" onclick="financeEditAddSplitLine()">+ Add category line</button></div>
     <div class="form-group finance-edit-notes"><label class="form-label">Notes</label><input class="form-input" id="edit-fin-notes" value="${escapeHtml(t.notes||'')}"></div>
   </div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveEditTransaction('${t.id}')">Save changes</button><button class="small-btn" type="button" onclick="financeCancelEditTransaction()">Cancel</button></div></div>`;
 }
-function financeStartEditTransaction(id){ financeEditingTransactionId=id; financeRenderHistory(); }
+function financeEditSplitLineHtml(split={cat:'groceries',amount:''}){ return `<div class="split-line"><select class="form-select" data-role="edit-cat" onchange="financeEditUpdateTally()">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${split.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select><input class="form-input" type="number" step="0.01" data-role="edit-amt" value="${Number(split.amount||0)||''}" oninput="financeEditUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeEditUpdateTally();">×</button></div>`; }
+function financeEditSetSplitMode(mode){ financeEditSplitMode=mode; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
+function financeEditAddSplitLine(){ const wrap=document.getElementById('edit-fin-split-lines'); if(!wrap) return; wrap.insertAdjacentHTML('beforeend', financeEditSplitLineHtml()); financeEditUpdateTally(); }
+function financeEditUpdateTally(){ const total=Number(document.getElementById('edit-fin-total')?.value||0); let alloc=0; document.querySelectorAll('#edit-fin-split-lines [data-role="edit-amt"]').forEach(el=>alloc+=Number(el.value||0)); const rem=total-alloc; const a=document.getElementById('edit-fin-tally-alloc'); const r=document.getElementById('edit-fin-tally-rem'); if(a) a.textContent=financeFmt(alloc); if(r){ r.textContent=`Remaining: ${financeFmt(rem)}`; r.style.color=Math.abs(rem)<.02?'var(--success)':rem<0?'var(--danger)':'var(--muted)'; } }
+function financeStartEditTransaction(id){ const t=financeState.transactions.find(x=>x.id===id); financeEditingTransactionId=id; financeEditSplitMode=(t?.splits?.length||0)>1?'split':'quick'; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
 function financeCancelEditTransaction(){ financeEditingTransactionId=null; financeRenderHistory(); }
 async function financeSaveEditTransaction(id){
   const t=financeState.transactions.find(x=>x.id===id); if(!t) return;
@@ -2388,16 +2494,24 @@ async function financeSaveEditTransaction(id){
   const store=document.getElementById('edit-fin-store').value.trim();
   const total=Number(document.getElementById('edit-fin-total').value);
   const payment=document.getElementById('edit-fin-payment').value;
-  const cat=document.getElementById('edit-fin-cat').value;
-  const subcat=document.getElementById('edit-fin-subcat').value.trim();
   const notes=document.getElementById('edit-fin-notes').value.trim();
   if(!date || !Number.isFinite(total) || total<=0){ alert('Date and positive amount are required.'); return; }
-  Object.assign(t,{date,store,total,payment,notes,splits:[{cat,subcat,amount:total}]});
+  let splits=[];
+  if(financeEditSplitMode==='split'){
+    document.querySelectorAll('#edit-fin-split-lines .split-line').forEach(line=>{ const cat=line.querySelector('[data-role="edit-cat"]').value; const amount=Number(line.querySelector('[data-role="edit-amt"]').value||0); if(amount>0) splits.push({cat,subcat:'',amount}); });
+    const alloc=splits.reduce((sum,x)=>sum+x.amount,0);
+    if(!splits.length || Math.abs(alloc-total)>.06){ alert(`Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`); return; }
+  } else {
+    const cat=document.getElementById('edit-fin-cat').value;
+    const subcat=document.getElementById('edit-fin-subcat').value.trim();
+    splits=[{cat,subcat,amount:total}];
+  }
+  Object.assign(t,{date,store,total,payment,notes,splits});
   financeEditingTransactionId=null;
   await financePersist(); financeRenderAll();
 }
-function financeClearHistoryFilters(){ ['fin-history-search','fin-history-month','fin-history-merchant'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const cat=document.getElementById('fin-history-cat'); if(cat) cat.value=''; financeRenderHistory(); }
-function financeExportCSV(){ const rows=[['Date','Merchant','Total','Return','Categories','Payment','Notes']]; financeState.transactions.forEach(t=>rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',(t.splits||[]).map(s=>`${financeCat(s.cat).label}:${s.amount}`).join('; '),t.payment||'',t.notes||''])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`finance-${financeDateToday()}.csv`; a.click(); }
+function financeClearHistoryFilters(){ ['fin-history-search','fin-history-merchant','fin-history-cat','fin-history-type','fin-history-payment','fin-history-date-start','fin-history-date-end'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const sort=document.getElementById('fin-history-sort'); if(sort) sort.value='date'; const dir=document.getElementById('fin-history-direction'); if(dir) dir.value='desc'; financeRenderHistory(); }
+function financeExportCSV(){ const rows=[['Date','Merchant','Total','Return','Categories','Payment','Notes']]; financeHistoryRows().filter(t=>t.source!=='gas').forEach(t=>rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',(t.splits||[]).map(s=>`${financeCat(s.cat).label}:${s.amount}`).join('; '),t.payment||'',t.notes||''])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`finance-${financeDateToday()}.csv`; a.click(); }
 
 function financeRenderBudgets(){ const now=new Date(); const tx=financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth()); const spent=financeNetSpent(tx); const limit=Number(financeState.settings.monthly_limit||0); const overview=document.getElementById('finance-budget-overview'); if(!overview) return; overview.innerHTML = limit ? `<div class="budget-header"><span>${now.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${spent/limit>=1?'over':spent/limit>=.8?'warn':''}" style="width:${Math.min(100,spent/limit*100)}%"></div></div><div class="budget-pct">${Math.round(spent/limit*100)}% used · ${financeFmt(limit-spent)} remaining</div>` : '<div class="summary-line">Set a monthly limit to track total spending.</div>'; const input=document.getElementById('fin-budget-input'); if(input && !input.value && limit) input.value=limit; financeRenderIncomeList(); financeRenderCategoryBudgetInputs(); financeRenderGoals(); financeRenderHeatmap(); }
 async function financeSaveBudgetLimit(){ const v=Number(document.getElementById('fin-budget-input').value); if(!Number.isFinite(v)||v<0){ financeShowMsg('fin-budget-msg','Enter a valid budget amount.',true); return; } financeState.settings.monthly_limit=v; await financePersist(); financeShowMsg('fin-budget-msg','Limit saved.'); financeRenderAll(); }
