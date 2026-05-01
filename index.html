@@ -621,11 +621,11 @@ async function init() {
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     currentUser = session?.user || null;
     showCorrectView();
-    if (currentUser) loadEntriesFromCloud();
+    if (currentUser) { loadEntriesFromCloud(); loadFinanceFromCloud(); }
   });
 
   showCorrectView();
-  if (currentUser) await loadEntriesFromCloud();
+  if (currentUser) { await loadEntriesFromCloud(); await loadFinanceFromCloud(); }
 }
 
 function showCorrectView() {
@@ -2247,7 +2247,28 @@ function loadFinanceLocal(){
   } catch { return { transactions: [], income: [], subscriptions: [], goals: [], settings: { monthly_limit:0, category_budgets:{} } }; }
 }
 function saveFinanceLocal(){ localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(financeState)); }
-async function financePersist(){ saveFinanceLocal(); }
+function normalizeFinanceTransaction(t){ return {...t,total:Number(t.total||0),is_return:Boolean(t.is_return),splits:Array.isArray(t.splits)?t.splits:[],store:String(t.store||'').trim(),payment:t.payment||'',notes:t.notes||''}; }
+function normalizeFinanceStatePayload(){ financeState.transactions=(financeState.transactions||[]).map(normalizeFinanceTransaction); financeState.income=(financeState.income||[]).map(i=>({...i,amount:Number(i.amount||0)})); financeState.subscriptions=(financeState.subscriptions||[]).map(s=>({...s,amount:Number(s.amount||0)})); financeState.goals=(financeState.goals||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})); financeState.settings=financeState.settings||{monthly_limit:0,category_budgets:{}}; financeState.settings.monthly_limit=Number(financeState.settings.monthly_limit||0); financeState.settings.category_budgets=financeState.settings.category_budgets||{}; }
+async function loadFinanceFromCloud(){
+  if(!currentUser||!supabaseClient){ normalizeFinanceStatePayload(); saveFinanceLocal(); financeRenderAll(); return; }
+  try{
+    const [tx,inc,subs,goalsRes,settingsRes]=await Promise.all([
+      supabaseClient.from('transactions').select('*').eq('user_id',currentUser.id).order('date',{ascending:false}).order('created_at',{ascending:false}),
+      supabaseClient.from('income').select('*').eq('user_id',currentUser.id).order('date',{ascending:false}).order('created_at',{ascending:false}),
+      supabaseClient.from('subscriptions').select('*').eq('user_id',currentUser.id).order('name',{ascending:true}),
+      supabaseClient.from('goals').select('*').eq('user_id',currentUser.id).order('created_at',{ascending:false}),
+      supabaseClient.from('settings').select('*').eq('user_id',currentUser.id).maybeSingle()
+    ]);
+    if(tx.error) throw tx.error; if(inc.error) throw inc.error; if(subs.error) throw subs.error; if(goalsRes.error) throw goalsRes.error; if(settingsRes.error) throw settingsRes.error;
+    financeState={transactions:(tx.data||[]).map(normalizeFinanceTransaction),income:(inc.data||[]).map(i=>({...i,amount:Number(i.amount||0)})),subscriptions:(subs.data||[]).map(s=>({...s,amount:Number(s.amount||0)})),goals:(goalsRes.data||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})),settings:settingsRes.data?{monthly_limit:Number(settingsRes.data.monthly_limit||0),category_budgets:settingsRes.data.category_budgets||{}}:{monthly_limit:0,category_budgets:{}}};
+    saveFinanceLocal(); financeRenderAll(); if(!settingsRes.data) await saveFinanceSettingsToCloud();
+  }catch(err){ console.error('Finance cloud load failed:',err); normalizeFinanceStatePayload(); saveFinanceLocal(); financeRenderAll(); }
+}
+async function financePersist(){ normalizeFinanceStatePayload(); saveFinanceLocal(); }
+async function saveFinanceSettingsToCloud(){ if(!currentUser||!supabaseClient){ await financePersist(); return true; } const {error}=await supabaseClient.from('settings').upsert({user_id:currentUser.id,monthly_limit:Number(financeState.settings.monthly_limit||0),category_budgets:financeState.settings.category_budgets||{}},{onConflict:'user_id'}); if(error){ console.error('Finance settings save failed:',error); alert('Budget settings did not save to cloud.'); return false;} await financePersist(); return true; }
+async function financeInsertRow(table,payload){ if(!currentUser||!supabaseClient) return {data:null,error:null}; const {data,error}=await supabaseClient.from(table).insert({...payload,user_id:currentUser.id}).select().single(); if(error) console.error(table+' insert failed:',error); return {data,error}; }
+async function financeUpdateRow(table,id,payload){ if(!currentUser||!supabaseClient) return {error:null}; const {error}=await supabaseClient.from(table).update(payload).eq('id',id).eq('user_id',currentUser.id); if(error) console.error(table+' update failed:',error); return {error}; }
+async function financeDeleteRow(table,id){ if(!currentUser||!supabaseClient) return {error:null}; const {error}=await supabaseClient.from(table).delete().eq('id',id).eq('user_id',currentUser.id); if(error) console.error(table+' delete failed:',error); return {error}; }
 function financeFmt(n){ const v = Number(n) || 0; return (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function financeId(){ return crypto.randomUUID?.() || (Date.now().toString(36) + Math.random().toString(36).slice(2)); }
 function financeShowMsg(id, msg, isError=false){ const el = document.getElementById(id); if(!el) return; el.textContent = msg; el.style.color = isError ? 'var(--danger)' : 'var(--success)'; if(!isError) setTimeout(()=>{ el.textContent=''; }, 3000); }
@@ -2348,6 +2369,7 @@ function financeTransactionMatchesFilters(t, f, includeDate=true){
   return true;
 }
 function financeDashboardTransactions(){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>financeTransactionMatchesFilters(t,f,true)); }
+function financeChartTransactions(){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>financeTransactionMatchesFilters(t,f,Boolean(f.hasRange))); }
 function financeDashboardIncome(){ const f=financeDashboardFilterState(); return financeState.income.filter(i=>{ const month=String(i.date||'').slice(0,7); if(f.hasRange){ if(f.start && month < f.start) return false; if(f.end && month > f.end) return false; return true; } const current = `${financeMonth.getFullYear()}-${String(financeMonth.getMonth()+1).padStart(2,'0')}`; return month === current; }); }
 function financeTransactionsForChartMonth(y,m){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>{ const x=financeYM(t.date); return x.y===y && x.m===m && financeTransactionMatchesFilters(t,{...f,hasRange:false,start:'',end:''},false); }); }
 function financeSwitch(name){
@@ -2389,17 +2411,39 @@ function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElement
 function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
 function financeUpdateTally(){ const total = Number(document.getElementById('fin-total')?.value || 0); let alloc = 0; document.querySelectorAll('#fin-split-lines [data-role="amt"]').forEach(el => alloc += Number(el.value || 0)); const rem = total - alloc; const a = document.getElementById('fin-tally-alloc'); const r = document.getElementById('fin-tally-rem'); if(a) a.textContent = financeFmt(alloc); if(r){ r.textContent = `Remaining: ${financeFmt(rem)}`; r.style.color = Math.abs(rem) < .02 ? 'var(--success)' : rem < 0 ? 'var(--danger)' : 'var(--muted)'; } }
 async function financeSaveTransaction(){
-  const date = normalizeDateValue(document.getElementById('fin-date').value); const store = document.getElementById('fin-store').value.trim(); const total = Number(document.getElementById('fin-total').value); const payment = document.getElementById('fin-payment').value; const notes = document.getElementById('fin-notes').value.trim();
+  const date = normalizeDateValue(document.getElementById('fin-date').value);
+  const store = document.getElementById('fin-store').value.trim();
+  const total = Number(document.getElementById('fin-total').value);
+  const payment = document.getElementById('fin-payment').value;
+  const notes = document.getElementById('fin-notes').value.trim();
   if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
   let splits = [];
   if(financeSplitMode === 'quick') splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat').value.trim(), amount: total }];
-  else { document.querySelectorAll('#fin-split-lines .split-line').forEach(line => { const cat = line.querySelector('[data-role="cat"]').value; const amount = Number(line.querySelector('[data-role="amt"]').value || 0); if(amount > 0) splits.push({cat, subcat:'', amount}); }); const alloc = splits.reduce((s,x)=>s+x.amount,0); if(Math.abs(alloc-total) > .06){ financeShowMsg('fin-save-msg', `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; } }
-  financeState.transactions.unshift({ id: financeId(), date, store, total, payment, notes, splits, is_return: financeTxType === 'return', linked_id: financeTxType === 'return' ? (document.getElementById('fin-return-link').value || null) : null, created_at: new Date().toISOString() });
-  await financePersist(); financeShowMsg('fin-save-msg', financeTxType === 'return' ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
+  else {
+    document.querySelectorAll('#fin-split-lines .split-line').forEach(line => { const cat = line.querySelector('[data-role="cat"]').value; const amount = Number(line.querySelector('[data-role="amt"]').value || 0); if(amount > 0) splits.push({cat, subcat:'', amount}); });
+    const alloc = splits.reduce((sum,x)=>sum+x.amount,0);
+    if(Math.abs(alloc-total) > .06){ financeShowMsg('fin-save-msg', `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; }
+  }
+  const is_return = financeTxType === 'return';
+  const linked_id = is_return ? (document.getElementById('fin-return-link').value || null) : null;
+  const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return, linked_id });
+  if(error){ financeShowMsg('fin-save-msg','Could not save to cloud. Check Supabase SQL/policies.',true); return; }
+  financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return, linked_id, created_at: new Date().toISOString() });
+  await financePersist(); financeShowMsg('fin-save-msg', is_return ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
 }
 function financeClearForm(){ ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday()); const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = ''; financeSetSplitMode('quick'); financeSetTxType('expense'); }
-async function financeSaveIncome(){ const date = normalizeDateValue(document.getElementById('fin-income-date').value); const source = document.getElementById('fin-income-source').value.trim(); const amount = Number(document.getElementById('fin-income-amount').value); const type = document.getElementById('fin-income-type').value; const notes = document.getElementById('fin-income-notes').value.trim(); if(!date || !Number.isFinite(amount) || amount <= 0){ financeShowMsg('fin-income-msg','Date and positive amount required.',true); return; } financeState.income.unshift({id:financeId(), date, source, amount, type, notes, created_at:new Date().toISOString()}); await financePersist(); ['fin-income-source','fin-income-amount','fin-income-notes'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('fin-income-msg','Income saved.'); financeRenderAll(); }
-
+async function financeSaveIncome(){
+  const date = normalizeDateValue(document.getElementById('fin-income-date').value);
+  const source = document.getElementById('fin-income-source').value.trim();
+  const amount = Number(document.getElementById('fin-income-amount').value);
+  const type = document.getElementById('fin-income-type').value;
+  const notes = document.getElementById('fin-income-notes').value.trim();
+  if(!date || !Number.isFinite(amount) || amount <= 0){ financeShowMsg('fin-income-msg','Date and positive amount required.',true); return; }
+  const { data, error } = await financeInsertRow('income', {date, source, amount, type, notes});
+  if(error){ financeShowMsg('fin-income-msg','Could not save income to cloud.',true); return; }
+  financeState.income.unshift(data ? {...data, amount:Number(data.amount||0)} : {id:financeId(), date, source, amount, type, notes, created_at:new Date().toISOString()});
+  await financePersist(); ['fin-income-source','fin-income-amount','fin-income-notes'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('fin-income-msg','Income saved.'); financeRenderAll();
+}
 function financeRenderDashboard(){
   if(!document.getElementById('finance-dashboard')) return;
   const y = financeMonth.getFullYear(), m = financeMonth.getMonth();
@@ -2455,7 +2499,7 @@ function financeRenderCharts(){
   if(financeChartCategory) financeChartCategory.destroy();
 
   const view = document.getElementById('finance-chart-time-view')?.value || 'month';
-  const grouped = financeGroupSpendingByTime(financeDashboardTransactions(), view);
+  const grouped = financeGroupSpendingByTime(financeChartTransactions(), view);
   const labels = grouped.map(x=>x.label);
   const data = grouped.map(x=>x.total);
 
@@ -2639,17 +2683,21 @@ async function financeSaveEditTransaction(id){
     const subcat=document.getElementById('edit-fin-subcat').value.trim();
     splits=[{cat,subcat,amount:total}];
   }
-  Object.assign(t,{date,store,total,payment,notes,splits});
+  const payload={date,store,total,payment,notes,splits,is_return:Boolean(t.is_return),linked_id:t.linked_id||null};
+  const {error}=await financeUpdateRow('transactions', id, payload);
+  if(error){ alert('Could not update transaction in cloud.'); return; }
+  Object.assign(t,payload);
   financeEditingTransactionId=null;
   await financePersist(); financeRenderAll();
 }
+async function financeDeleteTransaction(id){ if(!confirm('Delete this transaction?')) return; const {error}=await financeDeleteRow('transactions',id); if(error){ alert('Could not delete transaction from cloud.'); return;} financeState.transactions=financeState.transactions.filter(t=>t.id!==id); await financePersist(); financeRenderAll(); }
 function financeClearHistoryFilters(){ ['fin-history-search','fin-history-merchant','fin-history-cat','fin-history-type','fin-history-payment','fin-history-date-start','fin-history-date-end'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); const sort=document.getElementById('fin-history-sort'); if(sort) sort.value='date'; const dir=document.getElementById('fin-history-direction'); if(dir) dir.value='desc'; financeRenderHistory(); }
 function financeExportCSV(){ const rows=[['Date','Merchant','Total','Return','Categories','Payment','Notes']]; financeHistoryRows().filter(t=>t.source!=='gas').forEach(t=>rows.push([t.date,t.store||'',t.total,t.is_return?'Yes':'No',(t.splits||[]).map(s=>`${financeCat(s.cat).label}:${s.amount}`).join('; '),t.payment||'',t.notes||''])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`finance-${financeDateToday()}.csv`; a.click(); }
 
 function financeRenderBudgets(){ const now=new Date(); const tx=financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth()); const spent=financeNetSpent(tx); const limit=Number(financeState.settings.monthly_limit||0); const overview=document.getElementById('finance-budget-overview'); if(!overview) return; overview.innerHTML = limit ? `<div class="budget-header"><span>${now.toLocaleDateString(undefined,{month:'long',year:'numeric'})}</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${spent/limit>=1?'over':spent/limit>=.8?'warn':''}" style="width:${Math.min(100,spent/limit*100)}%"></div></div><div class="budget-pct">${Math.round(spent/limit*100)}% used · ${financeFmt(limit-spent)} remaining</div>` : '<div class="summary-line">Set a monthly limit to track total spending.</div>'; const input=document.getElementById('fin-budget-input'); if(input && !input.value && limit) input.value=limit; financeRenderIncomeList(); financeRenderCategoryBudgetInputs(); financeRenderGoals(); financeRenderHeatmap(); }
-async function financeSaveBudgetLimit(){ const v=Number(document.getElementById('fin-budget-input').value); if(!Number.isFinite(v)||v<0){ financeShowMsg('fin-budget-msg','Enter a valid budget amount.',true); return; } financeState.settings.monthly_limit=v; await financePersist(); financeShowMsg('fin-budget-msg','Limit saved.'); financeRenderAll(); }
+async function financeSaveBudgetLimit(){ const v=Number(document.getElementById('fin-budget-input').value); if(!Number.isFinite(v)||v<0){ financeShowMsg('fin-budget-msg','Enter a valid budget amount.',true); return; } financeState.settings.monthly_limit=v; if(!(await saveFinanceSettingsToCloud())) return; financeShowMsg('fin-budget-msg','Limit saved.'); financeRenderAll(); }
 function financeRenderIncomeList(){ const now=new Date(); const inc=financeForMonth(financeState.income, now.getFullYear(), now.getMonth()); const total=financeIncomeTotal(inc); document.getElementById('finance-income-summary-bar').innerHTML = `<div class="summary-line">Total income this month: <strong class="success-text">${financeFmt(total)}</strong></div>`; const list=document.getElementById('finance-income-list'); list.innerHTML = financeState.income.slice(0,10).map(i=>`<div class="simple-row"><span>${formatDateShort(i.date)}</span><span>${escapeHtml(i.source||'Income')}</span><span><strong>${financeFmt(i.amount)}</strong> <button class="small-btn danger-btn" onclick="financeDeleteIncome('${i.id}')">×</button></span></div>`).join('') || '<div class="empty">No income logged.</div>'; }
-async function financeDeleteIncome(id){ financeState.income=financeState.income.filter(i=>i.id!==id); await financePersist(); financeRenderAll(); }
+async function financeDeleteIncome(id){ const {error}=await financeDeleteRow('income',id); if(error){alert('Could not delete income from cloud.'); return;} financeState.income=financeState.income.filter(i=>i.id!==id); await financePersist(); financeRenderAll(); }
 function financeToggleCategoryBudgetCard(){
   const card=document.getElementById('finance-category-budget-card');
   const btn=document.getElementById('finance-category-budget-toggle-btn');
@@ -2670,20 +2718,49 @@ function financeRenderCategoryBudgetInputs(){
   });
   wrap.innerHTML=cats.map(c=>{ const spent=Math.max(0, totals[c.id]||0); const limit=Number(budgets[c.id]||0); const pct=limit?Math.min(100,spent/limit*100):0; return `<div class="cat-budget-row ${limit?'has-budget':'no-budget'}"><div><div class="budget-header"><span>${c.emoji} ${escapeHtml(c.label)}</span><span>${financeFmt(spent)}${limit?' / '+financeFmt(limit):''}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${limit&&spent/limit>=1?'over':limit&&spent/limit>=.8?'warn':''}" style="width:${pct}%"></div></div></div><input class="form-input" type="number" step="1" data-cat-budget="${c.id}" value="${limit||''}" placeholder="Budget"></div>`; }).join('');
 }
-async function financeSaveCategoryBudgets(){ const budgets={}; document.querySelectorAll('[data-cat-budget]').forEach(el=>{ const v=Number(el.value); if(Number.isFinite(v)&&v>0) budgets[el.dataset.catBudget]=v; }); financeState.settings.category_budgets=budgets; await financePersist(); financeShowMsg('fin-cat-budget-msg','Category budgets saved.'); financeRenderAll(); }
+async function financeSaveCategoryBudgets(){ const budgets={}; document.querySelectorAll('[data-cat-budget]').forEach(el=>{ const v=Number(el.value); if(Number.isFinite(v)&&v>0) budgets[el.dataset.catBudget]=v; }); financeState.settings.category_budgets=budgets; if(!(await saveFinanceSettingsToCloud())) return; financeShowMsg('fin-cat-budget-msg','Category budgets saved.'); financeRenderAll(); }
 let financeGoalOpen=false; function financeToggleGoalForm(){ financeGoalOpen=!financeGoalOpen; document.getElementById('finance-goal-form')?.classList.toggle('hidden', !financeGoalOpen); }
-async function financeSaveGoal(){ const name=document.getElementById('fin-goal-name').value.trim(); const target=Number(document.getElementById('fin-goal-target').value); const current=Number(document.getElementById('fin-goal-current').value||0); const date=normalizeDateValue(document.getElementById('fin-goal-date').value); if(!name||!Number.isFinite(target)||target<=0){ financeShowMsg('fin-goal-msg','Name and target greater than 0 required.',true); return; } financeState.goals.push({id:financeId(),name,target,current,target_date:date}); await financePersist(); financeShowMsg('fin-goal-msg','Goal saved.'); financeToggleGoalForm(); financeRenderAll(); }
+async function financeSaveGoal(){
+  const name=document.getElementById('fin-goal-name').value.trim();
+  const target=Number(document.getElementById('fin-goal-target').value);
+  const current=Number(document.getElementById('fin-goal-current').value||0);
+  const target_date=normalizeDateValue(document.getElementById('fin-goal-date').value);
+  if(!name||!Number.isFinite(target)||target<=0){ financeShowMsg('fin-goal-msg','Name and target greater than 0 required.',true); return; }
+  const { data, error } = await financeInsertRow('goals', {name,target,current,target_date});
+  if(error){ financeShowMsg('fin-goal-msg','Could not save goal to cloud.',true); return; }
+  financeState.goals.push(data ? {...data,target:Number(data.target||0),current:Number(data.current||0)} : {id:financeId(),name,target,current,target_date});
+  await financePersist(); financeShowMsg('fin-goal-msg','Goal saved.'); financeToggleGoalForm(); financeRenderAll();
+}
 function financeRenderGoals(){ const el=document.getElementById('finance-goals-list'); if(!el) return; el.innerHTML = financeState.goals.length ? financeState.goals.map(g=>{ const pct=Math.min(100,(Number(g.current||0)/Number(g.target||1))*100); return `<div class="goal-item"><div class="budget-header"><span>🎯 ${escapeHtml(g.name)}</span><span>${financeFmt(g.current)} / ${financeFmt(g.target)}</span></div><div class="budget-bar-wrap"><div class="budget-bar blue" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}%${g.target_date?' · Target: '+formatDateShort(g.target_date):''}</div><div class="btn-row"><button class="small-btn" onclick="financeUpdateGoal('${g.id}')">Update</button><button class="small-btn danger-btn" onclick="financeDeleteGoal('${g.id}')">Delete</button></div></div>`; }).join('') : '<div class="empty">No goals yet.</div>'; }
 async function financeUpdateGoal(id){ const g=financeState.goals.find(x=>x.id===id); if(!g) return; const val=prompt('Saved so far:', g.current); if(val===null) return; g.current=Number(val)||0; await financePersist(); financeRenderAll(); }
-async function financeDeleteGoal(id){ financeState.goals=financeState.goals.filter(g=>g.id!==id); await financePersist(); financeRenderAll(); }
+async function financeDeleteGoal(id){ const {error}=await financeDeleteRow('goals',id); if(error){alert('Could not delete goal from cloud.'); return;} financeState.goals=financeState.goals.filter(g=>g.id!==id); await financePersist(); financeRenderAll(); }
 function financeRenderHeatmap(){ const year=new Date().getFullYear(); const el=document.getElementById('finance-heatmap-grid'); if(!el) return; const vals=Array.from({length:12},(_,i)=>Math.max(0,financeNetSpent(financeForMonth(financeAllTransactions(),year,i)))); const max=Math.max(...vals,1); const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; el.innerHTML=vals.map((v,i)=>`<div class="heatmap-cell" style="opacity:${v?(.35+v/max*.65):.18}"><strong>${months[i]}</strong><br>${financeFmt(v)}</div>`).join(''); }
 
 function financeSubMonthly(s){ const amt=Number(s.amount||0); return s.cycle==='annual'?amt/12:s.cycle==='quarterly'?amt/3:s.cycle==='weekly'?amt*4.33:amt; }
 function financeRenderSubs(){ const m=financeState.subscriptions.reduce((s,x)=>s+financeSubMonthly(x),0); const monthly=document.getElementById('finance-sub-monthly'); if(!monthly) return; monthly.textContent=financeFmt(m); document.getElementById('finance-sub-annual').textContent=financeFmt(m*12); const grid=document.getElementById('finance-sub-grid'); grid.innerHTML = financeState.subscriptions.length ? financeState.subscriptions.map(s=>`<div class="sub-card"><div class="sub-card-name">${escapeHtml(s.name)}</div><div class="big-money">${financeFmt(s.amount)}</div><div class="metric-sub">${s.cycle} · ${financeFmt(financeSubMonthly(s))}/mo</div><div class="metric-sub">${financeCat(s.cat).emoji} ${financeCat(s.cat).label}${s.next_date?' · Next '+formatDateShort(s.next_date):''}</div><div class="btn-row"><button class="small-btn" onclick="financeEditSub('${s.id}')">Edit</button><button class="small-btn danger-btn" onclick="financeDeleteSub('${s.id}')">Delete</button></div></div>`).join('') : '<div class="empty">No subscriptions yet.</div>'; document.getElementById('finance-sub-creep').innerHTML = m>150 ? `<div class="insight">Subscriptions total <strong>${financeFmt(m)}/mo</strong> (${financeFmt(m*12)}/yr). Review services you no longer use.</div>` : ''; }
-async function financeSaveSubscription(){ const name=document.getElementById('fin-sub-name').value.trim(); const amount=Number(document.getElementById('fin-sub-amount').value); const cycle=document.getElementById('fin-sub-cycle').value; const cat=document.getElementById('fin-sub-cat').value; const next_date=normalizeDateValue(document.getElementById('fin-sub-next').value); if(!name||!Number.isFinite(amount)||amount<=0){ financeShowMsg('finance-sub-msg','Name and positive amount required.',true); return; } if(financeEditingSubId){ const s=financeState.subscriptions.find(x=>x.id===financeEditingSubId); Object.assign(s,{name,amount,cycle,cat,next_date}); financeEditingSubId=null; document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); } else financeState.subscriptions.push({id:financeId(),name,amount,cycle,cat,next_date}); await financePersist(); ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('finance-sub-msg','Saved.'); financeRenderAll(); }
+async function financeSaveSubscription(){
+  const name=document.getElementById('fin-sub-name').value.trim();
+  const amount=Number(document.getElementById('fin-sub-amount').value);
+  const cycle=document.getElementById('fin-sub-cycle').value;
+  const cat=document.getElementById('fin-sub-cat').value;
+  const next_date=normalizeDateValue(document.getElementById('fin-sub-next').value);
+  if(!name||!Number.isFinite(amount)||amount<=0){ financeShowMsg('finance-sub-msg','Name and positive amount required.',true); return; }
+  if(financeEditingSubId){
+    const payload={name,amount,cycle,cat,next_date};
+    const { error } = await financeUpdateRow('subscriptions', financeEditingSubId, payload);
+    if(error){ financeShowMsg('finance-sub-msg','Could not update subscription in cloud.',true); return; }
+    const sub=financeState.subscriptions.find(x=>x.id===financeEditingSubId); if(sub) Object.assign(sub,payload);
+    financeEditingSubId=null; document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden');
+  } else {
+    const { data, error } = await financeInsertRow('subscriptions', {name,amount,cycle,cat,next_date});
+    if(error){ financeShowMsg('finance-sub-msg','Could not save subscription to cloud.',true); return; }
+    financeState.subscriptions.push(data ? {...data, amount:Number(data.amount||0)} : {id:financeId(),name,amount,cycle,cat,next_date});
+  }
+  await financePersist(); ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); financeShowMsg('finance-sub-msg','Saved.'); financeRenderAll();
+}
 function financeEditSub(id){ const s=financeState.subscriptions.find(x=>x.id===id); if(!s) return; financeEditingSubId=id; document.getElementById('fin-sub-name').value=s.name; document.getElementById('fin-sub-amount').value=s.amount; document.getElementById('fin-sub-cycle').value=s.cycle; document.getElementById('fin-sub-cat').value=s.cat; document.getElementById('fin-sub-next').value=s.next_date||''; document.getElementById('finance-sub-save-btn').textContent='Update'; document.getElementById('finance-sub-cancel-btn').classList.remove('hidden'); }
 function financeCancelSubEdit(){ financeEditingSubId=null; ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); }
-async function financeDeleteSub(id){ financeState.subscriptions=financeState.subscriptions.filter(s=>s.id!==id); await financePersist(); financeRenderAll(); }
+async function financeDeleteSub(id){ const {error}=await financeDeleteRow('subscriptions',id); if(error){alert('Could not delete subscription from cloud.'); return;} financeState.subscriptions=financeState.subscriptions.filter(s=>s.id!==id); await financePersist(); financeRenderAll(); }
 
 function financeBuildContext(){ const now=new Date(); const tx=financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth()); const inc=financeForMonth(financeState.income, now.getFullYear(), now.getMonth()); const totals=financeCategoryTotals(tx); return { month: now.toLocaleDateString(undefined,{month:'long',year:'numeric'}), spent: financeNetSpent(tx), income: financeIncomeTotal(inc), budget: financeState.settings.monthly_limit||0, top_categories:Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([id,v])=>({category:financeCat(id).label, amount:v})), recent: financeAllTransactions().slice(0,10), subscriptions_monthly: financeState.subscriptions.reduce((s,x)=>s+financeSubMonthly(x),0), goals: financeState.goals }; }
 function financeHandleChatKey(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); financeAskAI(); } }
