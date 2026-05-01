@@ -907,3 +907,60 @@ input[type="date"] {
     min-width: 0;
   }
 }
+
+/* Requested finance layout fixes: 3x2 finance tabs, 3-across transaction type, 2-across category toggle */
+.finance-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: initial !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+.finance-tabs .tab {
+  width: 100%;
+  min-width: 0;
+}
+.finance-transaction-toggle {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: initial !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+.finance-category-toggle {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  grid-auto-flow: row !important;
+  grid-auto-columns: initial !important;
+  gap: 8px !important;
+  overflow: visible !important;
+}
+.finance-transaction-toggle .mode-btn,
+.finance-category-toggle .mode-btn {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .finance-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .finance-transaction-toggle {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .finance-category-toggle {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .finance-tabs .tab,
+  .finance-transaction-toggle .mode-btn,
+  .finance-category-toggle .mode-btn {
+    font-size: 12px;
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+}
