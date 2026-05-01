@@ -114,7 +114,17 @@
           </div>
           <div class="metrics" id="finance-metrics"></div>
           <div class="chart-grid">
-            <div class="chart-card"><div class="section-title">Spending — last 12 months</div><div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div></div>
+            <div class="chart-card">
+              <div class="chart-title-row">
+                <div class="section-title">Spending over time</div>
+                <select class="form-select inline-control" id="finance-chart-time-view" onchange="financeRenderCharts()">
+                  <option value="week">Week</option>
+                  <option value="month" selected>Month</option>
+                  <option value="year">Year</option>
+                </select>
+              </div>
+              <div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div>
+            </div>
             <div class="chart-card"><div class="section-title">By category</div><div class="chart-wrap"><canvas id="finance-chart-category"></canvas></div></div>
           </div>
           <div class="chart-grid">
@@ -122,6 +132,16 @@
             <div class="chart-card"><div class="section-title">Smart insights</div><div id="finance-insights"></div></div>
           </div>
           <div class="chart-card"><div class="section-title">Category breakdown</div><div class="category-list" id="finance-category-breakdown"></div></div>
+          <div class="chart-card calendar-card">
+            <div class="section-title">Transaction calendar</div>
+            <div class="calendar-head">
+              <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(-1)">Prev</button>
+              <div class="calendar-month-title" id="finance-calendar-month-title"></div>
+              <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(1)">Next</button>
+            </div>
+            <div class="calendar-grid" id="finance-calendar-grid"></div>
+            <div class="calendar-details" id="finance-calendar-details"></div>
+          </div>
         </div>
 
         <div id="finance-add" class="finance-panel">
@@ -2188,6 +2208,7 @@ AI answered: ${answer.slice(0, 300)}`;
 const FINANCE_STORAGE_KEY = 'finance-tracker-data-v1';
 const FINANCE_CATS = [
   {id:'groceries',label:'Groceries',emoji:'🛒',color:'#1a6eb5'},
+  {id:'snacks',label:'Snacks',emoji:'🍪',color:'#d97706'},
   {id:'household',label:'Household',emoji:'🏠',color:'#2eab6f'},
   {id:'health',label:'Health & Meds',emoji:'💊',color:'#e05a2b'},
   {id:'dining',label:'Dining Out',emoji:'🍽️',color:'#e8c840'},
@@ -2209,6 +2230,8 @@ const FINANCE_CATS = [
 const financeCat = id => FINANCE_CATS.find(c => c.id === id) || FINANCE_CATS[FINANCE_CATS.length - 1];
 let financeState = loadFinanceLocal();
 let financeMonth = new Date();
+let financeCalendarMonth = new Date();
+let financeSelectedCalendarDate = "";
 let financeEditingTransactionId = null;
 let financeEditSplitMode = 'quick';
 let financeSplitMode = 'quick';
@@ -2392,13 +2415,123 @@ function financeRenderDashboard(){
   const spent = financeNetSpent(monthTx); const prevSpent = financeNetSpent(prevTx); const income = financeIncomeTotal(monthInc); const saved = income - spent; const delta = spent - prevSpent; const rate = income > 0 ? Math.round((saved/income)*100) : 0;
   const deltaText = filters.hasRange ? `${monthTx.length} filtered transactions` : (delta===0?'No change':(delta>0?'Up ':'Down ') + financeFmt(Math.abs(delta)) + ' vs prev');
   document.getElementById('finance-metrics').innerHTML = `<div class="metric"><div class="metric-label">Spent</div><div class="metric-value danger-text">${financeFmt(spent)}</div><div class="metric-sub">${deltaText}</div></div><div class="metric"><div class="metric-label">Income</div><div class="metric-value success-text">${financeFmt(income)}</div><div class="metric-sub">${monthInc.length} source${monthInc.length===1?'':'s'}</div></div><div class="metric"><div class="metric-label">Net saved</div><div class="metric-value ${saved>=0?'success-text':'danger-text'}">${financeFmt(saved)}</div><div class="metric-sub">${rate}% savings rate</div></div><div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${monthTx.length}</div><div class="metric-sub">${monthTx.filter(t=>t.is_return).length} returns</div></div>`;
-  financeRenderBudgetCard(spent); financeRenderCategoryBreakdown(monthTx); financeRenderInsights(monthTx, prevTx); financeRenderCharts();
+  financeRenderBudgetCard(spent); financeRenderCategoryBreakdown(monthTx); financeRenderInsights(monthTx, prevTx); financeRenderCharts(); financeRenderCalendar();
 }
 function financeCategoryTotals(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderBudgetCard(spent){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const pct = Math.max(0, Math.min(100, spent/limit*100)); el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-spent)} remaining</div>`; }
 function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotals(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
-function financeRenderCharts(){ const spendCanvas=document.getElementById('finance-chart-spending'); if(!spendCanvas) return; if(financeChartSpending) financeChartSpending.destroy(); if(financeChartCategory) financeChartCategory.destroy(); const y=financeMonth.getFullYear(), m=financeMonth.getMonth(); const months=[]; for(let i=11;i>=0;i--){ const d=new Date(y,m-i,1); months.push({y:d.getFullYear(),m:d.getMonth(),label:d.toLocaleDateString(undefined,{month:'short'})}); } const data=months.map(x=>Math.max(0,financeNetSpent(financeTransactionsForChartMonth(x.y,x.m)))); financeChartSpending = new Chart(spendCanvas, {type:'bar', data:{labels:months.map(x=>x.label), datasets:[{data, backgroundColor:'rgba(232,200,64,.75)', borderColor:'#e8c840', borderWidth:1}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>'$'+v}}}}}); const totals=financeCategoryTotals(financeDashboardTransactions()); const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8); financeChartCategory = new Chart(document.getElementById('finance-chart-category'), {type:'doughnut', data:{labels:rows.map(([id])=>financeCat(id).label), datasets:[{data:rows.map(([,v])=>v), backgroundColor:rows.map(([id])=>financeCat(id).color)}]}, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}}); }
+function financeChartBucket(dateString, view){
+  const d = parseLocalDate(dateString);
+  if(view === 'week'){
+    const day = d.getDay();
+    const monday = new Date(d);
+    monday.setDate(d.getDate() - ((day + 6) % 7));
+    const key = toDateKey(monday);
+    return { key, label: weekLabel(key) };
+  }
+  if(view === 'year'){
+    const key = String(d.getFullYear());
+    return { key, label: key };
+  }
+  const key = dateString.slice(0,7);
+  return { key, label: monthLabel(key) };
+}
+function financeGroupSpendingByTime(txs, view){
+  const groups = new Map();
+  txs.forEach(t => {
+    if(!t.date) return;
+    const bucket = financeChartBucket(t.date, view);
+    if(!groups.has(bucket.key)) groups.set(bucket.key, { key: bucket.key, label: bucket.label, total: 0 });
+    const item = groups.get(bucket.key);
+    item.total += Number(t.total || 0) * (t.is_return ? -1 : 1);
+  });
+  return [...groups.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(g=>({...g,total:Math.max(0, Number(g.total.toFixed(2)))}));
+}
+function financeRenderCharts(){
+  const spendCanvas=document.getElementById('finance-chart-spending');
+  if(!spendCanvas) return;
+  if(financeChartSpending) financeChartSpending.destroy();
+  if(financeChartCategory) financeChartCategory.destroy();
+
+  const view = document.getElementById('finance-chart-time-view')?.value || 'month';
+  const grouped = financeGroupSpendingByTime(financeDashboardTransactions(), view);
+  const labels = grouped.map(x=>x.label);
+  const data = grouped.map(x=>x.total);
+
+  financeChartSpending = new Chart(spendCanvas, {
+    type:'bar',
+    data:{labels, datasets:[{data, backgroundColor:'rgba(232,200,64,.75)', borderColor:'#e8c840', borderWidth:1}]},
+    options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{ticks:{callback:v=>'$'+v}}}}
+  });
+
+  const totals=financeCategoryTotals(financeDashboardTransactions());
+  const rows=Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const catCanvas = document.getElementById('finance-chart-category');
+  if(catCanvas){
+    financeChartCategory = new Chart(catCanvas, {
+      type:'doughnut',
+      data:{labels:rows.map(([id])=>financeCat(id).label), datasets:[{data:rows.map(([,v])=>v), backgroundColor:rows.map(([id])=>financeCat(id).color)}]},
+      options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}}
+    });
+  }
+}
+function financeChangeCalendarMonth(delta){
+  financeCalendarMonth = new Date(financeCalendarMonth.getFullYear(), financeCalendarMonth.getMonth() + delta, 1);
+  financeSelectedCalendarDate = '';
+  financeRenderCalendar();
+}
+function financeSelectCalendarDate(dateKey){
+  financeSelectedCalendarDate = dateKey;
+  financeRenderCalendar();
+}
+function financeRenderCalendar(){
+  const title = document.getElementById('finance-calendar-month-title');
+  const grid = document.getElementById('finance-calendar-grid');
+  const details = document.getElementById('finance-calendar-details');
+  if(!title || !grid || !details) return;
+  const data = financeDashboardTransactions();
+  if(!data.length){
+    title.textContent = 'No transactions';
+    grid.innerHTML = '';
+    details.innerHTML = '<div class="metric-sub">Add a transaction or adjust filters to see calendar entries.</div>';
+    return;
+  }
+  if(!financeCalendarMonth || Number.isNaN(financeCalendarMonth.getTime())){
+    const latest = [...data].sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0];
+    financeCalendarMonth = latest?.date ? new Date(latest.date + 'T00:00:00') : new Date();
+  }
+  const y = financeCalendarMonth.getFullYear();
+  const m = financeCalendarMonth.getMonth();
+  title.textContent = financeCalendarMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const byDate = new Map();
+  data.forEach(t=>{ if(!byDate.has(t.date)) byDate.set(t.date, []); byDate.get(t.date).push(t); });
+  const weekdays = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const first = new Date(y,m,1);
+  const start = new Date(y,m,1-first.getDay());
+  const cells = [];
+  weekdays.forEach(w=>cells.push(`<div class="calendar-weekday">${w}</div>`));
+  for(let i=0;i<42;i++){
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
+    const key = toDateKey(d);
+    const hasTx = byDate.has(key);
+    const muted = d.getMonth() !== m;
+    const selected = financeSelectedCalendarDate === key;
+    cells.push(`<button class="calendar-day ${muted?'muted':''} ${hasTx?'has-fill':''} ${selected?'selected':''}" type="button" onclick="financeSelectCalendarDate('${key}')">${d.getDate()}${hasTx?'<span class="calendar-dot"></span>':''}</button>`);
+  }
+  grid.innerHTML = cells.join('');
+  const monthPrefix = `${y}-${String(m+1).padStart(2,'0')}`;
+  const defaultDate = financeSelectedCalendarDate || [...byDate.keys()].filter(k=>k.startsWith(monthPrefix)).sort().pop() || '';
+  const selected = byDate.get(defaultDate) || [];
+  if(!selected.length){
+    details.innerHTML = '<div class="metric-sub">Tap a shaded day to see transaction details.</div>';
+    return;
+  }
+  details.innerHTML = selected.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(t=>{
+    const cats = (t.splits||[]).map(s=>`${financeCat(s.cat).emoji} ${financeCat(s.cat).label}`).join(', ');
+    return `<div class="calendar-entry"><div class="calendar-entry-title">${escapeHtml(t.store || 'Transaction')} ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</div><div class="calendar-entry-sub">${escapeHtml(formatDateShort(t.date))} · ${t.is_return?'-':''}${financeFmt(t.total)} · ${escapeHtml(cats || 'Other')}</div>${t.notes?`<div class="calendar-entry-sub">${escapeHtml(t.notes)}</div>`:''}</div>`;
+  }).join('');
+}
 function financeToggleRecent(){
   const card=document.getElementById('finance-recent-card');
   const btn=document.getElementById('finance-recent-toggle-btn');
