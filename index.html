@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -8,6 +7,7 @@
 <link rel="stylesheet" href="styles.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 
 </head>
 <body>
@@ -33,7 +33,6 @@
   </div>
 
   <!-- Sticky summary bar (hidden until logged in & on Finance tab) -->
-
   <div class="sticky-bar hidden" id="sticky-summary-bar">
     <div class="sticky-bar-left">
       <div class="sticky-bar-stat">
@@ -88,266 +87,248 @@
           <button class="tab finance-subtab" type="button" onclick="financeSwitch('history')">History</button>
           <button class="tab finance-subtab" type="button" onclick="financeSwitch('budgets')">Budgets</button>
           <button class="tab finance-subtab" type="button" onclick="financeSwitch('subs')">Subscriptions</button>
+          <button class="tab finance-subtab receipt-scan-tab" type="button" onclick="receiptScanOpen()">📷 Scan</button>
         </div>
 
-```
-    <div id="finance-dashboard" class="finance-panel active">
-      <div class="filter-card collapsed" id="finance-dashboard-filter-card">
-        <div class="filter-header">
-          <div class="section-title">Dashboard filters</div>
-          <button class="small-btn filter-toggle" id="finance-filter-toggle-btn" type="button" onclick="toggleFinanceDashboardFilters()">Expand filters</button>
-        </div>
-        <div class="filter-grid finance-filter-grid">
-          <div class="form-group">
-            <label class="form-label">Category</label>
-            <select class="form-select" id="fin-filter-category" onchange="financeRenderDashboard()"></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Merchant</label>
-            <select class="form-select" id="fin-filter-merchant" onchange="financeRenderDashboard()"></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Payment</label>
-            <select class="form-select" id="fin-filter-payment" onchange="financeRenderDashboard()">
-              <option value="">All payments</option>
-              <option value="credit">Credit Card</option>
-              <option value="debit">Debit Card</option>
-              <option value="cash">Cash</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Type</label>
-            <select class="form-select" id="fin-filter-type" onchange="financeRenderDashboard()">
-              <option value="">All types</option>
-              <option value="expense">Expenses only</option>
-              <option value="return">Returns only</option>
-            </select>
-          </div>
-          <div class="form-group date-range-group">
-            <label class="form-label">Month range</label>
-            <div class="range-grid">
-              <input class="form-input" type="month" id="fin-filter-month-start" onchange="financeRenderDashboard()" aria-label="Start month" />
-              <input class="form-input" type="month" id="fin-filter-month-end" onchange="financeRenderDashboard()" aria-label="End month" />
+        <div id="finance-dashboard" class="finance-panel active">
+          <div class="filter-card collapsed" id="finance-dashboard-filter-card">
+            <div class="filter-header">
+              <div class="section-title">Dashboard filters</div>
+              <button class="small-btn filter-toggle" id="finance-filter-toggle-btn" type="button" onclick="toggleFinanceDashboardFilters()">Expand filters</button>
+            </div>
+            <div class="filter-grid finance-filter-grid">
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="fin-filter-category" onchange="financeRenderDashboard()"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Merchant</label>
+                <select class="form-select" id="fin-filter-merchant" onchange="financeRenderDashboard()"></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Payment</label>
+                <select class="form-select" id="fin-filter-payment" onchange="financeRenderDashboard()">
+                  <option value="">All payments</option>
+                  <option value="credit">Credit Card</option>
+                  <option value="debit">Debit Card</option>
+                  <option value="cash">Cash</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Type</label>
+                <select class="form-select" id="fin-filter-type" onchange="financeRenderDashboard()">
+                  <option value="">All types</option>
+                  <option value="expense">Expenses only</option>
+                  <option value="return">Returns only</option>
+                </select>
+              </div>
+              <div class="form-group date-range-group">
+                <label class="form-label">Month range</label>
+                <div class="range-grid">
+                  <input class="form-input" type="month" id="fin-filter-month-start" onchange="financeRenderDashboard()" aria-label="Start month" />
+                  <input class="form-input" type="month" id="fin-filter-month-end" onchange="financeRenderDashboard()" aria-label="End month" />
+                </div>
+              </div>
+              <button class="small-btn" type="button" onclick="financeClearDashboardFilters()">Clear filters</button>
             </div>
           </div>
-          <button class="small-btn" type="button" onclick="financeClearDashboardFilters()">Clear filters</button>
-        </div>
-      </div>
-      <div class="finance-month-card">
-        <button class="small-btn" type="button" onclick="financeChangeMonth(-1)">Prev</button>
-        <strong id="finance-month-label"></strong>
-        <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
-        <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
-      </div>
-      <div class="metrics" id="finance-metrics"></div>
-      <div class="chart-grid">
-        <div class="chart-card">
-          <div class="chart-title-row">
-            <div class="section-title">Spending over time</div>
-            <select class="form-select inline-control" id="finance-chart-time-view" onchange="financeRenderCharts()">
-              <option value="week">Week</option>
-              <option value="month" selected>Month</option>
-              <option value="year">Year</option>
-            </select>
+          <div class="finance-month-card">
+            <button class="small-btn" type="button" onclick="financeChangeMonth(-1)">Prev</button>
+            <strong id="finance-month-label"></strong>
+            <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
+            <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
           </div>
-          <div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div>
-        </div>
-        <div class="chart-card"><div class="section-title">By category</div><div class="chart-wrap"><canvas id="finance-chart-category"></canvas></div></div>
-      </div>
-      <div class="chart-grid">
-        <div class="chart-card"><div class="section-title">Budget progress</div><div id="finance-budget-card"></div></div>
-        <div class="chart-card"><div class="section-title">Smart insights</div><div id="finance-insights"></div></div>
-      </div>
-      <div class="chart-card"><div class="section-title">Category breakdown</div><div class="category-list" id="finance-category-breakdown"></div></div>
-      <div class="chart-card calendar-card">
-        <div class="section-title">Transaction calendar</div>
-        <div class="calendar-head">
-          <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(-1)">Prev</button>
-          <div class="calendar-month-title" id="finance-calendar-month-title"></div>
-          <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(1)">Next</button>
-        </div>
-        <div class="calendar-grid" id="finance-calendar-grid"></div>
-        <div class="calendar-details" id="finance-calendar-details"></div>
-      </div>
-    </div>
-
-    <div id="finance-add" class="finance-panel">
-      <div class="form-card">
-        <div class="section-title">Transaction type</div>
-        <div class="mode-toggle finance-transaction-toggle">
-          <button class="mode-btn active" id="fin-mode-expense" type="button" onclick="financeSetTxType('expense')">Expense</button>
-          <button class="mode-btn" id="fin-mode-return" type="button" onclick="financeSetTxType('return')">Return</button>
-          <button class="mode-btn" id="fin-mode-income" type="button" onclick="financeSetTxType('income')">Income</button>
-        </div>
-        <div id="finance-expense-form">
-          <div class="form-row">
-            <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
-            <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon" oninput="financePopulateReturnLinks()"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
-          </div>
-          <div id="finance-return-wrap" class="hidden return-link-card">
-            <div class="section-title small-title">Link return to original purchase</div>
-            <div class="form-row three finance-return-filters">
-              <div class="form-group"><label class="form-label">Filter by merchant</label><input class="form-input" id="fin-return-merchant-filter" list="finance-store-options" placeholder="Auto uses merchant above" oninput="financePopulateReturnLinks()"></div>
-              <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-return-month-filter" onchange="financePopulateReturnLinks()"></div>
-              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-return-cat-filter" onchange="financePopulateReturnLinks()"></select></div>
+          <div class="metrics" id="finance-metrics"></div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-title-row">
+                <div class="section-title">Spending over time</div>
+                <select class="form-select inline-control" id="finance-chart-time-view" onchange="financeRenderCharts()">
+                  <option value="week">Week</option>
+                  <option value="month" selected>Month</option>
+                  <option value="year">Year</option>
+                </select>
+              </div>
+              <div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div>
             </div>
-            <div class="form-row">
-              <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
-              <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link"></select></div>
+            <div class="chart-card"><div class="section-title">By category</div><div class="chart-wrap"><canvas id="finance-chart-category"></canvas></div></div>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Budget progress</div><div id="finance-budget-card"></div></div>
+            <div class="chart-card"><div class="section-title">Smart insights</div><div id="finance-insights"></div></div>
+          </div>
+          <div class="chart-card"><div class="section-title">Category breakdown</div><div class="category-list" id="finance-category-breakdown"></div></div>
+          <div class="chart-card calendar-card">
+            <div class="section-title">Transaction calendar</div>
+            <div class="calendar-head">
+              <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(-1)">Prev</button>
+              <div class="calendar-month-title" id="finance-calendar-month-title"></div>
+              <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(1)">Next</button>
+            </div>
+            <div class="calendar-grid" id="finance-calendar-grid"></div>
+            <div class="calendar-details" id="finance-calendar-details"></div>
+          </div>
+        </div>
+
+        <div id="finance-add" class="finance-panel">
+          <div class="form-card">
+            <div class="section-title">Transaction type</div>
+            <div class="mode-toggle finance-transaction-toggle">
+              <button class="mode-btn active" id="fin-mode-expense" type="button" onclick="financeSetTxType('expense')">Expense</button>
+              <button class="mode-btn" id="fin-mode-return" type="button" onclick="financeSetTxType('return')">Return</button>
+              <button class="mode-btn" id="fin-mode-income" type="button" onclick="financeSetTxType('income')">Income</button>
+            </div>
+            <div id="finance-expense-form">
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
+                <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon" oninput="financePopulateReturnLinks()"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
+              </div>
+              <div id="finance-return-wrap" class="hidden return-link-card">
+                <div class="section-title small-title">Link return to original purchase</div>
+                <div class="form-row three finance-return-filters">
+                  <div class="form-group"><label class="form-label">Filter by merchant</label><input class="form-input" id="fin-return-merchant-filter" list="finance-store-options" placeholder="Auto uses merchant above" oninput="financePopulateReturnLinks()"></div>
+                  <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-return-month-filter" onchange="financePopulateReturnLinks()"></div>
+                  <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-return-cat-filter" onchange="financePopulateReturnLinks()"></select></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
+                  <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link"></select></div>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
+                <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
+              </div>
+              <div class="section-title small-title">Category</div>
+              <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
+              <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
+              <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
+              <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
+              <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
+            </div>
+            <div id="finance-income-form" class="hidden">
+              <div class="form-row three">
+                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-income-date"></div>
+                <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="fin-income-source" placeholder="Paycheck, freelance..."></div>
+                <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-income-amount" placeholder="0.00"></div>
+              </div>
+              <div class="form-row"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-income-type"><option value="salary">Salary / Wages</option><option value="freelance">Freelance</option><option value="investment">Investment</option><option value="gift">Gift / Transfer</option><option value="other">Other</option></select></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-income-notes"></div></div>
+              <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveIncome()">Save income</button><span class="save-msg" id="fin-income-msg"></span></div>
             </div>
           </div>
-          <div class="form-row">
-            <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
-            <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
+          <div class="chart-card" id="finance-recent-card">
+            <div class="filter-header"><div class="section-title">Recently added</div><button class="small-btn filter-toggle" id="finance-recent-toggle-btn" type="button" onclick="financeToggleRecent()">Hide</button></div>
+            <div class="finance-recent-body" id="finance-recent-list"></div>
           </div>
-          <div class="section-title small-title">Category</div>
-          <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
-          <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
-          <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
-          <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
-          <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
         </div>
-        <div id="finance-income-form" class="hidden">
-          <div class="form-row three">
-            <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-income-date"></div>
-            <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="fin-income-source" placeholder="Paycheck, freelance..."></div>
-            <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-income-amount" placeholder="0.00"></div>
+
+        <div id="finance-history" class="finance-panel">
+          <div class="filter-card history-filter-card collapsed" id="finance-history-filter-card">
+            <div class="filter-header" style="margin-bottom:12px;">
+              <div class="section-title">Finance history filters</div>
+              <button class="small-btn filter-toggle" id="finance-history-filter-toggle-btn" type="button" onclick="financeToggleHistoryFilters()">Expand filters</button>
+            </div>
+            <div class="history-controls finance-history-controls">
+              <div class="form-group"><label class="form-label">Merchant</label><select class="form-select" id="fin-history-merchant" onchange="financeRenderHistory()"><option value="">All merchants</option></select></div>
+              <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant, note, category"></div>
+              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
+              <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-history-type" onchange="financeRenderHistory()"><option value="">All types</option><option value="expense">Expenses</option><option value="return">Returns</option><option value="gas">Gas imports</option></select></div>
+              <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="fin-history-payment" onchange="financeRenderHistory()"><option value="">All payments</option><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option><option value="gas">Gas</option></select></div>
+              <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="fin-history-date-start" onchange="financeRenderHistory()" aria-label="Start date"><input class="form-input" type="date" id="fin-history-date-end" onchange="financeRenderHistory()" aria-label="End date"></div></div>
+              <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="fin-history-sort" onchange="financeRenderHistory()"><option value="date">Date</option><option value="merchant">Merchant</option><option value="amount">Amount</option><option value="category">Category</option><option value="payment">Payment</option><option value="type">Type</option></select></div>
+              <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="fin-history-direction" onchange="financeRenderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
+            </div>
+            <div class="history-filter-actions"><button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Reset history filters</button><button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button></div>
           </div>
-          <div class="form-row"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-income-type"><option value="salary">Salary / Wages</option><option value="freelance">Freelance</option><option value="investment">Investment</option><option value="gift">Gift / Transfer</option><option value="other">Other</option></select></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-income-notes"></div></div>
-          <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveIncome()">Save income</button><span class="save-msg" id="fin-income-msg"></span></div>
+          <div class="summary-line" id="finance-history-summary"></div>
+          <div class="tx-list" id="finance-history-list"></div>
         </div>
-      </div>
-      <div class="chart-card" id="finance-recent-card">
-        <div class="filter-header"><div class="section-title">Recently added</div><button class="small-btn filter-toggle" id="finance-recent-toggle-btn" type="button" onclick="financeToggleRecent()">Hide</button></div>
-        <div class="finance-recent-body" id="finance-recent-list"></div>
-      </div>
-    </div>
 
-    <div id="finance-history" class="finance-panel">
-      <div class="filter-card history-filter-card collapsed" id="finance-history-filter-card">
-        <div class="filter-header" style="margin-bottom:12px;">
-          <div class="section-title">Finance history filters</div>
-          <button class="small-btn filter-toggle" id="finance-history-filter-toggle-btn" type="button" onclick="financeToggleHistoryFilters()">Expand filters</button>
-        </div>
-        <div class="history-controls finance-history-controls">
-          <div class="form-group"><label class="form-label">Merchant</label><select class="form-select" id="fin-history-merchant" onchange="financeRenderHistory()"><option value="">All merchants</option></select></div>
-          <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant, note, category"></div>
-          <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
-          <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-history-type" onchange="financeRenderHistory()"><option value="">All types</option><option value="expense">Expenses</option><option value="return">Returns</option><option value="gas">Gas imports</option></select></div>
-          <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="fin-history-payment" onchange="financeRenderHistory()"><option value="">All payments</option><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option><option value="gas">Gas</option></select></div>
-          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="fin-history-date-start" onchange="financeRenderHistory()" aria-label="Start date"><input class="form-input" type="date" id="fin-history-date-end" onchange="financeRenderHistory()" aria-label="End date"></div></div>
-          <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="fin-history-sort" onchange="financeRenderHistory()"><option value="date">Date</option><option value="merchant">Merchant</option><option value="amount">Amount</option><option value="category">Category</option><option value="payment">Payment</option><option value="type">Type</option></select></div>
-          <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="fin-history-direction" onchange="financeRenderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
-        </div>
-        <div class="history-filter-actions"><button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Reset history filters</button><button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button></div>
-      </div>
-      <div class="summary-line" id="finance-history-summary"></div>
-      <div class="tx-list" id="finance-history-list"></div>
-    </div>
-
-    <div id="finance-budgets" class="finance-panel">
-      <div class="chart-grid">
-        <div class="chart-card"><div class="section-title">Monthly spending limit</div><div id="finance-budget-overview"></div><div class="form-row"><div class="form-group"><label class="form-label">Set monthly limit</label><input class="form-input" type="number" step="1" id="fin-budget-input" placeholder="3500"></div><div class="form-group align-end"><button class="save-btn" type="button" onclick="financeSaveBudgetLimit()">Save limit</button></div></div><span class="save-msg" id="fin-budget-msg"></span></div>
-        <div class="chart-card"><div class="section-title">Income this month</div><div id="finance-income-summary-bar"></div><div class="income-list" id="finance-income-list"></div></div>
-      </div>
-      <!-- Smart Budget Recommendation Card -->
-      <div class="chart-card" id="budget-rec-card">
-        <div class="filter-header">
-          <div>
-            <div class="section-title">Smart budget recommendation</div>
-            <div class="metric-sub" style="margin-top:2px;">Based on your last 3 months of spending</div>
+        <div id="finance-budgets" class="finance-panel">
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Monthly spending limit</div><div id="finance-budget-overview"></div><div class="form-row"><div class="form-group"><label class="form-label">Set monthly limit</label><input class="form-input" type="number" step="1" id="fin-budget-input" placeholder="3500"></div><div class="form-group align-end"><button class="save-btn" type="button" onclick="financeSaveBudgetLimit()">Save limit</button></div></div><span class="save-msg" id="fin-budget-msg"></span></div>
+            <div class="chart-card"><div class="section-title">Income this month</div><div id="finance-income-summary-bar"></div><div class="income-list" id="finance-income-list"></div></div>
           </div>
-          <button class="small-btn" type="button" onclick="financeGenerateBudgetRec()">✦ Analyze</button>
-        </div>
-        <div id="budget-rec-body"></div>
-      </div>
-
-      <div class="chart-card" id="finance-category-budget-card"><div class="filter-header"><div class="section-title">Category budgets</div><button class="small-btn filter-toggle" id="finance-category-budget-toggle-btn" type="button" onclick="financeToggleCategoryBudgetCard()">Hide</button></div><div class="category-budget-body"><div class="budget-list" id="finance-category-budgets"></div><button class="save-btn" type="button" onclick="financeSaveCategoryBudgets()">Save category budgets</button><span class="save-msg" id="fin-cat-budget-msg"></span></div></div>
-      <div class="chart-grid">
-        <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="date" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
-        <div class="chart-card"><div class="section-title">Annual monthly spending</div><div class="heatmap-grid" id="finance-heatmap-grid"></div></div>
-      </div>
-    </div>
-
-    <div id="finance-subs" class="finance-panel">
-      <div class="sub-total-bar"><div><div class="metric-label">Monthly recurring total</div><div class="big-money" id="finance-sub-monthly">$0.00</div></div><div><div class="metric-label">Annual cost</div><div class="metric-value" id="finance-sub-annual">$0.00</div></div></div>
-      <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="date" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
-      <div class="sub-grid" id="finance-sub-grid"></div><div id="finance-sub-creep"></div>
-    </div>
-
-    
-  </div>
-</div>
-```
-
-  <!-- Receipt Scanner FAB — visible only on Finance tab -->
-
-  <button class="receipt-fab hidden" id="receipt-fab" type="button" onclick="receiptScanOpen()" title="Scan a receipt">
-    <span class="receipt-fab-icon">📷</span>
-    <span class="receipt-fab-label">Scan Receipt</span>
-  </button>
-
-  <!-- Receipt Scanner Modal -->
-
-  <div class="receipt-modal-backdrop hidden" id="receipt-modal-backdrop" onclick="receiptBackdropClick(event)">
-    <div class="receipt-modal" id="receipt-modal">
-      <!-- Step 1: Upload -->
-      <div id="receipt-step-upload">
-        <div class="receipt-modal-header">
-          <div class="receipt-modal-title">📷 Scan Receipt</div>
-          <button class="receipt-close-btn" type="button" onclick="receiptScanClose()">✕</button>
-        </div>
-        <div class="receipt-drop-zone" id="receipt-drop-zone">
-          <div class="receipt-drop-icon">🧾</div>
-          <div class="receipt-drop-text">Take a photo or upload an image</div>
-          <div class="receipt-drop-sub">JPG, PNG, HEIC · up to 20 MB</div>
-          <div class="receipt-upload-btns">
-            <label class="save-btn receipt-upload-label" for="receipt-file-input">Choose file</label>
-            <label class="save-btn receipt-upload-label" for="receipt-camera-input">📷 Camera</label>
+          <!-- Smart Budget Recommendation Card -->
+          <div class="chart-card" id="budget-rec-card">
+            <div class="filter-header">
+              <div>
+                <div class="section-title">Smart budget recommendation</div>
+                <div class="metric-sub" style="margin-top:2px;">Based on your last 3 months of spending</div>
+              </div>
+              <button class="small-btn" type="button" onclick="financeGenerateBudgetRec()">✦ Analyze</button>
+            </div>
+            <div id="budget-rec-body"></div>
           </div>
-          <input type="file" id="receipt-file-input" accept="image/*" style="display:none" onchange="receiptFileChosen(event)" />
-          <input type="file" id="receipt-camera-input" accept="image/*" capture="environment" style="display:none" onchange="receiptFileChosen(event)" />
+
+          <div class="chart-card" id="finance-category-budget-card"><div class="filter-header"><div class="section-title">Category budgets</div><button class="small-btn filter-toggle" id="finance-category-budget-toggle-btn" type="button" onclick="financeToggleCategoryBudgetCard()">Hide</button></div><div class="category-budget-body"><div class="budget-list" id="finance-category-budgets"></div><button class="save-btn" type="button" onclick="financeSaveCategoryBudgets()">Save category budgets</button><span class="save-msg" id="fin-cat-budget-msg"></span></div></div>
+          <div class="chart-grid">
+            <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="date" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
+            <div class="chart-card"><div class="section-title">Annual monthly spending</div><div class="heatmap-grid" id="finance-heatmap-grid"></div></div>
+          </div>
         </div>
-        <div class="receipt-preview-wrap hidden" id="receipt-preview-wrap">
-          <img class="receipt-preview-img" id="receipt-preview-img" alt="Receipt preview" />
-          <button class="small-btn" type="button" onclick="receiptClearImage()">× Remove</button>
+
+        <div id="finance-subs" class="finance-panel">
+          <div class="sub-total-bar"><div><div class="metric-label">Monthly recurring total</div><div class="big-money" id="finance-sub-monthly">$0.00</div></div><div><div class="metric-label">Annual cost</div><div class="metric-value" id="finance-sub-annual">$0.00</div></div></div>
+          <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="date" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
+          <div class="sub-grid" id="finance-sub-grid"></div><div id="finance-sub-creep"></div>
         </div>
-        <div class="receipt-modal-footer">
-          <button class="save-btn" type="button" id="receipt-analyze-btn" onclick="receiptAnalyze()" disabled>Analyze receipt</button>
-          <span class="save-msg" id="receipt-upload-msg"></span>
+
+        <!-- Scan Receipt panel — upload, analyzing, and review all inline -->
+        <div id="finance-scan" class="finance-panel">
+
+          <!-- Step 1: Upload -->
+          <div id="scan-step-upload" class="scan-step">
+            <div class="chart-card scan-upload-card">
+              <div class="section-title">📷 Scan Receipt</div>
+              <div class="receipt-drop-zone" id="receipt-drop-zone">
+                <div class="receipt-drop-icon">🧾</div>
+                <div class="receipt-drop-text">Take a photo or upload an image</div>
+                <div class="receipt-drop-sub">JPG, PNG, HEIC · up to 20 MB</div>
+                <div class="receipt-upload-btns">
+                  <label class="save-btn receipt-upload-label" for="receipt-file-input">Choose file</label>
+                  <label class="save-btn receipt-upload-label" for="receipt-camera-input">📷 Camera</label>
+                </div>
+                <input type="file" id="receipt-file-input" accept="image/*" style="display:none" onchange="receiptFileChosen(event)" />
+                <input type="file" id="receipt-camera-input" accept="image/*" capture="environment" style="display:none" onchange="receiptFileChosen(event)" />
+              </div>
+              <div class="receipt-preview-wrap hidden" id="receipt-preview-wrap">
+                <img class="receipt-preview-img" id="receipt-preview-img" alt="Receipt preview" />
+                <button class="small-btn" type="button" onclick="receiptClearImage()">× Remove</button>
+              </div>
+              <div class="btn-row" style="margin-top:14px;">
+                <button class="save-btn" type="button" id="receipt-analyze-btn" onclick="receiptAnalyze()" disabled>Analyze receipt</button>
+                <span class="save-msg" id="receipt-upload-msg"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Analyzing -->
+          <div id="scan-step-analyzing" class="scan-step hidden">
+            <div class="chart-card">
+              <div class="receipt-analyzing-body">
+                <div class="receipt-spinner"></div>
+                <div class="receipt-analyzing-text" id="receipt-analyzing-text">Reading items and categories…</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Review & approve -->
+          <div id="scan-step-review" class="scan-step hidden">
+            <div id="receipt-review-body"></div>
+            <div class="scan-review-actions">
+              <button class="save-btn" type="button" onclick="receiptSubmit()">Submit transaction</button>
+              <button class="small-btn" type="button" onclick="receiptGoBack()">← Rescan</button>
+              <span class="save-msg" id="receipt-review-msg"></span>
+            </div>
+          </div>
+
         </div>
+
+        
       </div>
-
-```
-  <!-- Step 2: Analyzing spinner -->
-  <div id="receipt-step-analyzing" class="hidden">
-    <div class="receipt-modal-header">
-      <div class="receipt-modal-title">Analyzing receipt…</div>
     </div>
-    <div class="receipt-analyzing-body">
-      <div class="receipt-spinner"></div>
-      <div class="receipt-analyzing-text" id="receipt-analyzing-text">Reading items and categories…</div>
-    </div>
-  </div>
-
-  <!-- Step 3: Review -->
-  <div id="receipt-step-review" class="hidden">
-    <div class="receipt-modal-header">
-      <div class="receipt-modal-title">Review Receipt</div>
-      <button class="receipt-close-btn" type="button" onclick="receiptScanClose()">✕</button>
-    </div>
-    <div class="receipt-review-body" id="receipt-review-body"></div>
-    <div class="receipt-modal-footer">
-      <button class="save-btn" type="button" onclick="receiptSubmit()">Submit transaction</button>
-      <button class="small-btn" type="button" onclick="receiptGoBack()">← Rescan</button>
-      <span class="save-msg" id="receipt-review-msg"></span>
-    </div>
-  </div>
-</div>
-```
-
-  </div>
 
 <div id="tab-gas" class="panel top-panel">
       <div class="tabs gas-tabs">
@@ -389,156 +370,150 @@
         </div>
       </div>
 
-```
-  <div class="metrics" id="metrics-row"></div>
-  <div class="chart-card">
-    <div class="section-title">Total spend over time</div>
-    <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
-  </div>
-  <div class="chart-grid three">
-    <div class="chart-card">
-      <div class="section-title">Price per gallon over time</div>
-      <div class="chart-wrap-sm"><canvas id="chart-ppg"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="section-title">Gallons by brand</div>
-      <div class="chart-wrap-sm"><canvas id="chart-brands"></canvas></div>
-    </div>
-    <div class="chart-card">
-      <div class="section-title">MPG over time</div>
-      <div class="chart-wrap-sm"><canvas id="chart-mpg"></canvas></div>
-    </div>
-  </div>
-  <div class="chart-card map-card">
-    <div class="map-title-row">
-      <div class="section-title">Station map</div>
-    </div>
-    <div class="map-controls">
-      <div class="form-group">
-        <label class="form-label">Map brand</label>
-        <select class="form-select" id="map-brand" onchange="selectedMapStation=''; renderStationMap()"></select>
+      <div class="metrics" id="metrics-row"></div>
+      <div class="chart-card">
+        <div class="section-title">Total spend over time</div>
+        <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Map station</label>
-        <select class="form-select" id="map-station" onchange="setMapStation(this.value)"></select>
+      <div class="chart-grid three">
+        <div class="chart-card">
+          <div class="section-title">Price per gallon over time</div>
+          <div class="chart-wrap-sm"><canvas id="chart-ppg"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">Gallons by brand</div>
+          <div class="chart-wrap-sm"><canvas id="chart-brands"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="section-title">MPG over time</div>
+          <div class="chart-wrap-sm"><canvas id="chart-mpg"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card map-card">
+        <div class="map-title-row">
+          <div class="section-title">Station map</div>
+        </div>
+        <div class="map-controls">
+          <div class="form-group">
+            <label class="form-label">Map brand</label>
+            <select class="form-select" id="map-brand" onchange="selectedMapStation=''; renderStationMap()"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Map station</label>
+            <select class="form-select" id="map-station" onchange="setMapStation(this.value)"></select>
+          </div>
+        </div>
+        <div class="map-stats" id="station-map-stats"></div>
+        <div class="station-map-list" id="station-map-list"></div>
+        <iframe id="station-map" class="station-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div class="station-edit-card collapsed" id="station-edit-card">
+          <div class="station-edit-header">
+            <div class="section-title">Edit station info</div>
+            <button class="small-btn" id="station-edit-toggle-btn" type="button" onclick="toggleStationEdit()">Expand</button>
+          </div>
+          <div class="station-edit-body">
+          <div class="station-edit-grid">
+            <div class="form-group"><label class="form-label">Station to edit</label><select class="form-select" id="edit-station-select" onchange="loadStationEditForm()"></select></div>
+            <div class="form-group"><label class="form-label">Brand</label><input class="form-input" id="edit-station-brand" placeholder="Brand" /></div>
+            <div class="form-group"><label class="form-label">Station name</label><input class="form-input" id="edit-station-name" placeholder="Station" /></div>
+            <div class="form-group"><label class="form-label">Address 1</label><input class="form-input" id="edit-station-address1" placeholder="Address 1" /></div>
+            <div class="form-group"><label class="form-label">City</label><input class="form-input" id="edit-station-city" placeholder="City" /></div>
+            <div class="form-group"><label class="form-label">State</label><input class="form-input" id="edit-station-state" placeholder="State" maxlength="2" /></div>
+            <div class="form-group"><label class="form-label">ZIP</label><input class="form-input" id="edit-station-zip" placeholder="ZIP" /></div>
+          </div>
+          <div class="form-actions">
+            <button class="small-btn" type="button" onclick="saveStationInfoEdit()">Update all matching entries</button>
+            <span class="save-msg" id="station-edit-msg"></span>
+          </div>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card calendar-card">
+        <div class="section-title">Fill-up calendar</div>
+        <div class="calendar-head">
+          <button class="small-btn" type="button" onclick="changeCalendarMonth(-1)">Prev</button>
+          <div class="calendar-month-title" id="calendar-month-title"></div>
+          <button class="small-btn" type="button" onclick="changeCalendarMonth(1)">Next</button>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+        <div class="calendar-details" id="calendar-details"></div>
       </div>
     </div>
-    <div class="map-stats" id="station-map-stats"></div>
-    <div class="station-map-list" id="station-map-list"></div>
-    <iframe id="station-map" class="station-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-    <div class="station-edit-card collapsed" id="station-edit-card">
-      <div class="station-edit-header">
-        <div class="section-title">Edit station info</div>
-        <button class="small-btn" id="station-edit-toggle-btn" type="button" onclick="toggleStationEdit()">Expand</button>
-      </div>
-      <div class="station-edit-body">
-      <div class="station-edit-grid">
-        <div class="form-group"><label class="form-label">Station to edit</label><select class="form-select" id="edit-station-select" onchange="loadStationEditForm()"></select></div>
-        <div class="form-group"><label class="form-label">Brand</label><input class="form-input" id="edit-station-brand" placeholder="Brand" /></div>
-        <div class="form-group"><label class="form-label">Station name</label><input class="form-input" id="edit-station-name" placeholder="Station" /></div>
-        <div class="form-group"><label class="form-label">Address 1</label><input class="form-input" id="edit-station-address1" placeholder="Address 1" /></div>
-        <div class="form-group"><label class="form-label">City</label><input class="form-input" id="edit-station-city" placeholder="City" /></div>
-        <div class="form-group"><label class="form-label">State</label><input class="form-input" id="edit-station-state" placeholder="State" maxlength="2" /></div>
-        <div class="form-group"><label class="form-label">ZIP</label><input class="form-input" id="edit-station-zip" placeholder="ZIP" /></div>
-      </div>
-      <div class="form-actions">
-        <button class="small-btn" type="button" onclick="saveStationInfoEdit()">Update all matching entries</button>
-        <span class="save-msg" id="station-edit-msg"></span>
-      </div>
-      </div>
-    </div>
-  </div>
-  <div class="chart-card calendar-card">
-    <div class="section-title">Fill-up calendar</div>
-    <div class="calendar-head">
-      <button class="small-btn" type="button" onclick="changeCalendarMonth(-1)">Prev</button>
-      <div class="calendar-month-title" id="calendar-month-title"></div>
-      <button class="small-btn" type="button" onclick="changeCalendarMonth(1)">Next</button>
-    </div>
-    <div class="calendar-grid" id="calendar-grid"></div>
-    <div class="calendar-details" id="calendar-details"></div>
-  </div>
-</div>
-```
-
 <div id="gas-log" class="gas-panel">
       <div class="form-card">
         <div class="section-title" style="margin-bottom:14px;">Fill-up details</div>
         <datalist id="brand-options"></datalist>
         <datalist id="station-options"></datalist>
 
-```
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Brand</label>
-        <input class="form-input" id="f-brand" list="brand-options" placeholder="e.g. BJ's, Shell, Costco" />
-        <select class="form-select quick-select" id="f-brand-picker" onchange="chooseSuggestion('brand', this.value)">
-          <option value="">Select recent brand...</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Station</label>
-        <input class="form-input" id="f-station" list="station-options" placeholder="e.g. BJ Route 10" oninput="autofillStationAddress()" onchange="autofillStationAddress()" />
-        <select class="form-select quick-select" id="f-station-picker" onchange="chooseSuggestion('station', this.value)">
-          <option value="">Select recent station...</option>
-        </select>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Brand</label>
+            <input class="form-input" id="f-brand" list="brand-options" placeholder="e.g. BJ's, Shell, Costco" />
+            <select class="form-select quick-select" id="f-brand-picker" onchange="chooseSuggestion('brand', this.value)">
+              <option value="">Select recent brand...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Station</label>
+            <input class="form-input" id="f-station" list="station-options" placeholder="e.g. BJ Route 10" oninput="autofillStationAddress()" onchange="autofillStationAddress()" />
+            <select class="form-select quick-select" id="f-station-picker" onchange="chooseSuggestion('station', this.value)">
+              <option value="">Select recent station...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input class="form-input" type="date" id="f-date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price / gallon ($)</label>
+            <input class="form-input" type="number" step="0.001" id="f-ppg" placeholder="3.499" oninput="calcTotal()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Gallons</label>
+            <input class="form-input" type="number" step="0.001" id="f-gallons" placeholder="12.500" oninput="calcTotal()" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Total ($)</label>
+            <input class="form-input" type="number" step="0.01" id="f-total" placeholder="43.74" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Odometer</label>
+            <input class="form-input" type="number" step="1" id="f-odometer" placeholder="Optional" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tank status</label>
+            <label class="full-tank-row"><input type="checkbox" id="f-full-tank" checked /> Full tank</label>
+          </div>
+        
+          <div class="section-title form-grid-full" style="margin-top:16px;">Address</div>
+          <div class="form-group">
+            <label class="form-label">Address 1</label>
+            <input class="form-input" id="f-address1" placeholder="831 State Route 10" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">City</label>
+            <input class="form-input" id="f-city" placeholder="Whippany" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">State</label>
+            <input class="form-input" id="f-state" placeholder="NJ" maxlength="2" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">ZIP</label>
+            <input class="form-input" id="f-zip" placeholder="07891" />
+          </div>
+        </div>
+
+        <div class="add-actions-grid">
+          <button class="save-btn" onclick="addEntry()">Save fill-up</button>
+          <button class="small-btn" type="button" onclick="resetAddDetails()">Reset details</button>
+        </div>
+        <div class="btn-row" style="margin-top:10px;"><span class="save-msg" id="save-msg"></span></div>
       </div>
     </div>
-
-    <div class="form-grid-2">
-      <div class="form-group">
-        <label class="form-label">Date</label>
-        <input class="form-input" type="date" id="f-date" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Price / gallon ($)</label>
-        <input class="form-input" type="number" step="0.001" id="f-ppg" placeholder="3.499" oninput="calcTotal()" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Gallons</label>
-        <input class="form-input" type="number" step="0.001" id="f-gallons" placeholder="12.500" oninput="calcTotal()" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Total ($)</label>
-        <input class="form-input" type="number" step="0.01" id="f-total" placeholder="43.74" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Odometer</label>
-        <input class="form-input" type="number" step="1" id="f-odometer" placeholder="Optional" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Tank status</label>
-        <label class="full-tank-row"><input type="checkbox" id="f-full-tank" checked /> Full tank</label>
-      </div>
-    
-      <div class="section-title form-grid-full" style="margin-top:16px;">Address</div>
-      <div class="form-group">
-        <label class="form-label">Address 1</label>
-        <input class="form-input" id="f-address1" placeholder="831 State Route 10" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">City</label>
-        <input class="form-input" id="f-city" placeholder="Whippany" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">State</label>
-        <input class="form-input" id="f-state" placeholder="NJ" maxlength="2" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">ZIP</label>
-        <input class="form-input" id="f-zip" placeholder="07891" />
-      </div>
-    </div>
-
-    <div class="add-actions-grid">
-      <button class="save-btn" onclick="addEntry()">Save fill-up</button>
-      <button class="small-btn" type="button" onclick="resetAddDetails()">Reset details</button>
-    </div>
-    <div class="btn-row" style="margin-top:10px;"><span class="save-msg" id="save-msg"></span></div>
-  </div>
-</div>
-```
-
 <div id="gas-history" class="gas-panel">
       <div class="filter-card history-filter-card collapsed" id="history-filter-card">
         <div class="filter-header" style="margin-bottom:12px;">
@@ -600,6 +575,8 @@
         <div class="save-msg" id="chat-msg" style="margin-top:8px;"></div>
       </div>
     </div>
+
+
 
 <script>
 const STORAGE_KEY = 'gas-tracker-entries-v5';
@@ -711,9 +688,6 @@ function showCorrectView() {
   document.getElementById('app-view').classList.toggle('hidden', !loggedIn);
   document.getElementById('logout-btn').classList.toggle('hidden', !loggedIn);
   setSyncStatus(loggedIn ? 'Cloud sync on' : 'Logged out');
-
-  // Finance is the default active tab — show FAB when logged in
-  document.getElementById('receipt-fab')?.classList.toggle('hidden', !loggedIn);
 }
 
 function setSyncStatus(text) {
@@ -863,9 +837,6 @@ function switchTab(name) {
   document.querySelectorAll('.top-tab').forEach((tab, i) => tab.classList.toggle('active', names[i] === name));
   document.querySelectorAll('.top-panel').forEach(panel => panel.classList.remove('active'));
   document.getElementById('tab-' + name)?.classList.add('active');
-
-  // Show receipt FAB only on the Finance tab
-  document.getElementById('receipt-fab')?.classList.toggle('hidden', name !== 'finance');
 
   if (name === 'finance') { financeRenderAll(); }
   if (name === 'gas') { renderAll(); renderCharts(); renderStationMap(); renderCalendar(); }
@@ -2482,10 +2453,11 @@ function financeChartTransactions(){ const f=financeDashboardFilterState(); retu
 function financeDashboardIncome(){ const f=financeDashboardFilterState(); return financeState.income.filter(i=>{ const month=String(i.date||'').slice(0,7); if(f.hasRange){ if(f.start && month < f.start) return false; if(f.end && month > f.end) return false; return true; } const current = `${financeMonth.getFullYear()}-${String(financeMonth.getMonth()+1).padStart(2,'0')}`; return month === current; }); }
 function financeTransactionsForChartMonth(y,m){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>{ const x=financeYM(t.date); return x.y===y && x.m===m && financeTransactionMatchesFilters(t,{...f,hasRange:false,start:'',end:''},false); }); }
 function financeSwitch(name){
-  document.querySelectorAll('.finance-subtab').forEach((b,i)=>b.classList.toggle('active', ['dashboard','add','history','budgets','subs'][i] === name));
+  const panels = ['dashboard','add','history','budgets','subs','scan'];
+  document.querySelectorAll('.finance-subtab').forEach((b,i) => b.classList.toggle('active', panels[i] === name));
   document.querySelectorAll('.finance-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('finance-' + name)?.classList.add('active');
-  financeRenderAll();
+  if (name !== 'scan') financeRenderAll();
 }
 function financeRenderAll(){ financeInitUI(); financeRenderDashboard(); financeRenderRecent(); financeRenderHistory(); financeRenderBudgets(); financeRenderSubs(); }
 function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeRenderDashboard(); }
@@ -3503,16 +3475,14 @@ let _receiptParsed = null;  // parsed JSON from Claude
 
 // ── Modal open / close ─────────────────────────────────
 function receiptScanOpen() {
-  document.getElementById('receipt-modal-backdrop').classList.remove('hidden');
+  financeSwitch('scan');
   receiptGoToStep('upload');
 }
 function receiptScanClose() {
-  document.getElementById('receipt-modal-backdrop').classList.add('hidden');
   receiptReset();
+  financeSwitch('dashboard');
 }
-function receiptBackdropClick(e) {
-  if (e.target === document.getElementById('receipt-modal-backdrop')) receiptScanClose();
-}
+// receiptBackdropClick removed — scan is now an inline panel
 function receiptReset() {
   _receiptImageB64 = null;
   _receiptImageType = null;
@@ -3527,7 +3497,7 @@ function receiptReset() {
 }
 function receiptGoToStep(step) {
   ['upload','analyzing','review'].forEach(s =>
-    document.getElementById('receipt-step-' + s)?.classList.toggle('hidden', s !== step)
+    document.getElementById('scan-step-' + s)?.classList.toggle('hidden', s !== step)
   );
 }
 function receiptGoBack() {
@@ -4007,8 +3977,9 @@ async function receiptSubmit() {
     financeRenderAll();
     updateStickyBar();
 
-    receiptScanClose();
-    // Show undo toast consistent with rest of app
+    receiptGoToStep('upload');
+    receiptReset();
+    financeSwitch('history');
     showUndoToast(`Receipt from ${merchant} saved · ${financeFmt(total)}`);
   } catch (err) {
     if (msgEl) { msgEl.textContent = '⚠ ' + err.message; msgEl.style.color = 'var(--danger)'; }
@@ -4024,6 +3995,5 @@ async function receiptSubmit() {
   }
 });
 </script>
-
 </body>
 </html>
