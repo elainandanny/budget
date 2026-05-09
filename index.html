@@ -954,9 +954,14 @@ Monthly subscriptions: ${financeFmt(c.subscriptions_monthly)}
 TRANSACTION HISTORY (most recent 120, item names included where scanned from receipts):
 ${JSON.stringify(c.transactions, null, 0)}`;
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const { data: { session } } = await supabaseClient.auth.getSession()
+
+      const response = await fetch('https://ykedfxitevfpioplirdy.supabase.co/functions/v1/gas-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 600,
