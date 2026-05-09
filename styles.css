@@ -978,3 +978,245 @@ input[type="date"] {
 @media (max-width:760px){
   #finance-history-filter-card .history-controls { grid-template-columns:1fr !important; }
 }
+
+/* ═══════════════════════════════════════════════
+   ENHANCEMENT PACK: 7 UX improvements
+   ═══════════════════════════════════════════════ */
+
+/* 1. STICKY SUMMARY BAR */
+.sticky-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  margin: -1.5rem -1rem 1.5rem;
+}
+.sticky-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sticky-bar-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 1px;
+}
+.sticky-bar-value {
+  font-weight: 700;
+  font-size: 15px;
+}
+.sticky-bar-stat {
+  display: flex;
+  flex-direction: column;
+}
+.sticky-bar-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sticky-bar-track {
+  width: 90px;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.sticky-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+.sticky-bar-fill.warn { background: #e09940; }
+.sticky-bar-fill.over { background: var(--danger); }
+.sticky-bar-pct {
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 34px;
+}
+.sticky-bar-month {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* 2. DARK/LIGHT TOGGLE */
+.theme-toggle {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.theme-toggle:hover { border-color: var(--accent); }
+[data-theme="light"] .theme-icon-dark,
+[data-theme="dark"] .theme-icon-light { display: none; }
+[data-theme="light"] .theme-icon-light,
+[data-theme="dark"] .theme-icon-dark { display: inline; }
+
+/* Force light theme */
+[data-theme="light"] {
+  --bg: #f9f8f4;
+  --surface: #ffffff;
+  --surface2: #f2f1ec;
+  --border: rgba(0,0,0,0.1);
+  --text: #1a1a1a;
+  --muted: #666;
+  --hint: #999;
+}
+/* Force dark theme */
+[data-theme="dark"] {
+  --bg: #111113;
+  --surface: #1c1c1f;
+  --surface2: #26262a;
+  --border: rgba(255,255,255,0.1);
+  --text: #f0efea;
+  --muted: #999;
+  --hint: #666;
+}
+
+/* 3. ANIMATED NUMBER COUNTERS - class added during animation */
+.metric-value.counting {
+  transition: none;
+}
+
+/* 4. MOBILE TRANSACTION CARDS - replaces wide table on small screens */
+@media (max-width: 640px) {
+  .desktop-table-wrap { display: none !important; }
+  .mobile-entry-list { display: grid !important; gap: 8px; }
+}
+@media (min-width: 641px) {
+  .mobile-entry-list { display: none !important; }
+}
+.mobile-entry-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+}
+.mobile-entry-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mobile-entry-card-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.mobile-entry-card-amount {
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.mobile-entry-card-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mobile-entry-pill {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.mobile-entry-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* 5. CATEGORY COLORS - consistent pill system */
+.cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+/* 6. UNDO TOAST */
+.undo-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--text);
+  color: var(--bg);
+  border-radius: var(--radius-lg);
+  padding: 12px 18px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+}
+.undo-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.undo-toast-btn {
+  background: var(--accent);
+  color: var(--accent-dark);
+  border: none;
+  border-radius: 7px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* 7. SORTABLE TABLE HEADERS */
+thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+thead th.sortable:hover { color: var(--text); }
+thead th.sort-asc::after  { content: ' ↑'; color: var(--accent); }
+thead th.sort-desc::after { content: ' ↓'; color: var(--accent); }
+
+/* Finance history sortable column headers */
+.fin-sort-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.fin-sort-th:hover { color: var(--text); }
+.fin-sort-th.sort-asc::after  { content: ' ↑'; color: var(--accent); }
+.fin-sort-th.sort-desc::after { content: ' ↓'; color: var(--accent); }
