@@ -912,14 +912,17 @@ input[type="date"] {
 .finance-tabs {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-rows: auto !important;
   grid-auto-flow: row !important;
-  grid-auto-columns: initial !important;
   gap: 8px !important;
   overflow: visible !important;
 }
 .finance-tabs .tab {
   width: 100%;
   min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .finance-transaction-toggle {
   display: grid !important;
@@ -1615,32 +1618,34 @@ input[type="date"] {
 .receipt-total-mismatch{ font-size: 12px; color: var(--danger);  padding: 6px 14px 8px; }
 
 
-/* ── Scan Receipt tab — action button style in the finance sub-nav ── */
-.receipt-scan-tab {
+/* ── Scan Receipt tab — always accent-colored ── */
+.receipt-scan-tab,
+.receipt-scan-tab.active {
   background: var(--accent) !important;
   color: var(--accent-dark, #1a1200) !important;
   font-weight: 700 !important;
   border-color: transparent !important;
 }
-.receipt-scan-tab:hover {
-  opacity: 0.88;
-}
-/* Remove the floating FAB styles — no longer used */
+.receipt-scan-tab:hover { opacity: 0.88; }
 .receipt-fab { display: none !important; }
 
 /* ── Inline Scan Panel ───────────────────────────────── */
 .scan-step { width: 100%; }
 
-.scan-upload-card { max-width: 520px; margin: 0 auto; }
+/* Upload card — full width, consistent with other finance panels */
+.scan-upload-card { width: 100%; }
 
-/* Remove modal-specific chrome — not needed inline */
+/* Drop zone — max width on desktop so it doesn't stretch across the full card */
+.receipt-drop-zone { max-width: 480px; }
+
+/* Remove any leftover modal chrome */
 .receipt-modal-backdrop,
 .receipt-modal,
 .receipt-modal-header,
 .receipt-modal-footer,
 .receipt-close-btn { display: none !important; }
 
-/* Review actions bar at the bottom of the review step */
+/* Review actions bar */
 .scan-review-actions {
   display: flex;
   align-items: center;
@@ -1649,12 +1654,4 @@ input[type="date"] {
   padding: 16px 0 8px;
   border-top: 1px solid var(--border);
   margin-top: 14px;
-}
-
-/* Scan tab active state — keep accent color even when active */
-.receipt-scan-tab.active,
-.receipt-scan-tab {
-  background: var(--accent) !important;
-  color: var(--accent-dark, #1a1200) !important;
-  font-weight: 700 !important;
 }
