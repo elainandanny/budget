@@ -87,7 +87,7 @@
           <button class="tab finance-subtab" type="button" onclick="financeSwitch('history')">History</button>
           <button class="tab finance-subtab" type="button" onclick="financeSwitch('budgets')">Budgets</button>
           <button class="tab finance-subtab" type="button" onclick="financeSwitch('subs')">Subscriptions</button>
-          <button class="tab finance-subtab receipt-scan-tab" type="button" onclick="receiptScanOpen()">📷 Scan</button>
+          <button class="tab finance-subtab receipt-scan-tab" type="button" onclick="receiptScanOpen()">Scan Receipt</button>
         </div>
 
         <div id="finance-dashboard" class="finance-panel active">
@@ -281,14 +281,14 @@
           <!-- Step 1: Upload -->
           <div id="scan-step-upload" class="scan-step">
             <div class="chart-card scan-upload-card">
-              <div class="section-title">📷 Scan Receipt</div>
+              <div class="section-title">Scan Receipt</div>
               <div class="receipt-drop-zone" id="receipt-drop-zone">
                 <div class="receipt-drop-icon">🧾</div>
                 <div class="receipt-drop-text">Take a photo or upload an image</div>
                 <div class="receipt-drop-sub">JPG, PNG, HEIC · up to 20 MB</div>
                 <div class="receipt-upload-btns">
                   <label class="save-btn receipt-upload-label" for="receipt-file-input">Choose file</label>
-                  <label class="save-btn receipt-upload-label" for="receipt-camera-input">📷 Camera</label>
+                  <label class="save-btn receipt-upload-label" for="receipt-camera-input">Camera</label>
                 </div>
                 <input type="file" id="receipt-file-input" accept="image/*" style="display:none" onchange="receiptFileChosen(event)" />
                 <input type="file" id="receipt-camera-input" accept="image/*" capture="environment" style="display:none" onchange="receiptFileChosen(event)" />
