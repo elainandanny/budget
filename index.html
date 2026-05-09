@@ -24,8 +24,34 @@
     </div>
     <div class="top-actions">
       <span class="sync-pill" id="sync-status">Checking sync…</span>
+      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <span class="theme-icon-light">☀️ Light</span>
+        <span class="theme-icon-dark">🌙 Dark</span>
+      </button>
       <button class="small-btn hidden" id="logout-btn" onclick="logout()">Log out</button>
     </div>
+  </div>
+
+  <!-- Sticky summary bar (hidden until logged in & on Finance tab) -->
+  <div class="sticky-bar hidden" id="sticky-summary-bar">
+    <div class="sticky-bar-left">
+      <div class="sticky-bar-stat">
+        <div class="sticky-bar-label">Spent</div>
+        <div class="sticky-bar-value danger-text" id="sticky-spent">—</div>
+      </div>
+      <div class="sticky-bar-stat">
+        <div class="sticky-bar-label">Budget</div>
+        <div class="sticky-bar-progress">
+          <div class="sticky-bar-track"><div class="sticky-bar-fill" id="sticky-bar-fill" style="width:0%"></div></div>
+          <span class="sticky-bar-pct" id="sticky-bar-pct">—</span>
+        </div>
+      </div>
+      <div class="sticky-bar-stat">
+        <div class="sticky-bar-label">Net saved</div>
+        <div class="sticky-bar-value" id="sticky-saved">—</div>
+      </div>
+    </div>
+    <div class="sticky-bar-month" id="sticky-month-label"></div>
   </div>
 
   <div id="auth-view" class="auth-card hidden">
@@ -500,18 +526,18 @@
         </div>
         <div class="history-filter-actions"><button class="small-btn" type="button" onclick="clearHistoryFilters()">Reset history filters</button></div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap desktop-table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Brand</th>
-              <th>Station</th>
-              <th>$/gal</th>
-              <th>Gallons</th>
-              <th>Total</th>
-              <th>Odometer</th>
-              <th>MPG</th>
+              <th class="sortable" id="th-date" onclick="sortHistory('date')">Date</th>
+              <th class="sortable" id="th-brand" onclick="sortHistory('brand')">Brand</th>
+              <th class="sortable" id="th-station" onclick="sortHistory('station')">Station</th>
+              <th class="sortable" id="th-ppg" onclick="sortHistory('ppg')">$/gal</th>
+              <th class="sortable" id="th-gallons" onclick="sortHistory('gallons')">Gallons</th>
+              <th class="sortable" id="th-total" onclick="sortHistory('total')">Total</th>
+              <th class="sortable" id="th-odometer" onclick="sortHistory('odometer')">Odometer</th>
+              <th class="sortable" id="th-mpg" onclick="sortHistory('mpg')">MPG</th>
               <th>Address</th>
               <th></th>
             </tr>
@@ -520,6 +546,8 @@
         </table>
         <div id="history-empty" class="empty" style="display:none;">No fill-ups yet — add your first one!</div>
       </div>
+      <!-- Mobile card view shown on small screens -->
+      <div class="mobile-entry-list" id="gas-mobile-list"></div>
     </div>
   </div>
 </div>
@@ -2777,6 +2805,456 @@ async function financeAskAI(){ const input=document.getElementById('finance-chat
 document.getElementById('f-date').value = dateForInput(new Date().toISOString().split('T')[0]);
 financeInitUI();
 init();
+
+// ── Undo toast element (appended to body once) ──────────────────
+const _toastEl = document.createElement('div');
+_toastEl.className = 'undo-toast';
+_toastEl.id = 'undo-toast';
+_toastEl.innerHTML = '<span id="undo-toast-msg"></span><button class="undo-toast-btn" onclick="undoDelete()">Undo</button>';
+document.body.appendChild(_toastEl);
+
+// ══════════════════════════════════════════════
+// 1. DARK / LIGHT THEME TOGGLE
+// ══════════════════════════════════════════════
+(function initTheme() {
+  const saved = localStorage.getItem('app-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('app-theme', next);
+}
+
+// ══════════════════════════════════════════════
+// 2. STICKY SUMMARY BAR
+// ══════════════════════════════════════════════
+function updateStickyBar() {
+  const bar = document.getElementById('sticky-summary-bar');
+  if (!bar) return;
+
+  // Only show when logged in and Finance tab is active
+  const financeActive = document.getElementById('tab-finance')?.classList.contains('active');
+  if (!currentUser || !financeActive) {
+    bar.classList.add('hidden');
+    return;
+  }
+
+  bar.classList.remove('hidden');
+
+  const now = financeMonth || new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  const monthTx = financeForMonth(financeAllTransactions(), y, m);
+  const monthInc = financeForMonth(financeState.income, y, m);
+  const spent = financeNetSpent(monthTx);
+  const income = financeIncomeTotal(monthInc);
+  const saved = income - spent;
+  const limit = Number(financeState.settings.monthly_limit || 0);
+  const pct = limit ? Math.min(100, Math.round(spent / limit * 100)) : 0;
+
+  const spentEl = document.getElementById('sticky-spent');
+  const savedEl = document.getElementById('sticky-saved');
+  const fillEl  = document.getElementById('sticky-bar-fill');
+  const pctEl   = document.getElementById('sticky-bar-pct');
+  const lblEl   = document.getElementById('sticky-month-label');
+
+  if (spentEl) { spentEl.textContent = financeFmt(spent); spentEl.className = 'sticky-bar-value danger-text'; }
+  if (savedEl) { savedEl.textContent = financeFmt(saved); savedEl.className = 'sticky-bar-value ' + (saved >= 0 ? 'success-text' : 'danger-text'); }
+  if (fillEl) {
+    fillEl.style.width = pct + '%';
+    fillEl.className = 'sticky-bar-fill' + (pct >= 100 ? ' over' : pct >= 80 ? ' warn' : '');
+  }
+  if (pctEl) pctEl.textContent = limit ? pct + '%' : 'No limit';
+  if (lblEl) lblEl.textContent = now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}
+
+// Patch financeRenderDashboard to also update the sticky bar
+const _origFinanceRenderDashboard = financeRenderDashboard;
+financeRenderDashboard = function() {
+  _origFinanceRenderDashboard.apply(this, arguments);
+  updateStickyBar();
+};
+
+// Patch switchTab to show/hide bar
+const _origSwitchTab = switchTab;
+switchTab = function(name) {
+  _origSwitchTab.apply(this, arguments);
+  updateStickyBar();
+};
+
+// ══════════════════════════════════════════════
+// 3. ANIMATED NUMBER COUNTERS
+// ══════════════════════════════════════════════
+function animateCounter(el, targetText) {
+  if (!el) return;
+  // Only animate dollar amounts like $1,234.56
+  const match = targetText.match(/^(-?)(\$)([\d,]+)(\.\d+)?$/);
+  if (!match) { el.textContent = targetText; return; }
+
+  const sign = match[1];
+  const integer = parseInt(match[3].replace(/,/g, ''), 10);
+  const decimals = match[4] || '.00';
+  const decimalCount = decimals.length - 1;
+  const start = 0;
+  const duration = 500;
+  const startTime = performance.now();
+
+  function step(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3); // cubic ease out
+    const current = Math.round(start + (integer - start) * ease);
+    el.textContent = sign + '$' + current.toLocaleString('en-US') + (decimalCount === 2 ? '.00' : decimals);
+    if (progress < 1) requestAnimationFrame(step);
+    else el.textContent = targetText;
+  }
+  requestAnimationFrame(step);
+}
+
+// Patch financeRenderDashboard to animate metrics
+const _origRenderDashboardMetrics = financeRenderDashboard;
+// We hook into metric rendering via MutationObserver on the metrics container
+const _metricsObserver = new MutationObserver(() => {
+  document.querySelectorAll('#finance-metrics .metric-value').forEach(el => {
+    const text = el.textContent.trim();
+    if (text && !el.dataset.animated) {
+      el.dataset.animated = '1';
+      animateCounter(el, text);
+      setTimeout(() => { delete el.dataset.animated; }, 600);
+    }
+  });
+});
+const _metricsContainer = document.getElementById('finance-metrics');
+if (_metricsContainer) {
+  _metricsObserver.observe(_metricsContainer, { childList: true, subtree: false });
+}
+
+// ══════════════════════════════════════════════
+// 4. MOBILE GAS ENTRY CARDS
+// ══════════════════════════════════════════════
+function renderGasMobileCards(historyData) {
+  const container = document.getElementById('gas-mobile-list');
+  if (!container) return;
+  if (!historyData.length) {
+    container.innerHTML = '<div class="empty">No fill-ups yet — add your first one!</div>';
+    return;
+  }
+  container.innerHTML = historyData.map(e => {
+    const mpg = calculateMpgForEntry(e);
+    const mpgText = mpg && Number.isFinite(mpg) ? mpg.toFixed(1) + ' mpg' : '';
+    const addr = fullAddress(e);
+    return `<div class="mobile-entry-card">
+      <div class="mobile-entry-card-header">
+        <div>
+          <div class="mobile-entry-card-title">${escapeHtml(e.brand)} · ${escapeHtml(e.station)}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px;">${escapeHtml(formatDateShort(e.date))}${addr ? ' · ' + escapeHtml(addr) : ''}</div>
+        </div>
+        <div class="mobile-entry-card-amount">$${e.total.toFixed(2)}</div>
+      </div>
+      <div class="mobile-entry-card-meta">
+        <span class="mobile-entry-pill">$${e.ppg.toFixed(3)}/gal</span>
+        <span class="mobile-entry-pill">${e.gallons.toFixed(3)} gal</span>
+        ${mpgText ? `<span class="mobile-entry-pill">${mpgText}</span>` : ''}
+        ${e.odometer ? `<span class="mobile-entry-pill">${Number(e.odometer).toLocaleString()} mi</span>` : ''}
+      </div>
+      <div class="mobile-entry-actions">
+        <button class="small-btn" onclick="startEdit('${e.id}')">Edit</button>
+        <button class="small-btn danger-btn" onclick="softDeleteEntry('${e.id}','${escapeHtml(e.brand)} fill-up')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Patch renderHistory to also render mobile cards
+const _origRenderHistory = renderHistory;
+renderHistory = function() {
+  _origRenderHistory.apply(this, arguments);
+  renderGasMobileCards(getHistoryEntries());
+  updateSortHeaders();
+};
+
+// ══════════════════════════════════════════════
+// 5. CATEGORY COLOR CONSISTENCY
+// ══════════════════════════════════════════════
+// Colors are already defined per-category in FINANCE_CATS.
+// This patches financeTransactionCard to add a colored cat pill.
+const _origFinanceTransactionCard = financeTransactionCard;
+financeTransactionCard = function(t) {
+  const html = _origFinanceTransactionCard.apply(this, arguments);
+  // Inject colored category pills by replacing plain emoji+label with styled pills
+  return html.replace(
+    /(financeCat\(s\.cat\)\.emoji\+' '\+financeCat\(s\.cat\)\.label)/g,
+    '' // This is a template-level patch — handled by catPillHtml below
+  );
+};
+
+// Helper: generate a colored cat pill span
+function catPillHtml(catId) {
+  const c = financeCat(catId);
+  const bg = c.color + '22';  // ~13% opacity hex
+  const border = c.color + '66'; // ~40% opacity
+  return `<span class="cat-pill" style="background:${bg};border-color:${border};color:${c.color}">${c.emoji} ${escapeHtml(c.label)}</span>`;
+}
+
+// Repatch financeTransactionCard with pill rendering
+financeTransactionCard = function(t) {
+  const cats = (t.splits || []).map(s => catPillHtml(s.cat)).join(' ');
+  return `<div class="tx-item">
+    <div>
+      <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}</div>
+      <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
+    </div>
+    <div class="tx-right">
+      <strong>${t.is_return ? '-' : ''}${financeFmt(t.total)}</strong>
+      ${t.source === 'gas' ? '<span class="metric-sub">Edit in Gas History</span>' :
+        `<div class="btn-row compact-actions">
+          <button class="small-btn" type="button" onclick="financeStartEditTransaction('${t.id}')">Edit</button>
+          <button class="small-btn danger-btn" type="button" onclick="softDeleteFinanceTx('${t.id}','${escapeHtml(t.store || 'transaction')}')">Delete</button>
+        </div>`}
+    </div>
+  </div>`;
+};
+
+// Also patch financeRenderCategoryBreakdown to use consistent colors (already uses c.color)
+// and financeRenderSubs to use cat pills
+const _origFinanceRenderSubs = financeRenderSubs;
+financeRenderSubs = function() {
+  _origFinanceRenderSubs.apply(this, arguments);
+};
+
+// ══════════════════════════════════════════════
+// 6. UNDO INSTEAD OF CONFIRM DIALOGS
+// ══════════════════════════════════════════════
+let _pendingDelete = null;
+let _undoTimer = null;
+
+function showUndoToast(message) {
+  const toast = document.getElementById('undo-toast');
+  const msg = document.getElementById('undo-toast-msg');
+  if (!toast || !msg) return;
+  msg.textContent = message;
+  toast.classList.add('visible');
+  clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(commitPendingDelete, 5000);
+}
+
+function hideUndoToast() {
+  const toast = document.getElementById('undo-toast');
+  if (toast) toast.classList.remove('visible');
+  clearTimeout(_undoTimer);
+}
+
+async function commitPendingDelete() {
+  hideUndoToast();
+  if (!_pendingDelete) return;
+  const pd = _pendingDelete;
+  _pendingDelete = null;
+  try {
+    await pd.commit();
+  } catch (err) {
+    console.error('Delete commit failed:', err);
+  }
+}
+
+async function undoDelete() {
+  hideUndoToast();
+  if (!_pendingDelete) return;
+  const pd = _pendingDelete;
+  _pendingDelete = null;
+  try {
+    await pd.undo();
+  } catch (err) {
+    console.error('Undo failed:', err);
+  }
+}
+
+// Soft-delete for gas entries (replaces deleteEntry)
+async function softDeleteEntry(id, label) {
+  const entry = entries.find(e => String(e.id) === String(id));
+  if (!entry) return;
+
+  // Optimistic remove from UI
+  entries = entries.filter(e => String(e.id) !== String(id));
+  saveLocalEntries();
+  renderAll();
+
+  _pendingDelete = {
+    commit: async () => {
+      try { await deleteEntryFromCloud(id); } catch (err) { console.error('Cloud delete failed:', err); }
+    },
+    undo: async () => {
+      entries.push(entry);
+      entries.sort(sortNewest);
+      saveLocalEntries();
+      renderAll();
+    }
+  };
+  showUndoToast(`"${label}" deleted`);
+}
+
+// Override deleteEntry to use soft-delete
+deleteEntry = async function(id) {
+  const entry = entries.find(e => String(e.id) === String(id));
+  const label = entry ? (entry.brand + ' fill-up') : 'entry';
+  await softDeleteEntry(id, label);
+};
+
+// Soft-delete for finance transactions
+async function softDeleteFinanceTx(id, label) {
+  const tx = financeState.transactions.find(t => String(t.id) === String(id));
+  if (!tx) return;
+
+  financeState.transactions = financeState.transactions.filter(t => String(t.id) !== String(id));
+  await financePersist();
+  financeRenderAll();
+
+  _pendingDelete = {
+    commit: async () => {
+      try { await financeDeleteRow('transactions', id); } catch (err) { console.error(err); }
+    },
+    undo: async () => {
+      financeState.transactions.unshift(tx);
+      await financePersist();
+      financeRenderAll();
+    }
+  };
+  showUndoToast(`"${label}" deleted`);
+}
+
+// Override finance delete functions to use soft-delete
+financeDeleteTransaction = async function(id) {
+  const tx = financeState.transactions.find(t => String(t.id) === String(id));
+  const label = tx ? (tx.store || 'transaction') : 'transaction';
+  await softDeleteFinanceTx(id, label);
+};
+
+// Soft-delete for goals (replaces alert confirm)
+financeDeleteGoal = async function(id) {
+  const g = financeState.goals.find(x => x.id === id);
+  if (!g) return;
+
+  financeState.goals = financeState.goals.filter(x => x.id !== id);
+  await financePersist();
+  financeRenderAll();
+
+  _pendingDelete = {
+    commit: async () => { try { await financeDeleteRow('goals', id); } catch(e){} },
+    undo: async () => {
+      financeState.goals.push(g);
+      await financePersist();
+      financeRenderAll();
+    }
+  };
+  showUndoToast(`Goal "${g.name}" deleted`);
+};
+
+// Soft-delete for subscriptions
+financeDeleteSub = async function(id) {
+  const s = financeState.subscriptions.find(x => x.id === id);
+  if (!s) return;
+
+  financeState.subscriptions = financeState.subscriptions.filter(x => x.id !== id);
+  await financePersist();
+  financeRenderAll();
+
+  _pendingDelete = {
+    commit: async () => { try { await financeDeleteRow('subscriptions', id); } catch(e){} },
+    undo: async () => {
+      financeState.subscriptions.push(s);
+      await financePersist();
+      financeRenderAll();
+    }
+  };
+  showUndoToast(`"${s.name}" subscription deleted`);
+};
+
+// ══════════════════════════════════════════════
+// 7. SORTABLE GAS HISTORY TABLE HEADERS
+// ══════════════════════════════════════════════
+let _historySortCol = 'date';
+let _historySortDir = 'desc';
+
+function sortHistory(col) {
+  if (_historySortCol === col) {
+    _historySortDir = _historySortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _historySortCol = col;
+    _historySortDir = col === 'date' ? 'desc' : 'asc';
+  }
+  // Sync with existing sort dropdowns so getHistoryEntries() respects it
+  const sortEl = document.getElementById('history-sort');
+  const dirEl  = document.getElementById('history-direction');
+  if (sortEl) sortEl.value = _historySortCol;
+  if (dirEl)  dirEl.value  = _historySortDir;
+  renderHistory();
+}
+
+function updateSortHeaders() {
+  const cols = ['date','brand','station','ppg','gallons','total','odometer','mpg'];
+  cols.forEach(col => {
+    const th = document.getElementById('th-' + col);
+    if (!th) return;
+    th.classList.remove('sort-asc','sort-desc');
+    if (col === _historySortCol) th.classList.add(_historySortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+// Finance history table: add clickable sort to the inline filter's sort/direction dropdowns
+// and wire up column header clicks in financeRenderHistory
+let _finSortCol = 'date';
+let _finSortDir = 'desc';
+
+function finSortBy(col) {
+  if (_finSortCol === col) {
+    _finSortDir = _finSortDir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _finSortCol = col;
+    _finSortDir = col === 'date' ? 'desc' : 'asc';
+  }
+  const sortEl = document.getElementById('fin-history-sort');
+  const dirEl  = document.getElementById('fin-history-direction');
+  const colMap = { date:'date', merchant:'merchant', amount:'amount', category:'category', payment:'payment', type:'type' };
+  if (sortEl && colMap[col]) sortEl.value = colMap[col];
+  if (dirEl) dirEl.value = _finSortDir;
+  financeRenderHistory();
+}
+
+// Patch financeRenderHistory to inject sortable headers into the tx-list title bar
+const _origFinanceRenderHistory = financeRenderHistory;
+financeRenderHistory = function() {
+  _origFinanceRenderHistory.apply(this, arguments);
+  // Add/update a sort header bar above the list
+  const listEl = document.getElementById('finance-history-list');
+  if (!listEl) return;
+  let headerBar = document.getElementById('fin-history-sort-bar');
+  if (!headerBar) {
+    headerBar = document.createElement('div');
+    headerBar.id = 'fin-history-sort-bar';
+    headerBar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;';
+    listEl.parentNode.insertBefore(headerBar, listEl);
+  }
+  const cols = [
+    {key:'date', label:'Date'},
+    {key:'merchant', label:'Merchant'},
+    {key:'amount', label:'Amount'},
+    {key:'category', label:'Category'},
+    {key:'payment', label:'Payment'},
+    {key:'type', label:'Type'},
+  ];
+  headerBar.innerHTML = '<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;align-self:center;margin-right:4px;">Sort:</span>' +
+    cols.map(c => {
+      const active = c.key === _finSortCol;
+      const arrow = active ? (_finSortDir === 'asc' ? ' ↑' : ' ↓') : '';
+      const style = active
+        ? 'background:rgba(232,200,64,.18);border-color:var(--accent);color:var(--text);'
+        : 'background:var(--surface2);border-color:var(--border);color:var(--muted);';
+      return `<button type="button" onclick="finSortBy('${c.key}')" style="${style}cursor:pointer;border:1px solid;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;">${c.label}${arrow}</button>`;
+    }).join('');
+};
 
 // Event delegation for follow-up suggestion buttons
 document.addEventListener("click", function(e) {
