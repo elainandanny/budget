@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -7,7 +8,6 @@
 <link rel="stylesheet" href="styles.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 
 </head>
 <body>
@@ -24,15 +24,11 @@
     </div>
     <div class="top-actions">
       <span class="sync-pill" id="sync-status">Checking sync…</span>
-      <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
-        <span class="theme-icon-light">☀️ Light</span>
-        <span class="theme-icon-dark">🌙 Dark</span>
-      </button>
-      <button class="small-btn hidden" id="logout-btn" onclick="logout()">Log out</button>
     </div>
   </div>
 
   <!-- Sticky summary bar (hidden until logged in & on Finance tab) -->
+
   <div class="sticky-bar hidden" id="sticky-summary-bar">
     <div class="sticky-bar-left">
       <div class="sticky-bar-stat">
@@ -77,6 +73,7 @@
       <button class="tab top-tab active" onclick="switchTab('finance')">Finance</button>
       <button class="tab top-tab" onclick="switchTab('gas')">Gas</button>
       <button class="tab top-tab" onclick="switchTab('chat')">AI Chat</button>
+      <button class="tab top-tab" onclick="switchTab('settings')">⚙ Settings</button>
     </div>
 
 <div id="tab-finance" class="panel top-panel active">
@@ -90,281 +87,248 @@
           <button class="tab finance-subtab receipt-scan-tab" type="button" onclick="receiptScanOpen()">Scan Receipt</button>
         </div>
 
-        <div id="finance-dashboard" class="finance-panel active">
-          <div class="filter-card collapsed" id="finance-dashboard-filter-card">
-            <div class="filter-header">
-              <div class="section-title">Dashboard filters</div>
-              <button class="small-btn filter-toggle" id="finance-filter-toggle-btn" type="button" onclick="toggleFinanceDashboardFilters()">Expand filters</button>
-            </div>
-            <div class="filter-grid finance-filter-grid">
-              <div class="form-group">
-                <label class="form-label">Category</label>
-                <select class="form-select" id="fin-filter-category" onchange="financeRenderDashboard()"></select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Merchant</label>
-                <select class="form-select" id="fin-filter-merchant" onchange="financeRenderDashboard()"></select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Payment</label>
-                <select class="form-select" id="fin-filter-payment" onchange="financeRenderDashboard()">
-                  <option value="">All payments</option>
-                  <option value="credit">Credit Card</option>
-                  <option value="debit">Debit Card</option>
-                  <option value="cash">Cash</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Type</label>
-                <select class="form-select" id="fin-filter-type" onchange="financeRenderDashboard()">
-                  <option value="">All types</option>
-                  <option value="expense">Expenses only</option>
-                  <option value="return">Returns only</option>
-                </select>
-              </div>
-              <div class="form-group date-range-group">
-                <label class="form-label">Month range</label>
-                <div class="range-grid">
-                  <input class="form-input" type="month" id="fin-filter-month-start" onchange="financeRenderDashboard()" aria-label="Start month" />
-                  <input class="form-input" type="month" id="fin-filter-month-end" onchange="financeRenderDashboard()" aria-label="End month" />
-                </div>
-              </div>
-              <button class="small-btn" type="button" onclick="financeClearDashboardFilters()">Clear filters</button>
-            </div>
-          </div>
-          <div class="finance-month-card">
-            <button class="small-btn" type="button" onclick="financeChangeMonth(-1)">Prev</button>
-            <strong id="finance-month-label"></strong>
-            <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
-            <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
-          </div>
-          <div class="metrics" id="finance-metrics"></div>
-          <div class="chart-grid">
-            <div class="chart-card">
-              <div class="chart-title-row">
-                <div class="section-title">Spending over time</div>
-                <select class="form-select inline-control" id="finance-chart-time-view" onchange="financeRenderCharts()">
-                  <option value="week">Week</option>
-                  <option value="month" selected>Month</option>
-                  <option value="year">Year</option>
-                </select>
-              </div>
-              <div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div>
-            </div>
-            <div class="chart-card"><div class="section-title">By category</div><div class="chart-wrap"><canvas id="finance-chart-category"></canvas></div></div>
-          </div>
-          <div class="chart-grid">
-            <div class="chart-card"><div class="section-title">Budget progress</div><div id="finance-budget-card"></div></div>
-            <div class="chart-card"><div class="section-title">Smart insights</div><div id="finance-insights"></div></div>
-          </div>
-          <div class="chart-card"><div class="section-title">Category breakdown</div><div class="category-list" id="finance-category-breakdown"></div></div>
-          <div class="chart-card calendar-card">
-            <div class="section-title">Transaction calendar</div>
-            <div class="calendar-head">
-              <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(-1)">Prev</button>
-              <div class="calendar-month-title" id="finance-calendar-month-title"></div>
-              <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(1)">Next</button>
-            </div>
-            <div class="calendar-grid" id="finance-calendar-grid"></div>
-            <div class="calendar-details" id="finance-calendar-details"></div>
-          </div>
+```
+    <div id="finance-dashboard" class="finance-panel active">
+      <div class="filter-card collapsed" id="finance-dashboard-filter-card">
+        <div class="filter-header">
+          <div class="section-title">Dashboard filters</div>
+          <button class="small-btn filter-toggle" id="finance-filter-toggle-btn" type="button" onclick="toggleFinanceDashboardFilters()">Expand filters</button>
         </div>
-
-        <div id="finance-add" class="finance-panel">
-          <div class="form-card">
-            <div class="section-title">Transaction type</div>
-            <div class="mode-toggle finance-transaction-toggle">
-              <button class="mode-btn active" id="fin-mode-expense" type="button" onclick="financeSetTxType('expense')">Expense</button>
-              <button class="mode-btn" id="fin-mode-return" type="button" onclick="financeSetTxType('return')">Return</button>
-              <button class="mode-btn" id="fin-mode-income" type="button" onclick="financeSetTxType('income')">Income</button>
-            </div>
-            <div id="finance-expense-form">
-              <div class="form-row">
-                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
-                <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon" oninput="financePopulateReturnLinks()"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
-              </div>
-              <div id="finance-return-wrap" class="hidden return-link-card">
-                <div class="section-title small-title">Link return to original purchase</div>
-                <div class="form-row three finance-return-filters">
-                  <div class="form-group"><label class="form-label">Filter by merchant</label><input class="form-input" id="fin-return-merchant-filter" list="finance-store-options" placeholder="Auto uses merchant above" oninput="financePopulateReturnLinks()"></div>
-                  <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-return-month-filter" onchange="financePopulateReturnLinks()"></div>
-                  <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-return-cat-filter" onchange="financePopulateReturnLinks()"></select></div>
-                </div>
-                <div class="form-row">
-                  <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
-                  <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link"></select></div>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
-                <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
-              </div>
-              <div class="section-title small-title">Category</div>
-              <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
-              <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
-              <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
-              <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
-              <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
-            </div>
-            <div id="finance-income-form" class="hidden">
-              <div class="form-row three">
-                <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-income-date"></div>
-                <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="fin-income-source" placeholder="Paycheck, freelance..."></div>
-                <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-income-amount" placeholder="0.00"></div>
-              </div>
-              <div class="form-row"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-income-type"><option value="salary">Salary / Wages</option><option value="freelance">Freelance</option><option value="investment">Investment</option><option value="gift">Gift / Transfer</option><option value="other">Other</option></select></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-income-notes"></div></div>
-              <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveIncome()">Save income</button><span class="save-msg" id="fin-income-msg"></span></div>
+        <div class="filter-grid finance-filter-grid">
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-select" id="fin-filter-category" onchange="financeRenderDashboard()"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Merchant</label>
+            <select class="form-select" id="fin-filter-merchant" onchange="financeRenderDashboard()"></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Payment</label>
+            <select class="form-select" id="fin-filter-payment" onchange="financeRenderDashboard()">
+              <option value="">All payments</option>
+              <option value="credit">Credit Card</option>
+              <option value="debit">Debit Card</option>
+              <option value="cash">Cash</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="fin-filter-type" onchange="financeRenderDashboard()">
+              <option value="">All types</option>
+              <option value="expense">Expenses only</option>
+              <option value="return">Returns only</option>
+            </select>
+          </div>
+          <div class="form-group date-range-group">
+            <label class="form-label">Month range</label>
+            <div class="range-grid">
+              <input class="form-input" type="month" id="fin-filter-month-start" onchange="financeRenderDashboard()" aria-label="Start month" />
+              <input class="form-input" type="month" id="fin-filter-month-end" onchange="financeRenderDashboard()" aria-label="End month" />
             </div>
           </div>
-          <div class="chart-card" id="finance-recent-card">
-            <div class="filter-header"><div class="section-title">Recently added</div><button class="small-btn filter-toggle" id="finance-recent-toggle-btn" type="button" onclick="financeToggleRecent()">Hide</button></div>
-            <div class="finance-recent-body" id="finance-recent-list"></div>
-          </div>
+          <button class="small-btn" type="button" onclick="financeClearDashboardFilters()">Clear filters</button>
         </div>
-
-        <div id="finance-history" class="finance-panel">
-          <div class="filter-card history-filter-card collapsed" id="finance-history-filter-card">
-            <div class="filter-header" style="margin-bottom:12px;">
-              <div class="section-title">Finance history filters</div>
-              <button class="small-btn filter-toggle" id="finance-history-filter-toggle-btn" type="button" onclick="financeToggleHistoryFilters()">Expand filters</button>
-            </div>
-            <div class="history-controls finance-history-controls">
-              <div class="form-group"><label class="form-label">Merchant</label><select class="form-select" id="fin-history-merchant" onchange="financeRenderHistory()"><option value="">All merchants</option></select></div>
-              <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant, note, category"></div>
-              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
-              <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-history-type" onchange="financeRenderHistory()"><option value="">All types</option><option value="expense">Expenses</option><option value="return">Returns</option><option value="gas">Gas imports</option></select></div>
-              <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="fin-history-payment" onchange="financeRenderHistory()"><option value="">All payments</option><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option><option value="gas">Gas</option></select></div>
-              <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="fin-history-date-start" onchange="financeRenderHistory()" aria-label="Start date"><input class="form-input" type="date" id="fin-history-date-end" onchange="financeRenderHistory()" aria-label="End date"></div></div>
-              <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="fin-history-sort" onchange="financeRenderHistory()"><option value="date">Date</option><option value="merchant">Merchant</option><option value="amount">Amount</option><option value="category">Category</option><option value="payment">Payment</option><option value="type">Type</option></select></div>
-              <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="fin-history-direction" onchange="financeRenderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
-            </div>
-            <div class="history-filter-actions"><button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Reset history filters</button><button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button></div>
+      </div>
+      <div class="finance-month-card">
+        <button class="small-btn" type="button" onclick="financeChangeMonth(-1)">Prev</button>
+        <strong id="finance-month-label"></strong>
+        <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
+        <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
+      </div>
+      <div class="metrics" id="finance-metrics"></div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <div class="chart-title-row">
+            <div class="section-title">Spending over time</div>
+            <select class="form-select inline-control" id="finance-chart-time-view" onchange="financeRenderCharts()">
+              <option value="week">Week</option>
+              <option value="month" selected>Month</option>
+              <option value="year">Year</option>
+            </select>
           </div>
-
-          <!-- Merchant Manager -->
-          <div class="chart-card" id="merchant-manager-card" style="margin-bottom:12px;">
-            <div class="filter-header">
-              <div class="section-title">Manage Merchants</div>
-              <button class="small-btn filter-toggle" id="merchant-manager-toggle-btn" type="button" onclick="toggleMerchantManager()">Expand</button>
-            </div>
-            <div id="merchant-manager-body" class="hidden">
-              <div class="merchant-manager-controls">
-                <div class="form-group" style="flex:1;min-width:160px;">
-                  <label class="form-label">Select merchant</label>
-                  <select class="form-select" id="merchant-select" onchange="merchantSelected()">
-                    <option value="">— choose a merchant —</option>
-                  </select>
-                </div>
-                <div class="form-group merchant-count-wrap" id="merchant-count-wrap" style="display:none;">
-                  <label class="form-label">Transaction count</label>
-                  <div class="metric-sub" id="merchant-tx-count" style="padding-top:8px;font-weight:600;"></div>
-                </div>
-              </div>
-              <div id="merchant-edit-wrap" class="hidden">
-                <div class="merchant-manager-controls" style="margin-top:10px;">
-                  <div class="form-group" style="flex:1;">
-                    <label class="form-label">New merchant name</label>
-                    <input class="form-input" id="merchant-new-name" placeholder="Enter new name" />
-                  </div>
-                </div>
-                <div class="btn-row" style="margin-top:10px;">
-                  <button class="save-btn" type="button" onclick="merchantRenameAll()">Rename all transactions</button>
-                  <button class="small-btn" type="button" onclick="merchantClearEdit()">Cancel</button>
-                  <span class="save-msg" id="merchant-save-msg"></span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="summary-line" id="finance-history-summary"></div>
-          <div class="tx-list" id="finance-history-list"></div>
+          <div class="chart-wrap"><canvas id="finance-chart-spending"></canvas></div>
         </div>
-
-        <div id="finance-budgets" class="finance-panel">
-          <div class="chart-grid">
-            <div class="chart-card"><div class="section-title">Monthly spending limit</div><div id="finance-budget-overview"></div><div class="form-row"><div class="form-group"><label class="form-label">Set monthly limit</label><input class="form-input" type="number" step="1" id="fin-budget-input" placeholder="3500"></div><div class="form-group align-end"><button class="save-btn" type="button" onclick="financeSaveBudgetLimit()">Save limit</button></div></div><span class="save-msg" id="fin-budget-msg"></span></div>
-            <div class="chart-card"><div class="section-title">Income this month</div><div id="finance-income-summary-bar"></div><div class="income-list" id="finance-income-list"></div></div>
-          </div>
-          <!-- Smart Budget Recommendation Card -->
-          <div class="chart-card" id="budget-rec-card">
-            <div class="filter-header">
-              <div>
-                <div class="section-title">Smart budget recommendation</div>
-                <div class="metric-sub" style="margin-top:2px;">Based on your last 3 months of spending</div>
-              </div>
-              <button class="small-btn" type="button" onclick="financeGenerateBudgetRec()">✦ Analyze</button>
-            </div>
-            <div id="budget-rec-body"></div>
-          </div>
-
-          <div class="chart-card" id="finance-category-budget-card"><div class="filter-header"><div class="section-title">Category budgets</div><button class="small-btn filter-toggle" id="finance-category-budget-toggle-btn" type="button" onclick="financeToggleCategoryBudgetCard()">Hide</button></div><div class="category-budget-body"><div class="budget-list" id="finance-category-budgets"></div><button class="save-btn" type="button" onclick="financeSaveCategoryBudgets()">Save category budgets</button><span class="save-msg" id="fin-cat-budget-msg"></span></div></div>
-          <div class="chart-grid">
-            <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="date" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
-            <div class="chart-card"><div class="section-title">Annual monthly spending</div><div class="heatmap-grid" id="finance-heatmap-grid"></div></div>
-          </div>
+        <div class="chart-card"><div class="section-title">By category</div><div class="chart-wrap"><canvas id="finance-chart-category"></canvas></div></div>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card"><div class="section-title">Budget progress</div><div id="finance-budget-card"></div></div>
+        <div class="chart-card"><div class="section-title">Smart insights</div><div id="finance-insights"></div></div>
+      </div>
+      <div class="chart-card"><div class="section-title">Category breakdown</div><div class="category-list" id="finance-category-breakdown"></div></div>
+      <div class="chart-card calendar-card">
+        <div class="section-title">Transaction calendar</div>
+        <div class="calendar-head">
+          <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(-1)">Prev</button>
+          <div class="calendar-month-title" id="finance-calendar-month-title"></div>
+          <button class="small-btn" type="button" onclick="financeChangeCalendarMonth(1)">Next</button>
         </div>
-
-        <div id="finance-subs" class="finance-panel">
-          <div class="sub-total-bar"><div><div class="metric-label">Monthly recurring total</div><div class="big-money" id="finance-sub-monthly">$0.00</div></div><div><div class="metric-label">Annual cost</div><div class="metric-value" id="finance-sub-annual">$0.00</div></div></div>
-          <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="date" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
-          <div class="sub-grid" id="finance-sub-grid"></div><div id="finance-sub-creep"></div>
-        </div>
-
-        <!-- Scan Receipt panel — upload, analyzing, and review all inline -->
-        <div id="finance-scan" class="finance-panel">
-
-          <!-- Step 1: Upload -->
-          <div id="scan-step-upload" class="scan-step">
-            <div class="chart-card scan-upload-card">
-              <div class="section-title">Scan Receipt</div>
-              <div class="receipt-drop-zone" id="receipt-drop-zone">
-                <div class="receipt-drop-icon">🧾</div>
-                <div class="receipt-drop-text">Take a photo or upload an image</div>
-                <div class="receipt-drop-sub">JPG, PNG, HEIC · up to 20 MB</div>
-                <div class="receipt-upload-btns">
-                  <label class="save-btn receipt-upload-label" for="receipt-file-input">Choose file</label>
-                  <label class="save-btn receipt-upload-label" for="receipt-camera-input">Camera</label>
-                </div>
-                <input type="file" id="receipt-file-input" accept="image/*" style="display:none" onchange="receiptFileChosen(event)" />
-                <input type="file" id="receipt-camera-input" accept="image/*" capture="environment" style="display:none" onchange="receiptFileChosen(event)" />
-              </div>
-              <div class="receipt-preview-wrap hidden" id="receipt-preview-wrap">
-                <img class="receipt-preview-img" id="receipt-preview-img" alt="Receipt preview" />
-                <button class="small-btn" type="button" onclick="receiptClearImage()">× Remove</button>
-              </div>
-              <div class="btn-row" style="justify-content:center;margin-top:14px;">
-                <button class="save-btn" type="button" id="receipt-analyze-btn" onclick="receiptAnalyze()" disabled>Analyze receipt</button>
-                <span class="save-msg" id="receipt-upload-msg"></span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 2: Analyzing -->
-          <div id="scan-step-analyzing" class="scan-step hidden">
-            <div class="chart-card">
-              <div class="receipt-analyzing-body">
-                <div class="receipt-spinner"></div>
-                <div class="receipt-analyzing-text" id="receipt-analyzing-text">Reading items and categories…</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 3: Review & approve -->
-          <div id="scan-step-review" class="scan-step hidden">
-            <div id="receipt-review-body"></div>
-            <div class="scan-review-actions">
-              <button class="save-btn" type="button" onclick="receiptSubmit()">Submit transaction</button>
-              <button class="small-btn" type="button" onclick="receiptGoBack()">← Rescan</button>
-              <span class="save-msg" id="receipt-review-msg"></span>
-            </div>
-          </div>
-
-        </div>
-
-        
+        <div class="calendar-grid" id="finance-calendar-grid"></div>
+        <div class="calendar-details" id="finance-calendar-details"></div>
       </div>
     </div>
+
+    <div id="finance-add" class="finance-panel">
+      <div class="form-card">
+        <div class="section-title">Transaction type</div>
+        <div class="mode-toggle finance-transaction-toggle">
+          <button class="mode-btn active" id="fin-mode-expense" type="button" onclick="financeSetTxType('expense')">Expense</button>
+          <button class="mode-btn" id="fin-mode-return" type="button" onclick="financeSetTxType('return')">Return</button>
+          <button class="mode-btn" id="fin-mode-income" type="button" onclick="financeSetTxType('income')">Income</button>
+        </div>
+        <div id="finance-expense-form">
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
+            <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon" oninput="financePopulateReturnLinks()"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
+          </div>
+          <div id="finance-return-wrap" class="hidden return-link-card">
+            <div class="section-title small-title">Link return to original purchase</div>
+            <div class="form-row three finance-return-filters">
+              <div class="form-group"><label class="form-label">Filter by merchant</label><input class="form-input" id="fin-return-merchant-filter" list="finance-store-options" placeholder="Auto uses merchant above" oninput="financePopulateReturnLinks()"></div>
+              <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-return-month-filter" onchange="financePopulateReturnLinks()"></div>
+              <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-return-cat-filter" onchange="financePopulateReturnLinks()"></select></div>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
+              <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link"></select></div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
+            <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
+          </div>
+          <div class="section-title small-title">Category</div>
+          <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
+          <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
+          <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
+          <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
+          <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
+        </div>
+        <div id="finance-income-form" class="hidden">
+          <div class="form-row three">
+            <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-income-date"></div>
+            <div class="form-group"><label class="form-label">Source</label><input class="form-input" id="fin-income-source" placeholder="Paycheck, freelance..."></div>
+            <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-income-amount" placeholder="0.00"></div>
+          </div>
+          <div class="form-row"><div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-income-type"><option value="salary">Salary / Wages</option><option value="freelance">Freelance</option><option value="investment">Investment</option><option value="gift">Gift / Transfer</option><option value="other">Other</option></select></div><div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-income-notes"></div></div>
+          <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveIncome()">Save income</button><span class="save-msg" id="fin-income-msg"></span></div>
+        </div>
+      </div>
+      <div class="chart-card" id="finance-recent-card">
+        <div class="filter-header"><div class="section-title">Recently added</div><button class="small-btn filter-toggle" id="finance-recent-toggle-btn" type="button" onclick="financeToggleRecent()">Hide</button></div>
+        <div class="finance-recent-body" id="finance-recent-list"></div>
+      </div>
+    </div>
+
+    <div id="finance-history" class="finance-panel">
+      <div class="filter-card history-filter-card collapsed" id="finance-history-filter-card">
+        <div class="filter-header" style="margin-bottom:12px;">
+          <div class="section-title">Finance history filters</div>
+          <button class="small-btn filter-toggle" id="finance-history-filter-toggle-btn" type="button" onclick="financeToggleHistoryFilters()">Expand filters</button>
+        </div>
+        <div class="history-controls finance-history-controls">
+          <div class="form-group"><label class="form-label">Merchant</label><select class="form-select" id="fin-history-merchant" onchange="financeRenderHistory()"><option value="">All merchants</option></select></div>
+          <div class="form-group"><label class="form-label">Search</label><input class="form-input" id="fin-history-search" oninput="financeRenderHistory()" placeholder="Merchant, note, category"></div>
+          <div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-history-cat" onchange="financeRenderHistory()"></select></div>
+          <div class="form-group"><label class="form-label">Type</label><select class="form-select" id="fin-history-type" onchange="financeRenderHistory()"><option value="">All types</option><option value="expense">Expenses</option><option value="return">Returns</option><option value="gas">Gas imports</option></select></div>
+          <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="fin-history-payment" onchange="financeRenderHistory()"><option value="">All payments</option><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option><option value="gas">Gas</option></select></div>
+          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="fin-history-date-start" onchange="financeRenderHistory()" aria-label="Start date"><input class="form-input" type="date" id="fin-history-date-end" onchange="financeRenderHistory()" aria-label="End date"></div></div>
+          <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="fin-history-sort" onchange="financeRenderHistory()"><option value="date">Date</option><option value="merchant">Merchant</option><option value="amount">Amount</option><option value="category">Category</option><option value="payment">Payment</option><option value="type">Type</option></select></div>
+          <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="fin-history-direction" onchange="financeRenderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
+        </div>
+        <div class="history-filter-actions"><button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Reset history filters</button><button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button></div>
+      </div>
+
+      <div class="summary-line" id="finance-history-summary"></div>
+      <div class="tx-list" id="finance-history-list"></div>
+    </div>
+
+    <div id="finance-budgets" class="finance-panel">
+      <div class="chart-grid">
+        <div class="chart-card"><div class="section-title">Monthly spending limit</div><div id="finance-budget-overview"></div><div class="form-row"><div class="form-group"><label class="form-label">Set monthly limit</label><input class="form-input" type="number" step="1" id="fin-budget-input" placeholder="3500"></div><div class="form-group align-end"><button class="save-btn" type="button" onclick="financeSaveBudgetLimit()">Save limit</button></div></div><span class="save-msg" id="fin-budget-msg"></span></div>
+        <div class="chart-card"><div class="section-title">Income this month</div><div id="finance-income-summary-bar"></div><div class="income-list" id="finance-income-list"></div></div>
+      </div>
+      <!-- Smart Budget Recommendation Card -->
+      <div class="chart-card" id="budget-rec-card">
+        <div class="filter-header">
+          <div>
+            <div class="section-title">Smart budget recommendation</div>
+            <div class="metric-sub" style="margin-top:2px;">Based on your last 3 months of spending</div>
+          </div>
+          <button class="small-btn" type="button" onclick="financeGenerateBudgetRec()">✦ Analyze</button>
+        </div>
+        <div id="budget-rec-body"></div>
+      </div>
+
+      <div class="chart-card" id="finance-category-budget-card"><div class="filter-header"><div class="section-title">Category budgets</div><button class="small-btn filter-toggle" id="finance-category-budget-toggle-btn" type="button" onclick="financeToggleCategoryBudgetCard()">Hide</button></div><div class="category-budget-body"><div class="budget-list" id="finance-category-budgets"></div><button class="save-btn" type="button" onclick="financeSaveCategoryBudgets()">Save category budgets</button><span class="save-msg" id="fin-cat-budget-msg"></span></div></div>
+      <div class="chart-grid">
+        <div class="chart-card"><div class="section-title">Savings goals</div><div id="finance-goals-list"></div><div id="finance-goal-form" class="goal-form hidden"><div class="form-row"><div class="form-group"><label class="form-label">Goal name</label><input class="form-input" id="fin-goal-name"></div><div class="form-group"><label class="form-label">Target</label><input class="form-input" type="number" step="1" id="fin-goal-target"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Saved so far</label><input class="form-input" type="number" step="1" id="fin-goal-current"></div><div class="form-group"><label class="form-label">Target date</label><input class="form-input" type="date" id="fin-goal-date"></div></div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveGoal()">Save goal</button><button class="small-btn" type="button" onclick="financeToggleGoalForm()">Cancel</button><span class="save-msg" id="fin-goal-msg"></span></div></div><button class="small-btn" type="button" onclick="financeToggleGoalForm()">+ New goal</button></div>
+        <div class="chart-card"><div class="section-title">Annual monthly spending</div><div class="heatmap-grid" id="finance-heatmap-grid"></div></div>
+      </div>
+    </div>
+
+    <div id="finance-subs" class="finance-panel">
+      <div class="sub-total-bar"><div><div class="metric-label">Monthly recurring total</div><div class="big-money" id="finance-sub-monthly">$0.00</div></div><div><div class="metric-label">Annual cost</div><div class="metric-value" id="finance-sub-annual">$0.00</div></div></div>
+      <div class="form-card"><div class="section-title" id="finance-sub-form-title">Add subscription</div><div class="form-row three"><div class="form-group span-2"><label class="form-label">Service name</label><input class="form-input" id="fin-sub-name"></div><div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="fin-sub-amount"></div></div><div class="form-row three"><div class="form-group"><label class="form-label">Billing cycle</label><select class="form-select" id="fin-sub-cycle"><option value="monthly">Monthly</option><option value="annual">Annual</option><option value="quarterly">Quarterly</option><option value="weekly">Weekly</option></select></div><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-sub-cat"></select></div><div class="form-group"><label class="form-label">Next billing</label><input class="form-input" type="date" id="fin-sub-next"></div></div><div class="btn-row"><button class="save-btn" type="button" id="finance-sub-save-btn" onclick="financeSaveSubscription()">Add subscription</button><button class="small-btn hidden" type="button" id="finance-sub-cancel-btn" onclick="financeCancelSubEdit()">Cancel</button><span class="save-msg" id="finance-sub-msg"></span></div></div>
+      <div class="sub-grid" id="finance-sub-grid"></div><div id="finance-sub-creep"></div>
+    </div>
+
+    <!-- Scan Receipt panel — upload, analyzing, and review all inline -->
+    <div id="finance-scan" class="finance-panel">
+
+      <!-- Step 1: Upload -->
+      <div id="scan-step-upload" class="scan-step">
+        <div class="chart-card scan-upload-card">
+          <div class="section-title">Scan Receipt</div>
+          <div class="receipt-drop-zone" id="receipt-drop-zone">
+            <div class="receipt-drop-icon">🧾</div>
+            <div class="receipt-drop-text">Take a photo or upload an image</div>
+            <div class="receipt-drop-sub">JPG, PNG, HEIC · up to 20 MB</div>
+            <div class="receipt-upload-btns">
+              <label class="save-btn receipt-upload-label" for="receipt-file-input">Choose file</label>
+              <label class="save-btn receipt-upload-label" for="receipt-camera-input">Camera</label>
+            </div>
+            <input type="file" id="receipt-file-input" accept="image/*" style="display:none" onchange="receiptFileChosen(event)" />
+            <input type="file" id="receipt-camera-input" accept="image/*" capture="environment" style="display:none" onchange="receiptFileChosen(event)" />
+          </div>
+          <div class="receipt-preview-wrap hidden" id="receipt-preview-wrap">
+            <img class="receipt-preview-img" id="receipt-preview-img" alt="Receipt preview" />
+            <button class="small-btn" type="button" onclick="receiptClearImage()">× Remove</button>
+          </div>
+          <div class="btn-row" style="justify-content:center;margin-top:14px;">
+            <button class="save-btn" type="button" id="receipt-analyze-btn" onclick="receiptAnalyze()" disabled>Analyze receipt</button>
+            <span class="save-msg" id="receipt-upload-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Analyzing -->
+      <div id="scan-step-analyzing" class="scan-step hidden">
+        <div class="chart-card">
+          <div class="receipt-analyzing-body">
+            <div class="receipt-spinner"></div>
+            <div class="receipt-analyzing-text" id="receipt-analyzing-text">Reading items and categories…</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Review & approve -->
+      <div id="scan-step-review" class="scan-step hidden">
+        <div id="receipt-review-body"></div>
+        <div class="scan-review-actions">
+          <button class="save-btn" type="button" onclick="receiptSubmit()">Submit transaction</button>
+          <button class="small-btn" type="button" onclick="receiptGoBack()">← Rescan</button>
+          <span class="save-msg" id="receipt-review-msg"></span>
+        </div>
+      </div>
+
+    </div>
+
+    
+  </div>
+</div>
+```
 
 <div id="tab-gas" class="panel top-panel">
       <div class="tabs gas-tabs">
@@ -406,150 +370,156 @@
         </div>
       </div>
 
-      <div class="metrics" id="metrics-row"></div>
-      <div class="chart-card">
-        <div class="section-title">Total spend over time</div>
-        <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
+```
+  <div class="metrics" id="metrics-row"></div>
+  <div class="chart-card">
+    <div class="section-title">Total spend over time</div>
+    <div class="chart-wrap"><canvas id="chart-spending"></canvas></div>
+  </div>
+  <div class="chart-grid three">
+    <div class="chart-card">
+      <div class="section-title">Price per gallon over time</div>
+      <div class="chart-wrap-sm"><canvas id="chart-ppg"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">Gallons by brand</div>
+      <div class="chart-wrap-sm"><canvas id="chart-brands"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="section-title">MPG over time</div>
+      <div class="chart-wrap-sm"><canvas id="chart-mpg"></canvas></div>
+    </div>
+  </div>
+  <div class="chart-card map-card">
+    <div class="map-title-row">
+      <div class="section-title">Station map</div>
+    </div>
+    <div class="map-controls">
+      <div class="form-group">
+        <label class="form-label">Map brand</label>
+        <select class="form-select" id="map-brand" onchange="selectedMapStation=''; renderStationMap()"></select>
       </div>
-      <div class="chart-grid three">
-        <div class="chart-card">
-          <div class="section-title">Price per gallon over time</div>
-          <div class="chart-wrap-sm"><canvas id="chart-ppg"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="section-title">Gallons by brand</div>
-          <div class="chart-wrap-sm"><canvas id="chart-brands"></canvas></div>
-        </div>
-        <div class="chart-card">
-          <div class="section-title">MPG over time</div>
-          <div class="chart-wrap-sm"><canvas id="chart-mpg"></canvas></div>
-        </div>
-      </div>
-      <div class="chart-card map-card">
-        <div class="map-title-row">
-          <div class="section-title">Station map</div>
-        </div>
-        <div class="map-controls">
-          <div class="form-group">
-            <label class="form-label">Map brand</label>
-            <select class="form-select" id="map-brand" onchange="selectedMapStation=''; renderStationMap()"></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Map station</label>
-            <select class="form-select" id="map-station" onchange="setMapStation(this.value)"></select>
-          </div>
-        </div>
-        <div class="map-stats" id="station-map-stats"></div>
-        <div class="station-map-list" id="station-map-list"></div>
-        <iframe id="station-map" class="station-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-        <div class="station-edit-card collapsed" id="station-edit-card">
-          <div class="station-edit-header">
-            <div class="section-title">Edit station info</div>
-            <button class="small-btn" id="station-edit-toggle-btn" type="button" onclick="toggleStationEdit()">Expand</button>
-          </div>
-          <div class="station-edit-body">
-          <div class="station-edit-grid">
-            <div class="form-group"><label class="form-label">Station to edit</label><select class="form-select" id="edit-station-select" onchange="loadStationEditForm()"></select></div>
-            <div class="form-group"><label class="form-label">Brand</label><input class="form-input" id="edit-station-brand" placeholder="Brand" /></div>
-            <div class="form-group"><label class="form-label">Station name</label><input class="form-input" id="edit-station-name" placeholder="Station" /></div>
-            <div class="form-group"><label class="form-label">Address 1</label><input class="form-input" id="edit-station-address1" placeholder="Address 1" /></div>
-            <div class="form-group"><label class="form-label">City</label><input class="form-input" id="edit-station-city" placeholder="City" /></div>
-            <div class="form-group"><label class="form-label">State</label><input class="form-input" id="edit-station-state" placeholder="State" maxlength="2" /></div>
-            <div class="form-group"><label class="form-label">ZIP</label><input class="form-input" id="edit-station-zip" placeholder="ZIP" /></div>
-          </div>
-          <div class="form-actions">
-            <button class="small-btn" type="button" onclick="saveStationInfoEdit()">Update all matching entries</button>
-            <span class="save-msg" id="station-edit-msg"></span>
-          </div>
-          </div>
-        </div>
-      </div>
-      <div class="chart-card calendar-card">
-        <div class="section-title">Fill-up calendar</div>
-        <div class="calendar-head">
-          <button class="small-btn" type="button" onclick="changeCalendarMonth(-1)">Prev</button>
-          <div class="calendar-month-title" id="calendar-month-title"></div>
-          <button class="small-btn" type="button" onclick="changeCalendarMonth(1)">Next</button>
-        </div>
-        <div class="calendar-grid" id="calendar-grid"></div>
-        <div class="calendar-details" id="calendar-details"></div>
+      <div class="form-group">
+        <label class="form-label">Map station</label>
+        <select class="form-select" id="map-station" onchange="setMapStation(this.value)"></select>
       </div>
     </div>
+    <div class="map-stats" id="station-map-stats"></div>
+    <div class="station-map-list" id="station-map-list"></div>
+    <iframe id="station-map" class="station-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <div class="station-edit-card collapsed" id="station-edit-card">
+      <div class="station-edit-header">
+        <div class="section-title">Edit station info</div>
+        <button class="small-btn" id="station-edit-toggle-btn" type="button" onclick="toggleStationEdit()">Expand</button>
+      </div>
+      <div class="station-edit-body">
+      <div class="station-edit-grid">
+        <div class="form-group"><label class="form-label">Station to edit</label><select class="form-select" id="edit-station-select" onchange="loadStationEditForm()"></select></div>
+        <div class="form-group"><label class="form-label">Brand</label><input class="form-input" id="edit-station-brand" placeholder="Brand" /></div>
+        <div class="form-group"><label class="form-label">Station name</label><input class="form-input" id="edit-station-name" placeholder="Station" /></div>
+        <div class="form-group"><label class="form-label">Address 1</label><input class="form-input" id="edit-station-address1" placeholder="Address 1" /></div>
+        <div class="form-group"><label class="form-label">City</label><input class="form-input" id="edit-station-city" placeholder="City" /></div>
+        <div class="form-group"><label class="form-label">State</label><input class="form-input" id="edit-station-state" placeholder="State" maxlength="2" /></div>
+        <div class="form-group"><label class="form-label">ZIP</label><input class="form-input" id="edit-station-zip" placeholder="ZIP" /></div>
+      </div>
+      <div class="form-actions">
+        <button class="small-btn" type="button" onclick="saveStationInfoEdit()">Update all matching entries</button>
+        <span class="save-msg" id="station-edit-msg"></span>
+      </div>
+      </div>
+    </div>
+  </div>
+  <div class="chart-card calendar-card">
+    <div class="section-title">Fill-up calendar</div>
+    <div class="calendar-head">
+      <button class="small-btn" type="button" onclick="changeCalendarMonth(-1)">Prev</button>
+      <div class="calendar-month-title" id="calendar-month-title"></div>
+      <button class="small-btn" type="button" onclick="changeCalendarMonth(1)">Next</button>
+    </div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+    <div class="calendar-details" id="calendar-details"></div>
+  </div>
+</div>
+```
+
 <div id="gas-log" class="gas-panel">
       <div class="form-card">
         <div class="section-title" style="margin-bottom:14px;">Fill-up details</div>
         <datalist id="brand-options"></datalist>
         <datalist id="station-options"></datalist>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Brand</label>
-            <input class="form-input" id="f-brand" list="brand-options" placeholder="e.g. BJ's, Shell, Costco" />
-            <select class="form-select quick-select" id="f-brand-picker" onchange="chooseSuggestion('brand', this.value)">
-              <option value="">Select recent brand...</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Station</label>
-            <input class="form-input" id="f-station" list="station-options" placeholder="e.g. BJ Route 10" oninput="autofillStationAddress()" onchange="autofillStationAddress()" />
-            <select class="form-select quick-select" id="f-station-picker" onchange="chooseSuggestion('station', this.value)">
-              <option value="">Select recent station...</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-grid-2">
-          <div class="form-group">
-            <label class="form-label">Date</label>
-            <input class="form-input" type="date" id="f-date" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Price / gallon ($)</label>
-            <input class="form-input" type="number" step="0.001" id="f-ppg" placeholder="3.499" oninput="calcTotal()" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Gallons</label>
-            <input class="form-input" type="number" step="0.001" id="f-gallons" placeholder="12.500" oninput="calcTotal()" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Total ($)</label>
-            <input class="form-input" type="number" step="0.01" id="f-total" placeholder="43.74" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Odometer</label>
-            <input class="form-input" type="number" step="1" id="f-odometer" placeholder="Optional" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Tank status</label>
-            <label class="full-tank-row"><input type="checkbox" id="f-full-tank" checked /> Full tank</label>
-          </div>
-        
-          <div class="section-title form-grid-full" style="margin-top:16px;">Address</div>
-          <div class="form-group">
-            <label class="form-label">Address 1</label>
-            <input class="form-input" id="f-address1" placeholder="831 State Route 10" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">City</label>
-            <input class="form-input" id="f-city" placeholder="Whippany" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">State</label>
-            <input class="form-input" id="f-state" placeholder="NJ" maxlength="2" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">ZIP</label>
-            <input class="form-input" id="f-zip" placeholder="07891" />
-          </div>
-        </div>
-
-        <div class="add-actions-grid">
-          <button class="save-btn" onclick="addEntry()">Save fill-up</button>
-          <button class="small-btn" type="button" onclick="resetAddDetails()">Reset details</button>
-        </div>
-        <div class="btn-row" style="margin-top:10px;"><span class="save-msg" id="save-msg"></span></div>
+```
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Brand</label>
+        <input class="form-input" id="f-brand" list="brand-options" placeholder="e.g. BJ's, Shell, Costco" />
+        <select class="form-select quick-select" id="f-brand-picker" onchange="chooseSuggestion('brand', this.value)">
+          <option value="">Select recent brand...</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Station</label>
+        <input class="form-input" id="f-station" list="station-options" placeholder="e.g. BJ Route 10" oninput="autofillStationAddress()" onchange="autofillStationAddress()" />
+        <select class="form-select quick-select" id="f-station-picker" onchange="chooseSuggestion('station', this.value)">
+          <option value="">Select recent station...</option>
+        </select>
       </div>
     </div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-input" type="date" id="f-date" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Price / gallon ($)</label>
+        <input class="form-input" type="number" step="0.001" id="f-ppg" placeholder="3.499" oninput="calcTotal()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gallons</label>
+        <input class="form-input" type="number" step="0.001" id="f-gallons" placeholder="12.500" oninput="calcTotal()" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total ($)</label>
+        <input class="form-input" type="number" step="0.01" id="f-total" placeholder="43.74" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Odometer</label>
+        <input class="form-input" type="number" step="1" id="f-odometer" placeholder="Optional" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tank status</label>
+        <label class="full-tank-row"><input type="checkbox" id="f-full-tank" checked /> Full tank</label>
+      </div>
+    
+      <div class="section-title form-grid-full" style="margin-top:16px;">Address</div>
+      <div class="form-group">
+        <label class="form-label">Address 1</label>
+        <input class="form-input" id="f-address1" placeholder="831 State Route 10" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">City</label>
+        <input class="form-input" id="f-city" placeholder="Whippany" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">State</label>
+        <input class="form-input" id="f-state" placeholder="NJ" maxlength="2" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">ZIP</label>
+        <input class="form-input" id="f-zip" placeholder="07891" />
+      </div>
+    </div>
+
+    <div class="add-actions-grid">
+      <button class="save-btn" onclick="addEntry()">Save fill-up</button>
+      <button class="small-btn" type="button" onclick="resetAddDetails()">Reset details</button>
+    </div>
+    <div class="btn-row" style="margin-top:10px;"><span class="save-msg" id="save-msg"></span></div>
+  </div>
+</div>
+```
+
 <div id="gas-history" class="gas-panel">
       <div class="filter-card history-filter-card collapsed" id="history-filter-card">
         <div class="filter-header" style="margin-bottom:12px;">
@@ -612,7 +582,150 @@
       </div>
     </div>
 
+<div id="tab-settings" class="panel top-panel">
+  <div style="display:flex;flex-direction:column;gap:16px;padding-bottom:2rem;">
 
+```
+<!-- ── App Preferences ── -->
+<div class="chart-card">
+  <div class="section-title" style="margin-bottom:14px;">App preferences</div>
+  <div class="settings-row">
+    <div>
+      <div class="settings-row-label">Theme</div>
+      <div class="settings-row-sub">Light or dark mode</div>
+    </div>
+    <button class="theme-toggle" id="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
+      <span class="theme-icon-light">☀️ Light</span>
+      <span class="theme-icon-dark">🌙 Dark</span>
+    </button>
+  </div>
+  <div class="settings-row" style="margin-top:12px;">
+    <div>
+      <div class="settings-row-label">Account</div>
+      <div class="settings-row-sub" id="settings-account-email">—</div>
+    </div>
+    <button class="small-btn hidden" id="logout-btn" onclick="logout()">Log out</button>
+  </div>
+</div>
+
+<!-- ── Excluded Categories ── -->
+<div class="chart-card">
+  <div class="section-title">Excluded from spending totals</div>
+  <div class="metric-sub" style="margin:6px 0 14px;">Toggled-off categories are hidden from your Spent total, sticky bar, budget progress, and charts. They still appear in History. Use this for fixed costs like rent that distort your discretionary spending view.</div>
+  <div id="settings-excluded-cats" class="settings-cat-grid"></div>
+  <div class="btn-row" style="margin-top:14px;">
+    <button class="save-btn" type="button" onclick="settingsSaveExcluded()">Save preferences</button>
+    <span class="save-msg" id="settings-excluded-msg"></span>
+  </div>
+</div>
+
+<!-- ── Finance Defaults ── -->
+<div class="chart-card">
+  <div class="section-title" style="margin-bottom:14px;">Finance defaults</div>
+  <div class="form-row">
+    <div class="form-group">
+      <label class="form-label">Monthly spending limit</label>
+      <input class="form-input" type="number" step="1" id="settings-monthly-limit" placeholder="3500" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Default payment method</label>
+      <select class="form-select" id="settings-default-payment">
+        <option value="credit">Credit Card</option>
+        <option value="debit">Debit Card</option>
+        <option value="cash">Cash</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="save-btn" type="button" onclick="settingsSaveFinanceDefaults()">Save</button>
+    <span class="save-msg" id="settings-finance-msg"></span>
+  </div>
+</div>
+
+<!-- ── Finance Merchants ── -->
+<div class="chart-card">
+  <div class="section-title" style="margin-bottom:4px;">Finance merchants</div>
+  <div class="metric-sub" style="margin-bottom:14px;">Rename a merchant across all of its transactions at once.</div>
+  <div class="merchant-manager-controls">
+    <div class="form-group" style="flex:1;min-width:160px;">
+      <label class="form-label">Select merchant</label>
+      <select class="form-select" id="merchant-select" onchange="merchantSelected()">
+        <option value="">— choose a merchant —</option>
+      </select>
+    </div>
+    <div class="form-group" id="merchant-count-wrap" style="display:none;min-width:120px;">
+      <label class="form-label">Transactions</label>
+      <div class="metric-sub" id="merchant-tx-count" style="padding-top:8px;font-weight:600;"></div>
+    </div>
+  </div>
+  <div id="merchant-edit-wrap" class="hidden" style="margin-top:10px;">
+    <div class="merchant-manager-controls">
+      <div class="form-group" style="flex:1;">
+        <label class="form-label">New merchant name</label>
+        <input class="form-input" id="merchant-new-name" placeholder="Enter new name" />
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="save-btn" type="button" onclick="merchantRenameAll()">Rename all transactions</button>
+      <button class="small-btn" type="button" onclick="merchantClearEdit()">Cancel</button>
+      <span class="save-msg" id="merchant-save-msg"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Gas Station Editor ── -->
+<div class="chart-card">
+  <div class="section-title" style="margin-bottom:4px;">Gas stations</div>
+  <div class="metric-sub" style="margin-bottom:14px;">Edit the brand, name, and address for any station you've logged.</div>
+  <div class="station-edit-grid">
+    <div class="form-group">
+      <label class="form-label">Select station</label>
+      <select class="form-select" id="settings-station-select" onchange="settingsLoadStationEdit()"></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Brand</label>
+      <input class="form-input" id="settings-edit-brand" placeholder="Brand" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Station name</label>
+      <input class="form-input" id="settings-edit-station" placeholder="Station name" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Address</label>
+      <input class="form-input" id="settings-edit-address1" placeholder="Street address" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">City</label>
+      <input class="form-input" id="settings-edit-city" placeholder="City" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">State</label>
+      <input class="form-input" id="settings-edit-state" placeholder="NJ" maxlength="2" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">ZIP</label>
+      <input class="form-input" id="settings-edit-zip" placeholder="07601" />
+    </div>
+  </div>
+  <div class="btn-row" style="margin-top:12px;">
+    <button class="save-btn" type="button" onclick="settingsSaveStation()">Save station</button>
+    <span class="save-msg" id="settings-station-msg"></span>
+  </div>
+</div>
+
+<!-- ── Export ── -->
+<div class="chart-card">
+  <div class="section-title" style="margin-bottom:14px;">Export data</div>
+  <div class="btn-row">
+    <button class="small-btn" type="button" onclick="financeExportCSV()">Export finance CSV</button>
+    <button class="small-btn" type="button" onclick="settingsExportGasCSV()">Export gas CSV</button>
+  </div>
+</div>
+```
+
+  </div>
+</div>
 
 <script>
 const STORAGE_KEY = 'gas-tracker-entries-v5';
@@ -872,7 +985,7 @@ async function deleteEntryFromCloud(id) {
 }
 
 function switchTab(name) {
-  const names = ['finance', 'gas', 'chat'];
+  const names = ['finance', 'gas', 'chat', 'settings'];
   document.querySelectorAll('.top-tab').forEach((tab, i) => tab.classList.toggle('active', names[i] === name));
   document.querySelectorAll('.top-panel').forEach(panel => panel.classList.remove('active'));
   document.getElementById('tab-' + name)?.classList.add('active');
@@ -880,6 +993,7 @@ function switchTab(name) {
   if (name === 'finance') { financeRenderAll(); }
   if (name === 'gas') { renderAll(); renderCharts(); renderStationMap(); renderCalendar(); }
   if (name === 'chat') { renderChatMessages(); }
+  if (name === 'settings') { settingsRender(); }
 }
 
 function switchGasTab(name) {
@@ -2328,12 +2442,12 @@ let financeEditingSubId = null;
 
 function loadFinanceLocal(){
   try { const saved = JSON.parse(localStorage.getItem(FINANCE_STORAGE_KEY) || '{}');
-    return { transactions: saved.transactions || [], income: saved.income || [], subscriptions: saved.subscriptions || [], goals: saved.goals || [], settings: saved.settings || { monthly_limit:0, category_budgets:{} } };
-  } catch { return { transactions: [], income: [], subscriptions: [], goals: [], settings: { monthly_limit:0, category_budgets:{} } }; }
+    return { transactions: saved.transactions || [], income: saved.income || [], subscriptions: saved.subscriptions || [], goals: saved.goals || [], settings: saved.settings || { monthly_limit:0, category_budgets:{}, excluded_categories:[], default_payment:'credit' } };
+  } catch { return { transactions: [], income: [], subscriptions: [], goals: [], settings: { monthly_limit:0, category_budgets:{}, excluded_categories:[], default_payment:'credit' } }; }
 }
 function saveFinanceLocal(){ localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(financeState)); }
 function normalizeFinanceTransaction(t){ return {...t,total:Number(t.total||0),is_return:Boolean(t.is_return),splits:Array.isArray(t.splits)?t.splits:[],store:String(t.store||'').trim(),payment:t.payment||'',notes:t.notes||''}; }
-function normalizeFinanceStatePayload(){ financeState.transactions=(financeState.transactions||[]).map(normalizeFinanceTransaction); financeState.income=(financeState.income||[]).map(i=>({...i,amount:Number(i.amount||0)})); financeState.subscriptions=(financeState.subscriptions||[]).map(s=>({...s,amount:Number(s.amount||0)})); financeState.goals=(financeState.goals||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})); financeState.settings=financeState.settings||{monthly_limit:0,category_budgets:{}}; financeState.settings.monthly_limit=Number(financeState.settings.monthly_limit||0); financeState.settings.category_budgets=financeState.settings.category_budgets||{}; }
+function normalizeFinanceStatePayload(){ financeState.transactions=(financeState.transactions||[]).map(normalizeFinanceTransaction); financeState.income=(financeState.income||[]).map(i=>({...i,amount:Number(i.amount||0)})); financeState.subscriptions=(financeState.subscriptions||[]).map(s=>({...s,amount:Number(s.amount||0)})); financeState.goals=(financeState.goals||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})); financeState.settings=financeState.settings||{monthly_limit:0,category_budgets:{},excluded_categories:[],default_payment:'credit'}; financeState.settings.monthly_limit=Number(financeState.settings.monthly_limit||0); financeState.settings.category_budgets=financeState.settings.category_budgets||{}; financeState.settings.excluded_categories=Array.isArray(financeState.settings.excluded_categories)?financeState.settings.excluded_categories:[]; financeState.settings.default_payment=financeState.settings.default_payment||'credit'; }
 async function loadFinanceFromCloud(){
   if(!currentUser||!supabaseClient){ normalizeFinanceStatePayload(); saveFinanceLocal(); financeRenderAll(); return; }
   try{
@@ -2345,12 +2459,12 @@ async function loadFinanceFromCloud(){
       supabaseClient.from('settings').select('*').eq('user_id',currentUser.id).maybeSingle()
     ]);
     if(tx.error) throw tx.error; if(inc.error) throw inc.error; if(subs.error) throw subs.error; if(goalsRes.error) throw goalsRes.error; if(settingsRes.error) throw settingsRes.error;
-    financeState={transactions:(tx.data||[]).map(normalizeFinanceTransaction),income:(inc.data||[]).map(i=>({...i,amount:Number(i.amount||0)})),subscriptions:(subs.data||[]).map(s=>({...s,amount:Number(s.amount||0)})),goals:(goalsRes.data||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})),settings:settingsRes.data?{monthly_limit:Number(settingsRes.data.monthly_limit||0),category_budgets:settingsRes.data.category_budgets||{}}:{monthly_limit:0,category_budgets:{}}};
+    financeState={transactions:(tx.data||[]).map(normalizeFinanceTransaction),income:(inc.data||[]).map(i=>({...i,amount:Number(i.amount||0)})),subscriptions:(subs.data||[]).map(s=>({...s,amount:Number(s.amount||0)})),goals:(goalsRes.data||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})),settings:settingsRes.data?{monthly_limit:Number(settingsRes.data.monthly_limit||0),category_budgets:settingsRes.data.category_budgets||{},excluded_categories:Array.isArray(settingsRes.data.excluded_categories)?settingsRes.data.excluded_categories:[],default_payment:settingsRes.data.default_payment||'credit'}:{monthly_limit:0,category_budgets:{},excluded_categories:[],default_payment:'credit'}};
     saveFinanceLocal(); financeRenderAll(); if(!settingsRes.data) await saveFinanceSettingsToCloud();
   }catch(err){ console.error('Finance cloud load failed:',err); normalizeFinanceStatePayload(); saveFinanceLocal(); financeRenderAll(); }
 }
 async function financePersist(){ normalizeFinanceStatePayload(); saveFinanceLocal(); }
-async function saveFinanceSettingsToCloud(){ if(!currentUser||!supabaseClient){ await financePersist(); return true; } const {error}=await supabaseClient.from('settings').upsert({user_id:currentUser.id,monthly_limit:Number(financeState.settings.monthly_limit||0),category_budgets:financeState.settings.category_budgets||{}},{onConflict:'user_id'}); if(error){ console.error('Finance settings save failed:',error); alert('Budget settings did not save to cloud.'); return false;} await financePersist(); return true; }
+async function saveFinanceSettingsToCloud(){ if(!currentUser||!supabaseClient){ await financePersist(); return true; } const {error}=await supabaseClient.from('settings').upsert({user_id:currentUser.id,monthly_limit:Number(financeState.settings.monthly_limit||0),category_budgets:financeState.settings.category_budgets||{},excluded_categories:financeState.settings.excluded_categories||[],default_payment:financeState.settings.default_payment||'credit'},{onConflict:'user_id'}); if(error){ console.error('Finance settings save failed:',error); alert('Settings did not save to cloud.'); return false;} await financePersist(); return true; }
 async function financeInsertRow(table,payload){ if(!currentUser||!supabaseClient) return {data:null,error:null}; const {data,error}=await supabaseClient.from(table).insert({...payload,user_id:currentUser.id}).select().single(); if(error) console.error(table+' insert failed:',error); return {data,error}; }
 async function financeUpdateRow(table,id,payload){ if(!currentUser||!supabaseClient) return {error:null}; const {error}=await supabaseClient.from(table).update(payload).eq('id',id).eq('user_id',currentUser.id); if(error) console.error(table+' update failed:',error); return {error}; }
 async function financeDeleteRow(table,id){ if(!currentUser||!supabaseClient) return {error:null}; const {error}=await supabaseClient.from(table).delete().eq('id',id).eq('user_id',currentUser.id); if(error) console.error(table+' delete failed:',error); return {error}; }
@@ -2360,7 +2474,19 @@ function financeShowMsg(id, msg, isError=false){ const el = document.getElementB
 function financeDateToday(){ return new Date().toISOString().split('T')[0]; }
 function financeYM(date){ const d = new Date(date + 'T12:00:00'); return {y:d.getFullYear(), m:d.getMonth()}; }
 function financeForMonth(arr, y, m){ const d = new Date(y, m, 1); return arr.filter(item => { const x = financeYM(item.date); return x.y === d.getFullYear() && x.m === d.getMonth(); }); }
-function financeNetSpent(txs){ return txs.reduce((sum,t)=>sum + Number(t.total || 0) * (t.is_return ? -1 : 1), 0); }
+function financeExcludedCats(){ return new Set(financeState.settings.excluded_categories || []); }
+function financeExcludeFromTx(txs){
+  const exc = financeExcludedCats();
+  if(!exc.size) return txs;
+  return txs.map(t => {
+    const splits = (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]);
+    const kept = splits.filter(s => !exc.has(s.cat));
+    if(kept.length === splits.length) return t;
+    if(!kept.length) return null;
+    return {...t, splits: kept, total: kept.reduce((s,x)=>s+Number(x.amount||0),0)};
+  }).filter(Boolean);
+}
+function financeNetSpent(txs){ return financeExcludeFromTx(txs).reduce((sum,t)=>sum + Number(t.total || 0) * (t.is_return ? -1 : 1), 0); }
 function financeIncomeTotal(arr){ return arr.reduce((sum,i)=>sum + Number(i.amount || 0), 0); }
 function financeGasTransactions(){
   return (Array.isArray(entries) ? entries : []).map(e => ({
@@ -2547,7 +2673,7 @@ function financeRenderDashboard(){
   document.getElementById('finance-metrics').innerHTML = `<div class="metric"><div class="metric-label">Spent</div><div class="metric-value danger-text">${financeFmt(spent)}</div><div class="metric-sub">${deltaText}</div></div><div class="metric"><div class="metric-label">Income</div><div class="metric-value success-text">${financeFmt(income)}</div><div class="metric-sub">${monthInc.length} source${monthInc.length===1?'':'s'}</div></div><div class="metric"><div class="metric-label">Net saved</div><div class="metric-value ${saved>=0?'success-text':'danger-text'}">${financeFmt(saved)}</div><div class="metric-sub">${rate}% savings rate</div></div><div class="metric"><div class="metric-label">Transactions</div><div class="metric-value">${monthTx.length}</div><div class="metric-sub">${monthTx.filter(t=>t.is_return).length} returns</div></div>`;
   financeRenderBudgetCard(spent); financeRenderCategoryBreakdown(monthTx); financeRenderInsights(monthTx, prevTx); financeRenderCharts(); financeRenderCalendar();
 }
-function financeCategoryTotals(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
+function financeCategoryTotals(txs){ const totals = {}; financeExcludeFromTx(txs).forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderBudgetCard(spent){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const pct = Math.max(0, Math.min(100, spent/limit*100)); el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(spent)} / ${financeFmt(limit)}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-spent)} remaining</div>`; }
 function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotals(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
@@ -4183,6 +4309,163 @@ financeInitUI = function() {
   if (body && !body.classList.contains('hidden')) merchantPopulateSelect();
 };
 
+// ══════════════════════════════════════════════════
+// SETTINGS TAB
+// ══════════════════════════════════════════════════
+
+function settingsRender() {
+  settingsRenderExcludedCats();
+  settingsRenderFinanceDefaults();
+  settingsRenderStationSelect();
+  merchantPopulateSelect();
+
+  // Show account email
+  const emailEl = document.getElementById('settings-account-email');
+  if (emailEl && currentUser?.email) emailEl.textContent = currentUser.email;
+
+  // Sync logout button visibility
+  document.getElementById('logout-btn')?.classList.toggle('hidden', !currentUser);
+}
+
+// ── Excluded categories ──────────────────────────
+function settingsRenderExcludedCats() {
+  const wrap = document.getElementById('settings-excluded-cats');
+  if (!wrap) return;
+  const excluded = new Set(financeState.settings.excluded_categories || []);
+  wrap.innerHTML = FINANCE_CATS.map(c => {
+    const isExcluded = excluded.has(c.id);
+    const pillBg = c.color + '22';
+    const pillBorder = c.color + '55';
+    return `<label class="settings-cat-toggle ${isExcluded ? 'excluded' : ''}">
+      <input type="checkbox" data-exc-cat="${c.id}" ${isExcluded ? 'checked' : ''}
+        onchange="settingsExcludedToggle('${c.id}', this.checked)" />
+      <span class="settings-cat-pill" style="background:${pillBg};border-color:${pillBorder};color:${c.color};">
+        ${c.emoji} ${escapeHtml(c.label)}
+      </span>
+      <span class="settings-cat-status">${isExcluded ? 'Excluded' : 'Included'}</span>
+    </label>`;
+  }).join('');
+}
+
+function settingsExcludedToggle(catId, exclude) {
+  const exc = new Set(financeState.settings.excluded_categories || []);
+  exclude ? exc.add(catId) : exc.delete(catId);
+  financeState.settings.excluded_categories = [...exc];
+  settingsRenderExcludedCats();
+}
+
+async function settingsSaveExcluded() {
+  if (!(await saveFinanceSettingsToCloud())) return;
+  financeShowMsg('settings-excluded-msg', '✓ Saved. Dashboard and totals updated.');
+  financeRenderAll();
+  updateStickyBar();
+}
+
+// ── Finance defaults ─────────────────────────────
+function settingsRenderFinanceDefaults() {
+  const limitEl = document.getElementById('settings-monthly-limit');
+  if (limitEl) limitEl.value = financeState.settings.monthly_limit || '';
+  const payEl = document.getElementById('settings-default-payment');
+  if (payEl) payEl.value = financeState.settings.default_payment || 'credit';
+}
+
+async function settingsSaveFinanceDefaults() {
+  const limit = Number(document.getElementById('settings-monthly-limit')?.value || 0);
+  const payment = document.getElementById('settings-default-payment')?.value || 'credit';
+  financeState.settings.monthly_limit = limit;
+  financeState.settings.default_payment = payment;
+  if (!(await saveFinanceSettingsToCloud())) return;
+  financeShowMsg('settings-finance-msg', '✓ Saved.');
+  financeRenderAll();
+}
+
+// ── Gas station editor ───────────────────────────
+function settingsRenderStationSelect() {
+  const sel = document.getElementById('settings-station-select');
+  if (!sel) return;
+  const stations = [...new Map(entries.map(e => [e.brand + '|' + e.station, e])).values()]
+    .sort((a, b) => a.brand.localeCompare(b.brand) || a.station.localeCompare(b.station));
+  sel.innerHTML = '<option value="">— select a station —</option>' +
+    stations.map(e => `<option value="${escapeHtml(e.brand + '|' + e.station)}">${escapeHtml(e.brand)} · ${escapeHtml(e.station)}</option>`).join('');
+}
+
+function settingsLoadStationEdit() {
+  const sel = document.getElementById('settings-station-select');
+  const key = sel?.value;
+  if (!key) return;
+  const [brand, station] = key.split('|');
+  const entry = entries.find(e => e.brand === brand && e.station === station);
+  if (!entry) return;
+  document.getElementById('settings-edit-brand').value   = entry.brand   || '';
+  document.getElementById('settings-edit-station').value = entry.station  || '';
+  document.getElementById('settings-edit-address1').value = entry.address1 || '';
+  document.getElementById('settings-edit-city').value    = entry.city    || '';
+  document.getElementById('settings-edit-state').value   = entry.state   || '';
+  document.getElementById('settings-edit-zip').value     = entry.zip     || '';
+}
+
+async function settingsSaveStation() {
+  const sel = document.getElementById('settings-station-select');
+  const key = sel?.value;
+  if (!key) { financeShowMsg('settings-station-msg', 'Select a station first.', true); return; }
+  const [oldBrand, oldStation] = key.split('|');
+
+  const newBrand   = document.getElementById('settings-edit-brand').value.trim();
+  const newStation = document.getElementById('settings-edit-station').value.trim();
+  const address1   = document.getElementById('settings-edit-address1').value.trim();
+  const city       = document.getElementById('settings-edit-city').value.trim();
+  const state      = document.getElementById('settings-edit-state').value.trim();
+  const zip        = document.getElementById('settings-edit-zip').value.trim();
+
+  if (!newBrand || !newStation) { financeShowMsg('settings-station-msg', 'Brand and station name required.', true); return; }
+
+  const targets = entries.filter(e => e.brand === oldBrand && e.station === oldStation);
+  if (!targets.length) { financeShowMsg('settings-station-msg', 'No entries found.', true); return; }
+
+  const btn = document.querySelector('#tab-settings .save-btn[onclick="settingsSaveStation()"]');
+  if (btn) { btn.disabled = true; btn.textContent = `Saving ${targets.length}…`; }
+
+  let failed = 0;
+  for (const e of targets) {
+    const payload = { brand: newBrand, station: newStation, address1, city, state, zip };
+    const { error } = await supabaseClient.from('gas_entries').update(payload).eq('id', e.id).eq('user_id', currentUser.id);
+    if (error) { failed++; continue; }
+    Object.assign(e, payload);
+  }
+
+  saveLocalEntries();
+  if (btn) { btn.disabled = false; btn.textContent = 'Save station'; }
+
+  if (failed > 0) {
+    financeShowMsg('settings-station-msg', `${targets.length - failed} saved, ${failed} failed.`, true);
+  } else {
+    financeShowMsg('settings-station-msg', `✓ ${targets.length} entries updated.`);
+  }
+  settingsRenderStationSelect();
+}
+
+// ── Gas CSV export ───────────────────────────────
+function settingsExportGasCSV() {
+  const rows = [['Date','Brand','Station','$/gal','Gallons','Total','Odometer','Full tank','Address','City','State','ZIP']];
+  entries.forEach(e => rows.push([
+    e.date, e.brand, e.station, e.ppg, e.gallons, e.total,
+    e.odometer ?? '', e.full_tank ? 'Yes' : 'No',
+    e.address1 || '', e.city || '', e.state || '', e.zip || ''
+  ]));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `gas-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+}
+
+// Also show logout in settings when logged in
+const _origShowCorrectView = showCorrectView;
+showCorrectView = function() {
+  _origShowCorrectView.apply(this, arguments);
+  document.getElementById('logout-btn')?.classList.toggle('hidden', !currentUser);
+};
+
   document.addEventListener("click", function(e) {
   var btn = e.target.closest("button.chat-followup[data-hint]");
   if (btn) {
@@ -4191,5 +4474,6 @@ financeInitUI = function() {
   }
 });
 </script>
+
 </body>
 </html>
