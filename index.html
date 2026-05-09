@@ -465,7 +465,7 @@
         </div>
         <div class="history-filter-actions"><button class="small-btn" type="button" onclick="clearHistoryFilters()">Reset history filters</button></div>
       </div>
-      <div class="table-wrap">
+      <div class="table-wrap desktop-table-wrap">
         <table>
           <thead>
             <tr>
@@ -485,6 +485,8 @@
         </table>
         <div id="history-empty" class="empty" style="display:none;">No fill-ups yet — add your first one!</div>
       </div>
+      <!-- Mobile card view shown on small screens -->
+      <div class="mobile-entry-list" id="gas-mobile-list"></div>
     </div>
     </div>
 
@@ -511,46 +513,6 @@
     </div>
 
 
-    <div id="tab-history" class="panel">
-      <div class="filter-card history-filter-card collapsed" id="history-filter-card">
-        <div class="filter-header" style="margin-bottom:12px;">
-          <div class="section-title">History filters</div>
-          <button class="small-btn filter-toggle" id="history-filter-toggle-btn" type="button" onclick="toggleHistoryFilters()">Expand filters</button>
-        </div>
-        <div class="history-controls">
-          <div class="form-group"><label class="form-label">Brand</label><select class="form-select" id="history-brand" onchange="renderHistory()"></select></div>
-          <div class="form-group"><label class="form-label">Station</label><select class="form-select" id="history-station" onchange="renderHistory()"></select></div>
-          <div class="form-group date-range-group"><label class="form-label">Date range</label><div class="range-grid"><input class="form-input" type="date" id="history-date-start" onchange="renderHistory()" aria-label="Start date" /><input class="form-input" type="date" id="history-date-end" onchange="renderHistory()" aria-label="End date" /></div></div>
-          <div class="form-group"><label class="form-label">Sort by</label><select class="form-select" id="history-sort" onchange="renderHistory()"><option value="date">Date</option><option value="brand">Brand</option><option value="station">Station</option><option value="ppg">$/gal</option><option value="gallons">Gallons</option><option value="total">Total</option><option value="odometer">Odometer</option><option value="mpg">MPG</option></select></div>
-          <div class="form-group"><label class="form-label">Direction</label><select class="form-select" id="history-direction" onchange="renderHistory()"><option value="desc">Descending</option><option value="asc">Ascending</option></select></div>
-        </div>
-        <div class="history-filter-actions"><button class="small-btn" type="button" onclick="clearHistoryFilters()">Reset history filters</button></div>
-      </div>
-      <div class="table-wrap desktop-table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th class="sortable" id="th-date" onclick="sortHistory('date')">Date</th>
-              <th class="sortable" id="th-brand" onclick="sortHistory('brand')">Brand</th>
-              <th class="sortable" id="th-station" onclick="sortHistory('station')">Station</th>
-              <th class="sortable" id="th-ppg" onclick="sortHistory('ppg')">$/gal</th>
-              <th class="sortable" id="th-gallons" onclick="sortHistory('gallons')">Gallons</th>
-              <th class="sortable" id="th-total" onclick="sortHistory('total')">Total</th>
-              <th class="sortable" id="th-odometer" onclick="sortHistory('odometer')">Odometer</th>
-              <th class="sortable" id="th-mpg" onclick="sortHistory('mpg')">MPG</th>
-              <th>Address</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="history-body"></tbody>
-        </table>
-        <div id="history-empty" class="empty" style="display:none;">No fill-ups yet — add your first one!</div>
-      </div>
-      <!-- Mobile card view shown on small screens -->
-      <div class="mobile-entry-list" id="gas-mobile-list"></div>
-    </div>
-  </div>
-</div>
 
 <script>
 const STORAGE_KEY = 'gas-tracker-entries-v5';
@@ -2974,7 +2936,6 @@ const _origRenderHistory = renderHistory;
 renderHistory = function() {
   _origRenderHistory.apply(this, arguments);
   renderGasMobileCards(getHistoryEntries());
-  updateSortHeaders();
 };
 
 // ══════════════════════════════════════════════
@@ -3170,90 +3131,6 @@ financeDeleteSub = async function(id) {
     }
   };
   showUndoToast(`"${s.name}" subscription deleted`);
-};
-
-// ══════════════════════════════════════════════
-// 7. SORTABLE GAS HISTORY TABLE HEADERS
-// ══════════════════════════════════════════════
-let _historySortCol = 'date';
-let _historySortDir = 'desc';
-
-function sortHistory(col) {
-  if (_historySortCol === col) {
-    _historySortDir = _historySortDir === 'desc' ? 'asc' : 'desc';
-  } else {
-    _historySortCol = col;
-    _historySortDir = col === 'date' ? 'desc' : 'asc';
-  }
-  // Sync with existing sort dropdowns so getHistoryEntries() respects it
-  const sortEl = document.getElementById('history-sort');
-  const dirEl  = document.getElementById('history-direction');
-  if (sortEl) sortEl.value = _historySortCol;
-  if (dirEl)  dirEl.value  = _historySortDir;
-  renderHistory();
-}
-
-function updateSortHeaders() {
-  const cols = ['date','brand','station','ppg','gallons','total','odometer','mpg'];
-  cols.forEach(col => {
-    const th = document.getElementById('th-' + col);
-    if (!th) return;
-    th.classList.remove('sort-asc','sort-desc');
-    if (col === _historySortCol) th.classList.add(_historySortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-  });
-}
-
-// Finance history table: add clickable sort to the inline filter's sort/direction dropdowns
-// and wire up column header clicks in financeRenderHistory
-let _finSortCol = 'date';
-let _finSortDir = 'desc';
-
-function finSortBy(col) {
-  if (_finSortCol === col) {
-    _finSortDir = _finSortDir === 'desc' ? 'asc' : 'desc';
-  } else {
-    _finSortCol = col;
-    _finSortDir = col === 'date' ? 'desc' : 'asc';
-  }
-  const sortEl = document.getElementById('fin-history-sort');
-  const dirEl  = document.getElementById('fin-history-direction');
-  const colMap = { date:'date', merchant:'merchant', amount:'amount', category:'category', payment:'payment', type:'type' };
-  if (sortEl && colMap[col]) sortEl.value = colMap[col];
-  if (dirEl) dirEl.value = _finSortDir;
-  financeRenderHistory();
-}
-
-// Patch financeRenderHistory to inject sortable headers into the tx-list title bar
-const _origFinanceRenderHistory = financeRenderHistory;
-financeRenderHistory = function() {
-  _origFinanceRenderHistory.apply(this, arguments);
-  // Add/update a sort header bar above the list
-  const listEl = document.getElementById('finance-history-list');
-  if (!listEl) return;
-  let headerBar = document.getElementById('fin-history-sort-bar');
-  if (!headerBar) {
-    headerBar = document.createElement('div');
-    headerBar.id = 'fin-history-sort-bar';
-    headerBar.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;';
-    listEl.parentNode.insertBefore(headerBar, listEl);
-  }
-  const cols = [
-    {key:'date', label:'Date'},
-    {key:'merchant', label:'Merchant'},
-    {key:'amount', label:'Amount'},
-    {key:'category', label:'Category'},
-    {key:'payment', label:'Payment'},
-    {key:'type', label:'Type'},
-  ];
-  headerBar.innerHTML = '<span style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;align-self:center;margin-right:4px;">Sort:</span>' +
-    cols.map(c => {
-      const active = c.key === _finSortCol;
-      const arrow = active ? (_finSortDir === 'asc' ? ' ↑' : ' ↓') : '';
-      const style = active
-        ? 'background:rgba(232,200,64,.18);border-color:var(--accent);color:var(--text);'
-        : 'background:var(--surface2);border-color:var(--border);color:var(--muted);';
-      return `<button type="button" onclick="finSortBy('${c.key}')" style="${style}cursor:pointer;border:1px solid;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;">${c.label}${arrow}</button>`;
-    }).join('');
 };
 
 // Event delegation for follow-up suggestion buttons
