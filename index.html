@@ -934,50 +934,10 @@ async function askUnifiedAI() {
   if (!q) return;
 
   if (looksFinanceQuestion(q)) {
-    appendChat('user', q);
-    input.value = '';
-    if (btn) { btn.disabled = true; btn.textContent = 'Thinking...'; }
-    if (msg) msg.textContent = '';
-    chatFollowUps = [];
-    // Route to Claude API with full item-level context for detailed questions
-    try {
-      const c = financeBuildContext();
-      const systemPrompt = `You are a personal finance and gas assistant. Answer questions about the user's spending, purchases, and budgets using their transaction data. Be concise and specific. When listing items purchased from a receipt scan, format them as a clean bullet list with amounts. Never make up data not in the context.
-
-Current month: ${c.month}
-Monthly budget: ${financeFmt(c.budget)}
-Spent this month: ${financeFmt(c.spent)}
-Income this month: ${financeFmt(c.income)}
-Top categories: ${c.top_categories.map(x=>x.category+' $'+x.amount.toFixed(2)).join(', ')}
-Monthly subscriptions: ${financeFmt(c.subscriptions_monthly)}
-
-TRANSACTION HISTORY (most recent 120, item names included where scanned from receipts):
-${JSON.stringify(c.transactions, null, 0)}`;
-
-      const { data: { session } } = await supabaseClient.auth.getSession()
-
-      const response = await fetch('https://ykedfxitevfpioplirdy.supabase.co/functions/v1/gas-chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 600,
-          system: systemPrompt,
-          messages: chatMessages.filter(m => m.role !== 'system').slice(-8).map(m => ({ role: m.role, content: m.content }))
-        })
-      });
-      const data = await response.json();
-      const reply = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('') || financeLocalAnswer(q);
-      chatMessages.push({ role: 'assistant', content: reply });
-    } catch {
-      chatMessages.push({ role: 'assistant', content: financeLocalAnswer(q) });
-    }
-    renderChatMessages();
-    if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
-    return;
+    // Finance questions go through askGasAgent — it already handles
+    // Gemini streaming, error handling, and compactEntriesForAI includes
+    // full finance transaction history with item names from receipt scans
+    return askGasAgent();
   }
 
   return askGasAgent();
@@ -1982,7 +1942,8 @@ function compactEntriesForAI() {
         category: financeCat(s.cat).label,
         category_id: s.cat,
         subcategory: s.subcat || '',
-        amount: Number(s.amount || 0)
+        amount: Number(s.amount || 0),
+        ...(s.name ? { item: s.name } : {})
       }))
     }));
   } catch (err) {
