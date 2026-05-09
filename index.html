@@ -3593,11 +3593,19 @@ async function receiptAnalyze() {
     clearInterval(stepTimer);
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err?.error?.message || `API error ${response.status}`);
+      const errBody = await response.json().catch(() => ({}));
+      const errMsg = errBody?.error?.message || errBody?.message || `Request failed (${response.status})`;
+      throw new Error(errMsg);
     }
 
     const data = await response.json();
+
+    // Catch Anthropic-level errors returned with a 200 status
+    // e.g. {"type":"error","error":{"type":"invalid_request_error","message":"..."}}
+    if (data.type === 'error' || data.error) {
+      const errMsg = data.error?.message || data.error || 'Unknown API error';
+      throw new Error(`Anthropic error: ${errMsg}`);
+    }
 
     // Extract text content — handle truncated JSON gracefully
     const rawText = (data.content || [])
