@@ -1666,3 +1666,13 @@ input[type="date"] {
   border-top: 1px solid var(--border);
   margin-top: 14px;
 }
+
+/* ── Merchant Manager ──────────────────────────────── */
+.merchant-manager-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-top: 12px;
+}
+.merchant-count-wrap { min-width: 120px; }
