@@ -3478,16 +3478,66 @@ function receiptFileChosen(e) {
     document.getElementById('receipt-upload-msg').textContent = 'Image too large (max 20 MB).';
     return;
   }
+
   const reader = new FileReader();
   reader.onload = (ev) => {
     const dataUrl = ev.target.result;
-    _receiptImageB64  = dataUrl.split(',')[1];
-    _receiptImageType = file.type || 'image/jpeg';
+
+    // Show preview immediately using original image
     const img = document.getElementById('receipt-preview-img');
     img.src = dataUrl;
     document.getElementById('receipt-preview-wrap').classList.remove('hidden');
-    document.getElementById('receipt-analyze-btn').disabled = false;
-    document.getElementById('receipt-upload-msg').textContent = '';
+    document.getElementById('receipt-upload-msg').textContent = 'Processing…';
+    document.getElementById('receipt-analyze-btn').disabled = true;
+
+    // Resize if needed to stay under Anthropic's 5 MB base64 limit (~3.75 MB raw)
+    const MAX_BYTES = 3.8 * 1024 * 1024; // 3.8 MB raw → ~5 MB base64
+    const rawSize = (dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75;
+
+    if (rawSize <= MAX_BYTES) {
+      // Already under limit — use as-is
+      _receiptImageB64  = dataUrl.split(',')[1];
+      _receiptImageType = file.type || 'image/jpeg';
+      document.getElementById('receipt-upload-msg').textContent = '';
+      document.getElementById('receipt-analyze-btn').disabled = false;
+      return;
+    }
+
+    // Need to resize — use canvas to scale down while keeping aspect ratio
+    const sourceImg = new Image();
+    sourceImg.onload = () => {
+      let { width, height } = sourceImg;
+
+      // Scale down in steps until estimated output fits under limit
+      // Receipt text is readable down to ~1200px on longest side
+      const MAX_SIDE = 2000;
+      if (width > MAX_SIDE || height > MAX_SIDE) {
+        const scale = MAX_SIDE / Math.max(width, height);
+        width  = Math.round(width  * scale);
+        height = Math.round(height * scale);
+      }
+
+      const canvas  = document.createElement('canvas');
+      canvas.width  = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(sourceImg, 0, 0, width, height);
+
+      // Try quality 0.92 first, drop to 0.85 if still too big
+      let resized = canvas.toDataURL('image/jpeg', 0.92);
+      const resizedSize = (resized.length - resized.indexOf(',') - 1) * 0.75;
+      if (resizedSize > MAX_BYTES) {
+        resized = canvas.toDataURL('image/jpeg', 0.85);
+      }
+
+      _receiptImageB64  = resized.split(',')[1];
+      _receiptImageType = 'image/jpeg';
+
+      const finalKB = Math.round((resized.length * 0.75) / 1024);
+      document.getElementById('receipt-upload-msg').textContent = `Image ready (${finalKB} KB)`;
+      document.getElementById('receipt-analyze-btn').disabled = false;
+    };
+    sourceImg.src = dataUrl;
   };
   reader.readAsDataURL(file);
 }
