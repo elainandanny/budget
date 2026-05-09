@@ -241,6 +241,42 @@
             </div>
             <div class="history-filter-actions"><button class="small-btn" type="button" onclick="financeClearHistoryFilters()">Reset history filters</button><button class="small-btn" type="button" onclick="financeExportCSV()">Export CSV</button></div>
           </div>
+
+          <!-- Merchant Manager -->
+          <div class="chart-card" id="merchant-manager-card" style="margin-bottom:12px;">
+            <div class="filter-header">
+              <div class="section-title">Manage Merchants</div>
+              <button class="small-btn filter-toggle" id="merchant-manager-toggle-btn" type="button" onclick="toggleMerchantManager()">Expand</button>
+            </div>
+            <div id="merchant-manager-body" class="hidden">
+              <div class="merchant-manager-controls">
+                <div class="form-group" style="flex:1;min-width:160px;">
+                  <label class="form-label">Select merchant</label>
+                  <select class="form-select" id="merchant-select" onchange="merchantSelected()">
+                    <option value="">— choose a merchant —</option>
+                  </select>
+                </div>
+                <div class="form-group merchant-count-wrap" id="merchant-count-wrap" style="display:none;">
+                  <label class="form-label">Transaction count</label>
+                  <div class="metric-sub" id="merchant-tx-count" style="padding-top:8px;font-weight:600;"></div>
+                </div>
+              </div>
+              <div id="merchant-edit-wrap" class="hidden">
+                <div class="merchant-manager-controls" style="margin-top:10px;">
+                  <div class="form-group" style="flex:1;">
+                    <label class="form-label">New merchant name</label>
+                    <input class="form-input" id="merchant-new-name" placeholder="Enter new name" />
+                  </div>
+                </div>
+                <div class="btn-row" style="margin-top:10px;">
+                  <button class="save-btn" type="button" onclick="merchantRenameAll()">Rename all transactions</button>
+                  <button class="small-btn" type="button" onclick="merchantClearEdit()">Cancel</button>
+                  <span class="save-msg" id="merchant-save-msg"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="summary-line" id="finance-history-summary"></div>
           <div class="tx-list" id="finance-history-list"></div>
         </div>
@@ -585,6 +621,9 @@ const STORAGE_KEY = 'gas-tracker-entries-v5';
 const SUPABASE_URL = 'https://ykedfxitevfpioplirdy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlrZWRmeGl0ZXZmcGlvcGxpcmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0NjQ4ODIsImV4cCI6MjA5MzA0MDg4Mn0.EmfBzmig_fkITR2Uw5MPxkjvFTzwlevkTzbUCKgwI5o';
 const GAS_CHAT_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gas-chat`;
+
+// ── Anthropic model — update this one line when Anthropic releases a new model ──
+const CLAUDE_MODEL = 'claude-sonnet-4-5';
 
 const supabaseReady =
   !SUPABASE_URL.includes('PASTE_') &&
@@ -3252,16 +3291,28 @@ financeTransactionCard = function(t) {
 };
 
 // Helper: generate a colored cat pill span
-function catPillHtml(catId) {
+// amt is optional — shown when a receipt scan has multiple items in one category
+function catPillHtml(catId, amt) {
   const c = financeCat(catId);
-  const bg = c.color + '22';  // ~13% opacity hex
-  const border = c.color + '66'; // ~40% opacity
-  return `<span class="cat-pill" style="background:${bg};border-color:${border};color:${c.color}">${c.emoji} ${escapeHtml(c.label)}</span>`;
+  const bg = c.color + '22';
+  const border = c.color + '66';
+  const amtStr = (amt && amt > 0) ? ` ${financeFmt(amt)}` : '';
+  return `<span class="cat-pill" style="background:${bg};border-color:${border};color:${c.color}">${c.emoji} ${escapeHtml(c.label)}${amtStr}</span>`;
 }
 
-// Repatch financeTransactionCard with pill rendering
+// Repatch financeTransactionCard with pill rendering — deduplicated by category
 financeTransactionCard = function(t) {
-  const cats = (t.splits || []).map(s => catPillHtml(s.cat)).join(' ');
+  // Consolidate splits by category so receipt scans don't show
+  // "Groceries Groceries Groceries..." — one pill per category with summed amount
+  const catTotals = {};
+  (t.splits || []).forEach(s => {
+    const cat = s.cat || 'other';
+    catTotals[cat] = (catTotals[cat] || 0) + Number(s.amount || 0);
+  });
+  const cats = Object.entries(catTotals)
+    .map(([catId, amt]) => catPillHtml(catId, amt))
+    .join(' ');
+
   return `<div class="tx-item">
     <div>
       <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}</div>
@@ -3624,7 +3675,7 @@ async function receiptAnalyze() {
         'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: CLAUDE_MODEL,
         max_tokens: 1500,
         system: receiptSystemPrompt(),
         messages: [{
@@ -4015,6 +4066,122 @@ async function receiptSubmit() {
     if (btn) { btn.disabled = false; btn.textContent = 'Submit transaction'; }
   }
 }
+
+// ══════════════════════════════════════════════════
+// MERCHANT MANAGER
+// ══════════════════════════════════════════════════
+
+function toggleMerchantManager() {
+  const body = document.getElementById('merchant-manager-body');
+  const btn  = document.getElementById('merchant-manager-toggle-btn');
+  if (!body || !btn) return;
+  const collapsed = body.classList.toggle('hidden');
+  btn.textContent = collapsed ? 'Expand' : 'Collapse';
+  if (!collapsed) merchantPopulateSelect();
+}
+
+function merchantPopulateSelect() {
+  const sel = document.getElementById('merchant-select');
+  if (!sel) return;
+  const merchants = [...new Set(
+    financeState.transactions
+      .map(t => t.store)
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— choose a merchant —</option>' +
+    merchants.map(m => {
+      const count = financeState.transactions.filter(t => t.store === m).length;
+      return `<option value="${escapeHtml(m)}" ${m === current ? 'selected' : ''}>${escapeHtml(m)} (${count})`;
+    }).join('');
+
+  if (merchants.includes(current)) {
+    sel.value = current;
+    merchantSelected();
+  }
+}
+
+function merchantSelected() {
+  const sel     = document.getElementById('merchant-select');
+  const editWrap = document.getElementById('merchant-edit-wrap');
+  const countEl  = document.getElementById('merchant-tx-count');
+  const countWrap = document.getElementById('merchant-count-wrap');
+  const nameInput = document.getElementById('merchant-new-name');
+  const msgEl    = document.getElementById('merchant-save-msg');
+
+  const chosen = sel?.value || '';
+  if (!chosen) {
+    editWrap?.classList.add('hidden');
+    if (countWrap) countWrap.style.display = 'none';
+    return;
+  }
+
+  const count = financeState.transactions.filter(t => t.store === chosen).length;
+  if (countEl) countEl.textContent = `${count} transaction${count !== 1 ? 's' : ''}`;
+  if (countWrap) countWrap.style.display = '';
+  if (nameInput) nameInput.value = chosen;
+  if (msgEl) msgEl.textContent = '';
+  editWrap?.classList.remove('hidden');
+}
+
+function merchantClearEdit() {
+  const sel = document.getElementById('merchant-select');
+  if (sel) sel.value = '';
+  document.getElementById('merchant-edit-wrap')?.classList.add('hidden');
+  const countWrap = document.getElementById('merchant-count-wrap');
+  if (countWrap) countWrap.style.display = 'none';
+  const msgEl = document.getElementById('merchant-save-msg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+async function merchantRenameAll() {
+  const oldName  = document.getElementById('merchant-select')?.value?.trim();
+  const newName  = document.getElementById('merchant-new-name')?.value?.trim();
+  const msgEl    = document.getElementById('merchant-save-msg');
+
+  if (!oldName) { financeShowMsg('merchant-save-msg', 'Select a merchant first.', true); return; }
+  if (!newName) { financeShowMsg('merchant-save-msg', 'Enter a new name.', true); return; }
+  if (oldName === newName) { financeShowMsg('merchant-save-msg', 'Name is unchanged.', true); return; }
+
+  const targets = financeState.transactions.filter(t => t.store === oldName);
+  if (!targets.length) { financeShowMsg('merchant-save-msg', 'No transactions found.', true); return; }
+
+  // Disable button during save
+  const btn = document.querySelector('#merchant-edit-wrap .save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = `Renaming ${targets.length}…`; }
+
+  let failed = 0;
+  for (const t of targets) {
+    const { error } = await financeUpdateRow('transactions', t.id, { ...t, store: newName });
+    if (error) { failed++; continue; }
+    t.store = newName;
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Rename all transactions'; }
+
+  if (failed > 0) {
+    financeShowMsg('merchant-save-msg', `${targets.length - failed} renamed, ${failed} failed.`, true);
+  } else {
+    financeShowMsg('merchant-save-msg', `✓ ${targets.length} transaction${targets.length !== 1 ? 's' : ''} renamed to "${newName}".`);
+  }
+
+  await financePersist();
+  financeRenderAll();
+
+  // Update the select to reflect the new name
+  merchantPopulateSelect();
+  const sel = document.getElementById('merchant-select');
+  if (sel) { sel.value = newName; merchantSelected(); }
+}
+
+// Keep merchant select in sync whenever financeRenderAll runs
+const _origFinanceInitUI = financeInitUI;
+financeInitUI = function() {
+  _origFinanceInitUI.apply(this, arguments);
+  const body = document.getElementById('merchant-manager-body');
+  if (body && !body.classList.contains('hidden')) merchantPopulateSelect();
+};
 
   document.addEventListener("click", function(e) {
   var btn = e.target.closest("button.chat-followup[data-hint]");
