@@ -1618,15 +1618,17 @@ input[type="date"] {
 .receipt-total-mismatch{ font-size: 12px; color: var(--danger);  padding: 6px 14px 8px; }
 
 
-/* ── Scan Receipt tab — always accent-colored ── */
-.receipt-scan-tab,
-.receipt-scan-tab.active {
-  background: var(--accent) !important;
-  color: var(--accent-dark, #1a1200) !important;
-  font-weight: 700 !important;
-  border-color: transparent !important;
+/* ── Scan Receipt tab — matches other inactive tabs, active state same as others ── */
+.receipt-scan-tab {
+  /* inherits normal tab styles — no special color */
 }
-.receipt-scan-tab:hover { opacity: 0.88; }
+.receipt-scan-tab.active {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  border-color: transparent !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12) !important;
+}
 .receipt-fab { display: none !important; }
 
 /* ── Inline Scan Panel ───────────────────────────────── */
@@ -1637,6 +1639,15 @@ input[type="date"] {
 
 /* Drop zone — max width on desktop so it doesn't stretch across the full card */
 .receipt-drop-zone { max-width: 480px; }
+
+/* Center the analyze button below the drop zone */
+#receipt-analyze-btn {
+  display: block;
+  margin: 14px auto 0;
+}
+.scan-upload-card .btn-row {
+  justify-content: center;
+}
 
 /* Remove any leftover modal chrome */
 .receipt-modal-backdrop,
