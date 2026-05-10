@@ -2740,6 +2740,7 @@ function financeRenderDashboard(){
 }
 function financeCategoryTotals(txs){ const totals = {}; financeExcludeFromTx(txs).forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderBudgetCard(spent, txs){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const fullSpent = txs ? financeNetSpentFull(txs) : spent; const pct = Math.max(0, Math.min(100, fullSpent/limit*100)); const discNote = fullSpent !== spent ? ` <span style="font-size:10px;color:var(--muted)">(discretionary: ${financeFmt(spent)})</span>` : ''; el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(fullSpent)} / ${financeFmt(limit)}${discNote}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-fullSpent)} remaining</div>`; }
+function financeCategoryTotalsRaw(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotalsRaw(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
 function financeChartBucket(dateString, view){
@@ -3209,6 +3210,7 @@ function financeGenerateBudgetRec() {
   const body = document.getElementById('budget-rec-body');
   if (!body) return;
   body.innerHTML = `<div class="metric-sub" style="padding:12px 0;">Analyzing ${_budgetRecMonths} month${_budgetRecMonths>1?'s':''}...</div>`;
+  try {
 
   const analysis = budgetRecAnalyze();
   if (!analysis) { body.innerHTML = '<div class="budget-rec-intro">Not enough data yet. Log at least one month to get a recommendation.</div>'; return; }
@@ -3284,6 +3286,10 @@ function financeGenerateBudgetRec() {
       <button class="small-btn" type="button" onclick="budgetRecReset()">Reset to defaults</button>
       <span class="save-msg" id="budget-rec-msg"></span>
     </div>`;
+  } catch(err) {
+    body.innerHTML = `<div class="budget-rec-warning">⚠ Analysis failed: ${escapeHtml(err.message)}. Please try again.</div>`;
+    console.error('Budget rec error:', err);
+  }
 }
 
 function budgetRecUpdateTotal() {
