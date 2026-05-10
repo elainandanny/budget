@@ -1828,3 +1828,29 @@ input[type="date"] {
   padding: 5px 10px;
   white-space: nowrap;
 }
+
+/* ── Sticky bar right side + discretionary toggle ── */
+.sticky-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sticky-disc-toggle {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.sticky-disc-toggle:hover {
+  border-color: var(--accent);
+  background: rgba(232,200,64,0.12);
+}
