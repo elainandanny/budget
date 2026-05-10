@@ -48,7 +48,12 @@
       </div>
     </div>
     <div class="sticky-bar-right">
-      <div class="sticky-bar-month" id="sticky-month-label"></div>
+      <div class="sticky-month-nav">
+        <button class="sticky-month-btn" type="button" onclick="financeChangeMonth(-1)" title="Previous month">‹</button>
+        <span class="sticky-bar-month" id="sticky-month-label"></span>
+        <button class="sticky-month-btn" type="button" onclick="financeChangeMonth(1)" title="Next month">›</button>
+        <button class="sticky-month-btn sticky-month-now" type="button" onclick="financeGoNow()" title="This month">·</button>
+      </div>
       <button class="sticky-disc-toggle" id="sticky-disc-btn"
         onclick="financeToggleDiscretionary()"
         title="Toggle: Discretionary / All spending">🎯</button>
@@ -136,12 +141,6 @@
               </div>
               <button class="small-btn" type="button" onclick="financeClearDashboardFilters()">Clear filters</button>
             </div>
-          </div>
-          <div class="finance-month-card">
-            <button class="small-btn" type="button" onclick="financeChangeMonth(-1)">Prev</button>
-            <strong id="finance-month-label"></strong>
-            <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
-            <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
           </div>
           <!-- Discretionary toggle moved to sticky bar -->
           <div class="metrics" id="finance-metrics"></div>
@@ -612,7 +611,7 @@
     <div class="chart-card">
       <div class="section-title">Excluded from spending totals</div>
       <div class="metric-sub" style="margin:6px 0 14px;">Toggled-off categories are hidden from your Spent total, sticky bar, budget progress, and charts. They still appear in History. Use this for fixed costs like rent that distort your discretionary spending view.</div>
-      <div id="settings-excluded-cats" class="settings-cat-grid"></div>
+      <div id="settings-excluded-cats"></div>
       <div class="btn-row" style="margin-top:14px;">
         <button class="save-btn" type="button" onclick="settingsSaveExcluded()">Save preferences</button>
         <span class="save-msg" id="settings-excluded-msg"></span>
@@ -4480,12 +4479,12 @@ function settingsRenderExcludedCats() {
   const excluded = new Set(financeState.settings.excluded_categories || []);
 
   const includedCats = FINANCE_CATS.filter(c => !excluded.has(c.id));
-  const excludedCats = FINANCE_CATS.filter(c => excluded.has(c.id));
+  const excludedCats = FINANCE_CATS.filter(c =>  excluded.has(c.id));
 
   function pillHtml(c) {
-    const pillBg = c.color + '22';
-    const pillBorder = c.color + '55';
     const isExcluded = excluded.has(c.id);
+    const pillBg     = c.color + '22';
+    const pillBorder = c.color + '55';
     return `<label class="settings-cat-toggle ${isExcluded ? 'excluded' : ''}">
       <input type="checkbox" data-exc-cat="${c.id}" ${isExcluded ? 'checked' : ''}
         onchange="settingsExcludedToggle('${c.id}', this.checked)" />
@@ -4496,13 +4495,16 @@ function settingsRenderExcludedCats() {
   }
 
   wrap.innerHTML = `
-    <div class="settings-cat-section-label">Included in spending totals</div>
-    <div class="settings-cat-grid">${includedCats.map(pillHtml).join('')}</div>
+    <div class="settings-cat-block">
+      <div class="settings-cat-section-label">Included in spending totals</div>
+      <div class="settings-cat-grid">${includedCats.map(pillHtml).join('')}</div>
+    </div>
     ${excludedCats.length ? `
-    <div class="settings-cat-section-label" style="margin-top:14px;">Excluded from spending totals</div>
-    <div class="settings-cat-grid">${excludedCats.map(pillHtml).join('')}</div>
-    ` : ''}
-    <div class="metric-sub" style="margin-top:10px;">Check a category to exclude it from your Spent total and charts. Net Saved always reflects your true total spend.</div>
+    <div class="settings-cat-block" style="margin-top:16px;">
+      <div class="settings-cat-section-label">Excluded from spending totals</div>
+      <div class="settings-cat-grid">${excludedCats.map(pillHtml).join('')}</div>
+    </div>` : ''}
+    <div class="metric-sub" style="margin-top:12px;">Check a category to move it to Excluded. Net Saved always reflects true total spend.</div>
   `;
 }
 
