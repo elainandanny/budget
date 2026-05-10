@@ -257,12 +257,31 @@
           </div>
           <!-- Smart Budget Recommendation Card -->
           <div class="chart-card" id="budget-rec-card">
-            <div class="filter-header">
+            <div class="filter-header" style="flex-wrap:wrap;gap:10px;">
               <div>
                 <div class="section-title">Smart budget recommendation</div>
-                <div class="metric-sub" style="margin-top:2px;">Based on your last 3 months of spending</div>
+                <div class="metric-sub" style="margin-top:2px;">Analyzes your spending history and suggests category budgets</div>
               </div>
-              <button class="small-btn" type="button" onclick="financeGenerateBudgetRec()">✦ Analyze</button>
+              <button class="save-btn" type="button" onclick="financeGenerateBudgetRec()" style="white-space:nowrap;">✦ Analyze</button>
+            </div>
+            <!-- Controls row -->
+            <div class="budget-rec-controls">
+              <div class="budget-rec-control-group">
+                <div class="form-label" style="margin-bottom:5px;">Months to analyze</div>
+                <div class="mode-toggle" id="budget-rec-months-toggle">
+                  <button class="mode-btn" type="button" onclick="budgetRecSetMonths(1)">1 mo</button>
+                  <button class="mode-btn active" type="button" onclick="budgetRecSetMonths(3)">3 mo</button>
+                  <button class="mode-btn" type="button" onclick="budgetRecSetMonths(6)">6 mo</button>
+                  <button class="mode-btn" type="button" onclick="budgetRecSetMonths(12)">12 mo</button>
+                </div>
+              </div>
+              <div class="budget-rec-control-group">
+                <div class="form-label" style="margin-bottom:5px;">Weighting</div>
+                <div class="mode-toggle" id="budget-rec-weight-toggle">
+                  <button class="mode-btn active" type="button" onclick="budgetRecSetWeight('recent')">Recent-weighted</button>
+                  <button class="mode-btn" type="button" onclick="budgetRecSetWeight('equal')">Equal weight</button>
+                </div>
+              </div>
             </div>
             <div id="budget-rec-body"></div>
           </div>
@@ -3081,146 +3100,184 @@ function financeLocalAnswer(q) {
 
 
 
-// ══════════════════════════════════════════════════
-// SMART BUDGET RECOMMENDATION ENGINE
-// ══════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// SMART BUDGET RECOMMENDATION ENGINE — v2
+// ══════════════════════════════════════════════════════════
+
+let _budgetRecMonths = 3;
+let _budgetRecWeight = 'recent';
+
+const BUDGET_REC_FIXED_CATS = new Set(['housing','insurance','subscriptions','utilities','transport']);
+
+function budgetRecSetMonths(n) {
+  _budgetRecMonths = n;
+  document.querySelectorAll('#budget-rec-months-toggle .mode-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', [1,3,6,12][i] === n);
+  });
+}
+
+function budgetRecSetWeight(w) {
+  _budgetRecWeight = w;
+  document.querySelectorAll('#budget-rec-weight-toggle .mode-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', ['recent','equal'][i] === w);
+  });
+}
 
 function budgetRecRound(raw) {
   if (raw <= 0) return 0;
+  if (raw < 50)  return Math.ceil(raw / 5)  * 5;
+  if (raw < 200) return Math.ceil(raw / 10) * 10;
   return Math.ceil(raw / 20) * 20;
 }
 
 function budgetRecAvgIncome() {
   const now = new Date();
   const months = [];
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= _budgetRecMonths; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const inc = financeForMonth(financeState.income, d.getFullYear(), d.getMonth());
-    const total = financeIncomeTotal(inc);
+    const total = financeIncomeTotal(financeForMonth(financeState.income, d.getFullYear(), d.getMonth()));
     if (total > 0) months.push(total);
   }
   if (!months.length) return 0;
-  return months.reduce((s, v) => s + v, 0) / months.length;
+  return months.reduce((s,v)=>s+v,0) / months.length;
 }
 
-function financeCategoryTotalsRaw(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function budgetRecAnalyze() {
   const now = new Date();
   const monthData = [];
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= _budgetRecMonths; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const tx = financeForMonth(financeAllTransactions(), d.getFullYear(), d.getMonth());
+    const tx  = financeForMonth(financeAllTransactions(), d.getFullYear(), d.getMonth());
     const inc = financeForMonth(financeState.income, d.getFullYear(), d.getMonth());
     const totals = financeCategoryTotalsRaw(tx);
     const income = financeIncomeTotal(inc);
-    if (tx.length > 0 || income > 0) monthData.push({ totals, income });
+    if (tx.length > 0 || income > 0) {
+      const weight = _budgetRecWeight === 'recent' ? (_budgetRecMonths + 1 - i) : 1;
+      monthData.push({ totals, income, weight, monthIndex: i });
+    }
   }
   if (!monthData.length) return null;
 
-  const catSums = {}, catCounts = {};
-  monthData.forEach(({ totals }) => {
-    Object.entries(totals).forEach(([catId, amt]) => {
+  const catW = {}, catTW = {}, catM = {};
+  monthData.forEach(({ totals, weight, monthIndex }) => {
+    Object.entries(totals).forEach(([id, amt]) => {
       if (amt > 0) {
-        catSums[catId] = (catSums[catId] || 0) + amt;
-        catCounts[catId] = (catCounts[catId] || 0) + 1;
+        catW[id]  = (catW[id]  || 0) + amt * weight;
+        catTW[id] = (catTW[id] || 0) + weight;
+        if (!catM[id]) catM[id] = [];
+        catM[id].push({ monthIndex, amt });
       }
     });
   });
 
   const avgByCategory = {};
-  Object.keys(catSums).forEach(catId => {
-    avgByCategory[catId] = catSums[catId] / catCounts[catId];
+  Object.keys(catW).forEach(id => { avgByCategory[id] = catW[id] / catTW[id]; });
+
+  const trendByCategory = {};
+  Object.entries(catM).forEach(([id, pts]) => {
+    if (pts.length < 2) { trendByCategory[id] = 'stable'; return; }
+    const s = [...pts].sort((a,b) => a.monthIndex - b.monthIndex);
+    const pct = (s[0].amt - s[s.length-1].amt) / s[s.length-1].amt;
+    trendByCategory[id] = pct > 0.15 ? 'up' : pct < -0.15 ? 'down' : 'stable';
   });
 
-  const avgIncome = monthData.reduce((s, m) => s + m.income, 0) / monthData.length;
-  return { avgByCategory, avgIncome, monthsAnalyzed: monthData.length };
+  const tw = monthData.reduce((s,m)=>s+m.weight,0);
+  const avgIncome = monthData.reduce((s,m)=>s+m.income*m.weight,0) / tw;
+  return { avgByCategory, avgIncome, monthsAnalyzed: monthData.length, trendByCategory };
 }
 
-function budgetRecScaleToIncome(recs, incomeCap) {
-  const rawTotal = recs.reduce((s, r) => s + r.recommended, 0);
-  if (rawTotal <= incomeCap || incomeCap <= 0) return recs;
-  const scale = incomeCap / rawTotal;
-  return recs.map(r => ({
-    ...r,
-    recommended: budgetRecRound(r.avgSpend * scale),
-    scaled: true
-  }));
+function budgetRecScaleToIncome(recs, cap) {
+  const tot = recs.reduce((s,r)=>s+r.recommended,0);
+  if (tot <= cap || cap <= 0) return recs;
+  const scale = cap / tot;
+  return recs.map(r => ({ ...r, recommended: budgetRecRound(r.avgSpend * scale), scaled: true }));
+}
+
+function budgetRecReason(r) {
+  const parts = [];
+  const isFixed = BUDGET_REC_FIXED_CATS.has(r.catId);
+  if (r.trend === 'up')   parts.push('Trending up');
+  if (r.trend === 'down') parts.push('Trending down');
+  if (r.current > 0 && (r.current - r.avgSpend) > 20 && r.recommended < r.current)
+    parts.push('Consistently under budget');
+  if (r.current > 0 && r.avgSpend > r.current) parts.push('Avg exceeds current budget');
+  parts.push(isFixed ? 'Fixed — no buffer' : r.trend==='up' ? '10% buffer' : '5% buffer');
+  return parts.join(' · ');
 }
 
 function financeGenerateBudgetRec() {
   const body = document.getElementById('budget-rec-body');
   if (!body) return;
-  body.innerHTML = '<div class="metric-sub" style="padding:12px 0;">Analyzing your last 3 months…</div>';
+  body.innerHTML = `<div class="metric-sub" style="padding:12px 0;">Analyzing ${_budgetRecMonths} month${_budgetRecMonths>1?'s':''}...</div>`;
 
   const analysis = budgetRecAnalyze();
-  if (!analysis) {
-    body.innerHTML = '<div class="budget-rec-intro">Not enough data yet. Log at least one month of transactions to get a recommendation.</div>';
-    return;
-  }
+  if (!analysis) { body.innerHTML = '<div class="budget-rec-intro">Not enough data yet. Log at least one month to get a recommendation.</div>'; return; }
 
-  const { avgByCategory, avgIncome, monthsAnalyzed } = analysis;
+  const { avgByCategory, avgIncome, monthsAnalyzed, trendByCategory } = analysis;
   const currentBudgets = financeState.settings.category_budgets || {};
 
+  // Savings goal integration
+  let savingsTarget = 0, savingsNote = '';
+  (financeState.goals || []).filter(g => g.target > 0 && (g.current||0) < g.target && g.target_date).forEach(g => {
+    const months = Math.max(1, Math.round((new Date(g.target_date)-new Date())/(1000*60*60*24*30.4)));
+    const needed = (g.target - (g.current||0)) / months;
+    if (needed > savingsTarget) { savingsTarget = needed; savingsNote = `${financeFmt(needed)}/mo for "${escapeHtml(g.name)}"`; }
+  });
+
+  const incomeCap = avgIncome > 0 ? Math.max(0, avgIncome - savingsTarget) : Infinity;
+
   let recs = Object.entries(avgByCategory)
-    .filter(([, avg]) => avg > 0)
-    .map(([catId, avgSpend]) => ({
-      catId,
-      avgSpend,
-      recommended: budgetRecRound(avgSpend * 1.05),
-      current: Number(currentBudgets[catId] || 0)
-    }))
-    .sort((a, b) => b.avgSpend - a.avgSpend);
+    .filter(([,v])=>v>0)
+    .map(([catId, avgSpend]) => {
+      const trend = trendByCategory[catId] || 'stable';
+      const isFixed = BUDGET_REC_FIXED_CATS.has(catId);
+      const buffer = isFixed ? 1.0 : (trend==='up' ? 1.10 : 1.05);
+      return { catId, avgSpend, trend, buffer, recommended: budgetRecRound(avgSpend*buffer), current: Number(currentBudgets[catId]||0) };
+    })
+    .sort((a,b)=>b.avgSpend-a.avgSpend);
 
-  const incomeCap = avgIncome > 0 ? avgIncome : Infinity;
   recs = budgetRecScaleToIncome(recs, incomeCap);
+  const recTotal = recs.reduce((s,r)=>s+r.recommended,0);
+  const wasScaled = recs.some(r=>r.scaled);
+  const incA = avgIncome > 0;
+  const under = recs.filter(r=>r.current>0&&(r.current-r.avgSpend)>20&&r.recommended<r.current);
+  const wLabel = _budgetRecWeight==='recent' ? 'recent-weighted' : 'equal-weight';
 
-  const recTotal = recs.reduce((s, r) => s + r.recommended, 0);
-  const wasScaled = recs.some(r => r.scaled);
-  const incomeAvailable = avgIncome > 0;
-
-  const introText = `Analyzed <strong>${monthsAnalyzed} month${monthsAnalyzed > 1 ? 's' : ''}</strong> of spending. Budgets are rounded up to the nearest $20.${wasScaled ? ' Amounts were scaled down to stay within your average income.' : ''}`;
-
-  const warningHtml = wasScaled
-    ? `<div class="budget-rec-warning">⚠ Your spending exceeds your average income of ${financeFmt(avgIncome)}. Budgets have been scaled down proportionally.</div>`
-    : (incomeAvailable && recTotal > avgIncome * 0.95
-        ? `<div class="budget-rec-warning">⚠ Recommended total (${financeFmt(recTotal)}) is close to your average income (${financeFmt(avgIncome)}). Consider trimming some categories.</div>`
-        : (incomeAvailable ? `<div class="budget-rec-ok">✓ Recommended total (${financeFmt(recTotal)}) fits within your average income (${financeFmt(avgIncome)}).</div>` : ''));
+  const introText = `<strong>${monthsAnalyzed}</strong> month${monthsAnalyzed>1?'s':''} (${wLabel}). Rounding: &lt;$50&#8594;$5 &middot; $50&#8211;$200&#8594;$10 &middot; &gt;$200&#8594;$20.`;
+  const savingsHtml = savingsTarget>0&&incA ? `<div class="budget-rec-ok">🎯 ${savingsNote} &middot; Spendable cap: ${financeFmt(incomeCap)}</div>` : '';
+  const warnHtml = wasScaled
+    ? `<div class="budget-rec-warning">⚠ Spending exceeds income (${financeFmt(avgIncome)}). Scaled proportionally.</div>`
+    : incA&&recTotal>avgIncome*0.95
+      ? `<div class="budget-rec-warning">⚠ Total (${financeFmt(recTotal)}) near income (${financeFmt(avgIncome)}).</div>`
+      : incA ? `<div class="budget-rec-ok">✓ Total (${financeFmt(recTotal)}) fits income (${financeFmt(avgIncome)}).</div>` : '';
+  const underHtml = under.length ? `<div class="budget-rec-under-note">💡 Consistently under budget: ${under.map(r=>financeCat(r.catId).label).join(', ')} — recommendations reduce these.</div>` : '';
 
   const rowsHtml = recs.map(r => {
     const cat = financeCat(r.catId);
-    let changeHtml = '';
-    if (r.current <= 0) {
-      changeHtml = '<span class="budget-rec-change new">New</span>';
-    } else if (r.recommended > r.current) {
-      changeHtml = `<span class="budget-rec-change up">+${financeFmt(r.recommended - r.current)}</span>`;
-    } else if (r.recommended < r.current) {
-      changeHtml = `<span class="budget-rec-change down">-${financeFmt(r.current - r.recommended)}</span>`;
-    } else {
-      changeHtml = '<span class="budget-rec-change same">No change</span>';
-    }
-    const pillBg = cat.color + '22';
-    const pillBorder = cat.color + '55';
+    const chg = r.current<=0 ? '<span class="budget-rec-change new">New</span>'
+      : r.recommended>r.current ? `<span class="budget-rec-change up">+${financeFmt(r.recommended-r.current)}</span>`
+      : r.recommended<r.current ? `<span class="budget-rec-change down">-${financeFmt(r.current-r.recommended)}</span>`
+      : '<span class="budget-rec-change same">No change</span>';
+    const pb = cat.color+'22', pbo = cat.color+'55';
     return `<div class="budget-rec-row">
       <div class="budget-rec-row-left">
-        <div class="budget-rec-cat">
-          <span style="background:${pillBg};border:1px solid ${pillBorder};color:${cat.color};border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600;">${cat.emoji} ${escapeHtml(cat.label)}</span>
-        </div>
-        <div class="budget-rec-detail">Avg spend: ${financeFmt(r.avgSpend)}/mo${r.current > 0 ? ' · Current: ' + financeFmt(r.current) : ' · No budget set'}</div>
+        <div class="budget-rec-cat"><span style="background:${pb};border:1px solid ${pbo};color:${cat.color};border-radius:999px;padding:1px 8px;font-size:11px;font-weight:600;">${cat.emoji} ${escapeHtml(cat.label)}</span></div>
+        <div class="budget-rec-detail">Avg: ${financeFmt(r.avgSpend)}/mo${r.current>0?' · Now: '+financeFmt(r.current):' · None set'}</div>
+        <div class="budget-rec-reason">${escapeHtml(budgetRecReason(r))}</div>
       </div>
-      ${changeHtml}
-      <input class="form-input budget-rec-input" type="number" step="20" min="0"
-        data-rec-cat="${r.catId}" value="${r.recommended}" oninput="budgetRecUpdateTotal()" />
+      ${chg}
+      <input class="form-input budget-rec-input" type="number" step="5" min="0" data-rec-cat="${r.catId}" value="${r.recommended}" oninput="budgetRecUpdateTotal()" />
     </div>`;
   }).join('');
 
-  const totalClass = (incomeAvailable && recTotal > avgIncome) ? 'over' : 'ok';
-  body.innerHTML = `
-    <div class="budget-rec-intro">${introText}</div>
-    ${warningHtml}
+  const capLabel = savingsTarget>0 ? `Income: ${financeFmt(avgIncome)} · Reserve: ${financeFmt(savingsTarget)} · Cap: ${financeFmt(incomeCap)}` : incA ? `Income avg: ${financeFmt(avgIncome)}` : '';
+  const totClass = incA&&recTotal>incomeCap ? 'over' : 'ok';
+
+  body.innerHTML = `<div class="budget-rec-intro">${introText}</div>${savingsHtml}${warnHtml}${underHtml}
     <div class="budget-rec-list">${rowsHtml}</div>
     <div class="budget-rec-total-row" id="budget-rec-total-row">
-      <span class="budget-rec-total-label">Total budgeted${incomeAvailable ? ' · Income avg: ' + financeFmt(avgIncome) : ''}</span>
-      <span class="budget-rec-total-value ${totalClass}" id="budget-rec-total-val">${financeFmt(recTotal)}</span>
+      <span class="budget-rec-total-label">Total${capLabel?' · '+capLabel:''}</span>
+      <span class="budget-rec-total-value ${totClass}" id="budget-rec-total-val">${financeFmt(recTotal)}</span>
     </div>
     <div class="budget-rec-actions">
       <button class="save-btn" type="button" onclick="budgetRecApply()">Apply recommendations</button>
@@ -3231,50 +3288,47 @@ function financeGenerateBudgetRec() {
 
 function budgetRecUpdateTotal() {
   let total = 0;
-  document.querySelectorAll('[data-rec-cat]').forEach(el => { total += Number(el.value) || 0; });
+  document.querySelectorAll('[data-rec-cat]').forEach(el => { total += Number(el.value)||0; });
   const valEl = document.getElementById('budget-rec-total-val');
   const rowEl = document.getElementById('budget-rec-total-row');
   if (!valEl) return;
   valEl.textContent = financeFmt(total);
-  const avgIncome = budgetRecAvgIncome();
-  if (avgIncome > 0) {
-    valEl.className = 'budget-rec-total-value ' + (total > avgIncome ? 'over' : 'ok');
-    const labelEl = rowEl?.querySelector('.budget-rec-total-label');
-    if (labelEl) labelEl.textContent = `Total budgeted · Income avg: ${financeFmt(avgIncome)}${total > avgIncome ? ' ⚠ Exceeds income' : ''}`;
+  const ai = budgetRecAvgIncome();
+  if (ai > 0) {
+    valEl.className = 'budget-rec-total-value '+(total>ai?'over':'ok');
+    const lbl = rowEl?.querySelector('.budget-rec-total-label');
+    if (lbl && total>ai) lbl.textContent = `Total · ⚠ Exceeds income (${financeFmt(ai)})`;
   }
 }
 
 async function budgetRecApply() {
   const inputs = document.querySelectorAll('[data-rec-cat]');
   if (!inputs.length) return;
-  const avgIncome = budgetRecAvgIncome();
+  const ai = budgetRecAvgIncome();
   let total = 0;
-  inputs.forEach(el => { total += Number(el.value) || 0; });
-  if (avgIncome > 0 && total > avgIncome) {
-    financeShowMsg('budget-rec-msg', `Total (${financeFmt(total)}) exceeds avg income (${financeFmt(avgIncome)}). Adjust before applying.`, true);
-    return;
-  }
-  const newBudgets = { ...financeState.settings.category_budgets };
-  inputs.forEach(el => {
-    const catId = el.dataset.recCat;
-    const val = Number(el.value);
-    if (catId && Number.isFinite(val) && val > 0) newBudgets[catId] = val;
-  });
-  financeState.settings.category_budgets = newBudgets;
+  inputs.forEach(el => { total += Number(el.value)||0; });
+  if (ai>0 && total>ai) { financeShowMsg('budget-rec-msg',`Total (${financeFmt(total)}) exceeds income (${financeFmt(ai)}). Adjust first.`,true); return; }
+  const nb = { ...financeState.settings.category_budgets };
+  inputs.forEach(el => { const v=Number(el.value); if(el.dataset.recCat && Number.isFinite(v) && v>0) nb[el.dataset.recCat]=v; });
+  financeState.settings.category_budgets = nb;
   if (!(await saveFinanceSettingsToCloud())) return;
-  financeShowMsg('budget-rec-msg', '✓ Budget recommendations applied!');
+  financeShowMsg('budget-rec-msg','✓ Budget recommendations applied!');
   financeRenderAll();
 }
 
 function budgetRecReset() {
-  const analysis = budgetRecAnalyze();
-  if (!analysis) { financeGenerateBudgetRec(); return; }
+  const a = budgetRecAnalyze();
+  if (!a) { financeGenerateBudgetRec(); return; }
   document.querySelectorAll('[data-rec-cat]').forEach(el => {
-    const avg = analysis.avgByCategory[el.dataset.recCat] || 0;
-    el.value = budgetRecRound(avg * 1.05);
+    const avg = a.avgByCategory[el.dataset.recCat]||0;
+    const trend = a.trendByCategory?.[el.dataset.recCat]||'stable';
+    const buffer = BUDGET_REC_FIXED_CATS.has(el.dataset.recCat) ? 1.0 : (trend==='up'?1.10:1.05);
+    el.value = budgetRecRound(avg*buffer);
   });
   budgetRecUpdateTotal();
 }
+
+
 
 
 document.getElementById('f-date').value = dateForInput(new Date().toISOString().split('T')[0]);
