@@ -1705,12 +1705,14 @@ input[type="date"] {
   align-items: center;
   gap: 7px;
   cursor: pointer;
-  padding: 6px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface2);
   transition: opacity 0.15s, background 0.15s;
   user-select: none;
+  min-width: 0;
+  overflow: hidden;
 }
 .settings-cat-toggle input[type="checkbox"] {
   width: 15px;
@@ -1728,6 +1730,11 @@ input[type="date"] {
   font-size: 12px;
   font-weight: 600;
   border: 1px solid transparent;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
 }
 .settings-cat-status {
   font-size: 11px;
@@ -1741,14 +1748,9 @@ input[type="date"] {
   gap: 10px;
 }
 
-/* Top tabs — 4 buttons */
+/* Top tabs — 3 buttons (Finance / Gas / AI Chat) */
 .top-tabs {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-}
-@media (max-width: 640px) {
-  .top-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
 }
 
 /* ── Subcategory badges in receipt review ── */
