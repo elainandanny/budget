@@ -1901,6 +1901,17 @@ input[type="date"] {
   margin-bottom: 14px;
 }
 .budget-rec-control-group { display: flex; flex-direction: column; }
+/* Force month/weighting toggles to stay horizontal */
+#budget-rec-months-toggle,
+#budget-rec-weight-toggle {
+  flex-direction: row !important;
+  margin-bottom: 0;
+}
+#budget-rec-months-toggle .mode-btn,
+#budget-rec-weight-toggle .mode-btn {
+  white-space: nowrap;
+  min-width: 0;
+}
 .budget-rec-reason {
   font-size: 11px;
   color: var(--muted);
