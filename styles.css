@@ -1007,7 +1007,6 @@ input[type="date"] {
   font-size: 13px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  margin: -1.5rem -1rem 1.5rem;
 }
 .sticky-bar-left {
   display: flex;
