@@ -1676,3 +1676,71 @@ input[type="date"] {
   margin-top: 12px;
 }
 .merchant-count-wrap { min-width: 120px; }
+
+/* ── Settings Tab ─────────────────────────────────── */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.settings-row-label { font-size: 14px; font-weight: 500; }
+.settings-row-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Excluded category toggles */
+.settings-cat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.settings-cat-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface2);
+  transition: opacity 0.15s, background 0.15s;
+  user-select: none;
+}
+.settings-cat-toggle input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.settings-cat-toggle.excluded {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.settings-cat-pill {
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.settings-cat-status {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Station edit grid in settings */
+.station-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+/* Top tabs — 4 buttons */
+.top-tabs {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+@media (max-width: 640px) {
+  .top-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
