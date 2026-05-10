@@ -1890,3 +1890,29 @@ input[type="date"] {
   white-space: nowrap;
   padding: 0 3px;
 }
+
+/* ── Smart Budget Rec v2 ── */
+.budget-rec-controls {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 0 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+.budget-rec-control-group { display: flex; flex-direction: column; }
+.budget-rec-reason {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-style: italic;
+}
+.budget-rec-under-note {
+  font-size: 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: rgba(74,144,217,0.08);
+  border: 1px solid rgba(74,144,217,0.2);
+  color: var(--text);
+  margin-bottom: 10px;
+}
