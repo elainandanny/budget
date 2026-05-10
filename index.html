@@ -47,7 +47,12 @@
         <div class="sticky-bar-value" id="sticky-saved">—</div>
       </div>
     </div>
-    <div class="sticky-bar-month" id="sticky-month-label"></div>
+    <div class="sticky-bar-right">
+      <div class="sticky-bar-month" id="sticky-month-label"></div>
+      <button class="sticky-disc-toggle" id="sticky-disc-btn"
+        onclick="financeToggleDiscretionary()"
+        title="Toggle: Discretionary / All spending">🎯</button>
+    </div>
   </div>
 
   <div id="auth-view" class="auth-card hidden">
@@ -138,16 +143,7 @@
             <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
             <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
           </div>
-          <!-- Discretionary / All spending toggle -->
-          <div id="finance-discretionary-toggle-wrap" style="margin-bottom:10px;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-              <div class="mode-toggle finance-category-toggle" style="max-width:320px;">
-                <button class="mode-btn active" id="disc-btn-discretionary" type="button" onclick="financeSetDiscretionary(true)">Discretionary</button>
-                <button class="mode-btn" id="disc-btn-all" type="button" onclick="financeSetDiscretionary(false)">All spending</button>
-              </div>
-              <div id="disc-excluded-note" class="metric-sub" style="font-size:11px;"></div>
-            </div>
-          </div>
+          <!-- Discretionary toggle moved to sticky bar -->
           <div class="metrics" id="finance-metrics"></div>
           <div class="chart-grid">
             <div class="chart-card">
@@ -2497,10 +2493,17 @@ function financeNetSpent(txs){ return financeExcludeFromTx(txs).reduce((sum,t)=>
 // ── Discretionary / All spending toggle ──────────────────
 let financeDiscretionaryMode = true; // default: show discretionary (excluded cats hidden)
 
+function financeToggleDiscretionary() {
+  financeSetDiscretionary(!financeDiscretionaryMode);
+}
 function financeSetDiscretionary(discretionary) {
   financeDiscretionaryMode = discretionary;
-  document.getElementById('disc-btn-discretionary')?.classList.toggle('active', discretionary);
-  document.getElementById('disc-btn-all')?.classList.toggle('active', !discretionary);
+  // Update sticky bar toggle emoji: 🎯 = discretionary, 💰 = all spending
+  const btn = document.getElementById('sticky-disc-btn');
+  if (btn) {
+    btn.textContent = discretionary ? '🎯' : '💰';
+    btn.title = discretionary ? 'Showing: Discretionary — tap for All spending' : 'Showing: All spending — tap for Discretionary';
+  }
   financeRenderDashboard();
   updateStickyBar();
 }
@@ -2513,15 +2516,13 @@ financeExcludeFromTx = function(txs) {
 };
 
 function financeUpdateDiscretionaryToggle() {
-  const excluded = financeState.settings.excluded_categories || [];
-  const noteEl = document.getElementById('disc-excluded-note');
-  if (noteEl) {
-    if (excluded.length === 0) {
-      noteEl.textContent = 'No categories excluded — configure in Settings';
-    } else {
-      const names = excluded.map(id => financeCat(id).label).join(', ');
-      noteEl.textContent = `Excluding: ${names}`;
-    }
+  // Keep sticky button in sync with current mode
+  const btn = document.getElementById('sticky-disc-btn');
+  if (btn) {
+    btn.textContent = financeDiscretionaryMode ? '🎯' : '💰';
+    btn.title = financeDiscretionaryMode
+      ? 'Showing: Discretionary — tap for All spending'
+      : 'Showing: All spending — tap for Discretionary';
   }
 }
 
@@ -2721,15 +2722,15 @@ function financeRenderDashboard(){
 }
 function financeCategoryTotals(txs){ const totals = {}; financeExcludeFromTx(txs).forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderBudgetCard(spent, txs){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const fullSpent = txs ? financeNetSpentFull(txs) : spent; const pct = Math.max(0, Math.min(100, fullSpent/limit*100)); const discNote = fullSpent !== spent ? ` <span style="font-size:10px;color:var(--muted)">(discretionary: ${financeFmt(spent)})</span>` : ''; el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(fullSpent)} / ${financeFmt(limit)}${discNote}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-fullSpent)} remaining</div>`; }
-function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotals(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
+function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotalsRaw(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
 function financeChartBucket(dateString, view){
   const d = parseLocalDate(dateString);
   if(view === 'week'){
     const day = d.getDay();
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - ((day + 6) % 7));
-    const key = toDateKey(monday);
+    const sunday = new Date(d);
+    sunday.setDate(d.getDate() - day); // Sunday = day 0
+    const key = toDateKey(sunday);
     return { key, label: weekLabel(key) };
   }
   if(view === 'year'){
