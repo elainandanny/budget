@@ -24,6 +24,7 @@
     </div>
     <div class="top-actions">
       <span class="sync-pill" id="sync-status">Checking sync…</span>
+      <button class="small-btn hidden" id="settings-header-btn" onclick="switchTab('settings')" style="font-size:12px;padding:5px 10px;">⚙ Settings</button>
     </div>
   </div>
 
@@ -71,9 +72,11 @@
     <div class="tabs top-tabs">
       <button class="tab top-tab active" onclick="switchTab('finance')">Finance</button>
       <button class="tab top-tab" onclick="switchTab('gas')">Gas</button>
-      <button class="tab top-tab" onclick="switchTab('settings')">⚙ Settings</button>
       <button class="tab top-tab" onclick="switchTab('chat')">AI Chat</button>
     </div>
+
+    <!-- Settings panel still exists as a top-level panel -->
+    <div id="tab-settings-anchor"></div>
 
 <div id="tab-finance" class="panel top-panel active">
       <div class="finance-shell">
@@ -135,11 +138,14 @@
             <button class="small-btn" type="button" onclick="financeChangeMonth(1)">Next</button>
             <button class="small-btn" type="button" onclick="financeGoNow()">This Month</button>
           </div>
-          <!-- Discretionary toggle — only visible when categories are excluded in Settings -->
-          <div id="finance-discretionary-toggle-wrap" class="hidden" style="margin-bottom:10px;">
-            <div class="mode-toggle finance-category-toggle" style="max-width:340px;">
-              <button class="mode-btn active" id="disc-btn-discretionary" type="button" onclick="financeSetDiscretionary(true)">Discretionary only</button>
-              <button class="mode-btn" id="disc-btn-all" type="button" onclick="financeSetDiscretionary(false)">All spending</button>
+          <!-- Discretionary / All spending toggle -->
+          <div id="finance-discretionary-toggle-wrap" style="margin-bottom:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div class="mode-toggle finance-category-toggle" style="max-width:320px;">
+                <button class="mode-btn active" id="disc-btn-discretionary" type="button" onclick="financeSetDiscretionary(true)">Discretionary</button>
+                <button class="mode-btn" id="disc-btn-all" type="button" onclick="financeSetDiscretionary(false)">All spending</button>
+              </div>
+              <div id="disc-excluded-note" class="metric-sub" style="font-size:11px;"></div>
             </div>
           </div>
           <div class="metrics" id="finance-metrics"></div>
@@ -835,7 +841,8 @@ function showCorrectView() {
   const loggedIn = Boolean(currentUser);
   document.getElementById('auth-view').classList.toggle('hidden', loggedIn);
   document.getElementById('app-view').classList.toggle('hidden', !loggedIn);
-  document.getElementById('logout-btn').classList.toggle('hidden', !loggedIn);
+  document.getElementById('logout-btn')?.classList.toggle('hidden', !loggedIn);
+  document.getElementById('settings-header-btn')?.classList.toggle('hidden', !loggedIn);
   setSyncStatus(loggedIn ? 'Cloud sync on' : 'Logged out');
 }
 
@@ -982,14 +989,17 @@ async function deleteEntryFromCloud(id) {
 }
 
 function switchTab(name) {
-  const names = ['finance', 'gas', 'chat', 'settings'];
+  const names = ['finance', 'gas', 'chat'];
   document.querySelectorAll('.top-tab').forEach((tab, i) => tab.classList.toggle('active', names[i] === name));
   document.querySelectorAll('.top-panel').forEach(panel => panel.classList.remove('active'));
   document.getElementById('tab-' + name)?.classList.add('active');
+  // Settings header button highlights when settings is active
+  const settingsBtn = document.getElementById('settings-header-btn');
+  if (settingsBtn) settingsBtn.style.background = name === 'settings' ? 'var(--accent)' : '';
 
-  if (name === 'finance') { financeRenderAll(); }
-  if (name === 'gas') { renderAll(); renderCharts(); renderStationMap(); renderCalendar(); }
-  if (name === 'chat') { renderChatMessages(); }
+  if (name === 'finance')  { financeRenderAll(); }
+  if (name === 'gas')      { renderAll(); renderCharts(); renderStationMap(); renderCalendar(); }
+  if (name === 'chat')     { renderChatMessages(); }
   if (name === 'settings') { settingsRender(); }
 }
 
@@ -2504,8 +2514,15 @@ financeExcludeFromTx = function(txs) {
 
 function financeUpdateDiscretionaryToggle() {
   const excluded = financeState.settings.excluded_categories || [];
-  const wrap = document.getElementById('finance-discretionary-toggle-wrap');
-  if (wrap) wrap.classList.toggle('hidden', excluded.length === 0);
+  const noteEl = document.getElementById('disc-excluded-note');
+  if (noteEl) {
+    if (excluded.length === 0) {
+      noteEl.textContent = 'No categories excluded — configure in Settings';
+    } else {
+      const names = excluded.map(id => financeCat(id).label).join(', ');
+      noteEl.textContent = `Excluding: ${names}`;
+    }
+  }
 }
 
 // Patch financeRenderDashboard to show/hide toggle
@@ -3801,13 +3818,18 @@ Return this exact JSON shape:
       "amount": number (net after any item-level discounts),
       "taxable": true or false,
       "category": "one of the category ids above",
-      "subcategory": "short optional label e.g. dairy, produce, cleaning",
+      "subcategory": "food|tip|tax|discount|other — for dining use tip/tax/food, for grocery use produce/dairy/cleaning etc.",
       "discount": number or 0
     }
   ]
 }
 
-If the receipt is cut off and items are missing, still return what you can see. If total is not visible, sum the items and set total to that sum.`;
+SUBCATEGORY RULES:
+- Any tip or gratuity line → subcategory: "tip", keep same category as the meal
+- Any tax line for a specific group → subcategory: "tax"
+- All food/drink menu items → subcategory: "food"
+
+If the receipt is cut off, return what you can. If total not visible, sum items.`;
 }
 
 // ── Call Claude Vision API ─────────────────────────────
@@ -4030,23 +4052,56 @@ function receiptRenderReview(parsed) {
 
     // Item rows — discounts are included as their own rows with negative amounts
     const rowsHtml = groupItems.map(item => {
-      const isDiscount = item.amount < 0 || item.name.toLowerCase().includes('discount') || item.name.toLowerCase().includes('saving');
-      const amtClass   = isDiscount ? 'receipt-item-amount discount' : 'receipt-item-amount';
-      const amtText    = isDiscount
-        ? `-${financeFmt(Math.abs(item.amount))}`
-        : financeFmt(item.amount);
+      const isDiscount = item.amount < 0 || (item.subcategory === 'discount') ||
+        item.name.toLowerCase().includes('discount') || item.name.toLowerCase().includes('saving');
+      const isTip = item.subcategory === 'tip';
+      const isTax = item.subcategory === 'tax';
+      const amtClass = isDiscount ? 'receipt-item-amount discount' : 'receipt-item-amount';
+      const amtText  = isDiscount ? `-${financeFmt(Math.abs(item.amount))}` : financeFmt(item.amount);
 
-      // Category change select (compact, inline)
       const itemCatOpts = FINANCE_CATS
         .map(c => `<option value="${c.id}" ${c.id === (item._editedCategory || item.category) ? 'selected' : ''}>${c.emoji} ${c.label}</option>`)
         .join('');
 
-      const taxMarker = (taxTotal != null && !isDiscount)
+      const subcatBadge = isTip ? `<span class="receipt-subcat-badge tip">💰 Tip</span>`
+        : isTax ? `<span class="receipt-subcat-badge tax">🏛 Tax</span>`
+        : '';
+
+      const taxMarker = (taxTotal != null && !isDiscount && !isTip && !isTax)
         ? `<span class="receipt-tax-marker">${item.taxable ? 'T' : 'NT'}</span>`
         : '';
 
-      return `<div class="receipt-item-row" data-item-idx="${item._idx}">
+      return item._isManual
+        ? `<div class="receipt-item-row manual-row" data-item-idx="${item._idx}">
+            <div class="receipt-item-name-wrap" style="gap:4px;flex-wrap:wrap;">
+              <input class="form-input receipt-manual-name" style="font-size:12px;padding:4px 7px;height:32px;min-width:80px;flex:1;"
+                value="${escapeHtml(item.name)}" placeholder="e.g. Tip"
+                oninput="receiptManualUpdate(${item._idx},'name',this.value)" />
+              <select class="receipt-item-cat-select" style="font-size:11px;"
+                onchange="receiptItemCatChange(${item._idx}, this.value)">
+                ${FINANCE_CATS.map(c => `<option value="${c.id}" ${c.id === (item._editedCategory || item.category) ? 'selected' : ''}>${c.emoji} ${c.label}</option>`).join('')}
+              </select>
+              <select class="receipt-item-cat-select" style="font-size:11px;"
+                onchange="receiptManualUpdate(${item._idx},'subcat',this.value)">
+                <option value="food"    ${item.subcategory==='food'?'selected':''}>🍽 Food</option>
+                <option value="tip"     ${item.subcategory==='tip'?'selected':''}>💰 Tip</option>
+                <option value="tax"     ${item.subcategory==='tax'?'selected':''}>🏛 Tax</option>
+                <option value="discount"${item.subcategory==='discount'?'selected':''}>🏷 Discount</option>
+                <option value="other"   ${(!item.subcategory||item.subcategory==='other')?'selected':''}>Other</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span style="color:var(--muted);font-size:12px;">$</span>
+              <input class="form-input receipt-manual-amount" style="font-size:13px;padding:4px 7px;height:32px;width:72px;text-align:right;"
+                type="number" step="0.01" min="0" value="${item.amount || ''}" placeholder="0.00"
+                oninput="receiptManualUpdate(${item._idx},'amount',this.value)" />
+            </div>
+            <button class="small-btn danger-btn" style="padding:4px 8px;font-size:11px;"
+              onclick="receiptRemoveManualLine(${item._idx})">✕</button>
+          </div>`
+        : `<div class="receipt-item-row ${isTip ? 'tip-row' : isTax ? 'tax-row' : ''}" data-item-idx="${item._idx}">
         <div class="receipt-item-name-wrap">
+          ${subcatBadge}
           <span class="receipt-item-name">${escapeHtml(item.name)}</span>
           ${taxMarker}
         </div>
@@ -4078,6 +4133,10 @@ function receiptRenderReview(parsed) {
         ${rowsHtml}
       </div>
       ${footerHtml}
+      <div class="receipt-add-line-row">
+        <button class="small-btn receipt-add-line-btn" type="button"
+          onclick="receiptAddManualLine('${catId}')">+ Add line</button>
+      </div>
     </div>`;
   }).join('');
 
@@ -4126,7 +4185,59 @@ function receiptBuildSplitsPreviewHtml(items, taxShares, manualTax) {
   }).join('');
 }
 
-// Full re-render of groups when manual tax changes
+// Add a manual line item to a category group in the review screen
+function receiptAddManualLine(catId) {
+  if (!_receiptParsed) return;
+
+  // Preserve current category edits
+  document.querySelectorAll('.receipt-item-cat-select').forEach(sel => {
+    const i = parseInt(sel.dataset.itemIdx);
+    if (!isNaN(i)) _receiptParsed.items[i]._editedCategory = sel.value;
+  });
+
+  // Determine default subcategory based on category
+  const isDining = catId === 'dining';
+  const defaultSubcat = isDining ? 'tip' : '';
+  const defaultName   = isDining ? 'Tip' : '';
+
+  // Add new item to parsed data
+  const newItem = {
+    name: defaultName,
+    amount: 0,
+    taxable: false,
+    category: catId,
+    subcategory: defaultSubcat,
+    discount: 0,
+    _isManual: true,
+    _editedCategory: catId
+  };
+  _receiptParsed.items.push(newItem);
+
+  // Re-render and focus the new row's name field
+  receiptRenderReview(_receiptParsed);
+
+  // Find the last manual input in this group and focus it
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.receipt-manual-name');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+}
+
+// Update manual item name/amount/subcategory from inline inputs
+function receiptManualUpdate(idx, field, value) {
+  if (!_receiptParsed?.items[idx]) return;
+  if (field === 'amount') _receiptParsed.items[idx].amount = parseFloat(value) || 0;
+  if (field === 'name')   _receiptParsed.items[idx].name   = value;
+  if (field === 'subcat') _receiptParsed.items[idx].subcategory = value;
+  receiptRefreshGroups();
+}
+
+// Remove a manually added line
+function receiptRemoveManualLine(idx) {
+  if (!_receiptParsed) return;
+  _receiptParsed.items.splice(idx, 1);
+  receiptRenderReview(_receiptParsed);
+}
 function receiptRefreshGroups() {
   if (!_receiptParsed) return;
   const manualTax = parseFloat(document.getElementById('rec-tax-manual')?.value) || 0;
@@ -4364,19 +4475,32 @@ function settingsRenderExcludedCats() {
   const wrap = document.getElementById('settings-excluded-cats');
   if (!wrap) return;
   const excluded = new Set(financeState.settings.excluded_categories || []);
-  wrap.innerHTML = FINANCE_CATS.map(c => {
-    const isExcluded = excluded.has(c.id);
+
+  const includedCats = FINANCE_CATS.filter(c => !excluded.has(c.id));
+  const excludedCats = FINANCE_CATS.filter(c => excluded.has(c.id));
+
+  function pillHtml(c) {
     const pillBg = c.color + '22';
     const pillBorder = c.color + '55';
+    const isExcluded = excluded.has(c.id);
     return `<label class="settings-cat-toggle ${isExcluded ? 'excluded' : ''}">
       <input type="checkbox" data-exc-cat="${c.id}" ${isExcluded ? 'checked' : ''}
         onchange="settingsExcludedToggle('${c.id}', this.checked)" />
       <span class="settings-cat-pill" style="background:${pillBg};border-color:${pillBorder};color:${c.color};">
         ${c.emoji} ${escapeHtml(c.label)}
       </span>
-      <span class="settings-cat-status">${isExcluded ? 'Excluded' : 'Included'}</span>
     </label>`;
-  }).join('');
+  }
+
+  wrap.innerHTML = `
+    <div class="settings-cat-section-label">Included in spending totals</div>
+    <div class="settings-cat-grid">${includedCats.map(pillHtml).join('')}</div>
+    ${excludedCats.length ? `
+    <div class="settings-cat-section-label" style="margin-top:14px;">Excluded from spending totals</div>
+    <div class="settings-cat-grid">${excludedCats.map(pillHtml).join('')}</div>
+    ` : ''}
+    <div class="metric-sub" style="margin-top:10px;">Check a category to exclude it from your Spent total and charts. Net Saved always reflects your true total spend.</div>
+  `;
 }
 
 function settingsExcludedToggle(catId, exclude) {
