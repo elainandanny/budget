@@ -209,6 +209,29 @@
               <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
               <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
               <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
+              <!-- Items section (optional) -->
+              <div class="items-toggle-row">
+                <span class="form-label" style="margin:0;">Items</span>
+                <label class="items-toggle-label">
+                  <input type="checkbox" id="fin-items-toggle" onchange="financeToggleItemize(this.checked)" />
+                  <span>Add individual items</span>
+                </label>
+              </div>
+              <div id="fin-items-section" class="hidden">
+                <div class="items-section-note">Items auto-sum the total. T = taxable · NT = not taxable (auto-detected by category).</div>
+                <div class="fin-items-table-head">
+                  <span>Item</span><span>Price</span><span>Category</span><span>Tax</span><span></span>
+                </div>
+                <div id="fin-item-lines"></div>
+                <div class="fin-items-footer">
+                  <button class="small-btn" type="button" onclick="financeAddItemLine()">+ Add item</button>
+                  <div class="fin-tax-row">
+                    <label class="form-label" style="margin:0;white-space:nowrap;">Tax amount</label>
+                    <input class="form-input fin-tax-input" type="number" step="0.01" min="0" id="fin-items-tax" placeholder="0.00" oninput="financeItemsAutoSum()" />
+                    <span class="metric-sub" id="fin-tax-note">distributed to taxable items</span>
+                  </div>
+                </div>
+              </div>
               <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
             </div>
             <div id="finance-income-form" class="hidden">
@@ -2446,7 +2469,8 @@ const FINANCE_CATS = [
   {id:'gifts',label:'Gifts',emoji:'🎁',color:'#e879f9'},
   {id:'travel',label:'Travel',emoji:'✈️',color:'#22d3ee'},
   {id:'savings',label:'Savings',emoji:'🏦',color:'#86efac'},
-  {id:'other',label:'Other',emoji:'📦',color:'#6b7280'}
+  {id:'other',label:'Other',emoji:'📦',color:'#6b7280'},
+  {id:'health-beauty',label:'Health & Beauty',emoji:'💄',color:'#ec4899'}
 ];
 const financeCat = id => FINANCE_CATS.find(c => c.id === id) || FINANCE_CATS[FINANCE_CATS.length - 1];
 let financeState = loadFinanceLocal();
@@ -2690,17 +2714,56 @@ function financeUpdateTally(){ const total = Number(document.getElementById('fin
 async function financeSaveTransaction(){
   const date = normalizeDateValue(document.getElementById('fin-date').value);
   const store = document.getElementById('fin-store').value.trim();
-  const total = Number(document.getElementById('fin-total').value);
   const payment = document.getElementById('fin-payment').value;
   const notes = document.getElementById('fin-notes').value.trim();
-  if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
-  let splits = [];
-  if(financeSplitMode === 'quick') splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat').value.trim(), amount: total }];
-  else {
-    document.querySelectorAll('#fin-split-lines .split-line').forEach(line => { const cat = line.querySelector('[data-role="cat"]').value; const amount = Number(line.querySelector('[data-role="amt"]').value || 0); if(amount > 0) splits.push({cat, subcat:'', amount}); });
-    const alloc = splits.reduce((sum,x)=>sum+x.amount,0);
-    if(Math.abs(alloc-total) > .06){ financeShowMsg('fin-save-msg', `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; }
+  const isItemized = document.getElementById('fin-items-toggle')?.checked;
+
+  let splits = [], total = 0;
+
+  if (isItemized) {
+    // Build splits from item rows — each item becomes a named split
+    const itemLines = document.querySelectorAll('#fin-item-lines .fin-item-line');
+    if (!itemLines.length) { financeShowMsg('fin-save-msg','Add at least one item.',true); return; }
+    const taxAmt = Number(document.getElementById('fin-items-tax')?.value) || 0;
+    // Collect raw items with taxable flag
+    const rawItems = [];
+    itemLines.forEach(line => {
+      const name    = line.querySelector('[data-role="item-name"]').value.trim();
+      const amount  = Number(line.querySelector('[data-role="item-amt"]').value || 0);
+      const cat     = line.querySelector('[data-role="item-cat"]').value;
+      const taxable = line.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+      if (amount > 0) rawItems.push({ name, amount, cat, taxable });
+    });
+    if (!rawItems.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
+    // Distribute tax proportionally across taxable items (mirrors receipt scanner)
+    const taxableTotal = rawItems.filter(i=>i.taxable).reduce((s,i)=>s+i.amount,0);
+    rawItems.forEach((item, idx) => {
+      const taxShare = (taxAmt > 0 && item.taxable && taxableTotal > 0)
+        ? parseFloat((item.amount / taxableTotal * taxAmt).toFixed(2))
+        : 0;
+      splits.push({ cat: item.cat, subcat: '', amount: parseFloat((item.amount + taxShare).toFixed(2)), ...(item.name ? {name: item.name} : {}), taxable: item.taxable });
+    });
+    if (!splits.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
+    total = parseFloat(splits.reduce((s,x)=>s+x.amount,0).toFixed(2));
+    // Update total display
+    const totalEl = document.getElementById('fin-total');
+    if (totalEl) totalEl.value = total;
+  } else {
+    total = Number(document.getElementById('fin-total').value);
+    if (financeSplitMode === 'quick') {
+      splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat').value.trim(), amount: total }];
+    } else {
+      document.querySelectorAll('#fin-split-lines .split-line').forEach(line => {
+        const cat = line.querySelector('[data-role="cat"]').value;
+        const amount = Number(line.querySelector('[data-role="amt"]').value || 0);
+        if(amount > 0) splits.push({cat, subcat:'', amount});
+      });
+      const alloc = splits.reduce((sum,x)=>sum+x.amount,0);
+      if(Math.abs(alloc-total) > .06){ financeShowMsg('fin-save-msg', `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; }
+    }
   }
+
+  if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
   const is_return = financeTxType === 'return';
   const linked_id = is_return ? (document.getElementById('fin-return-link').value || null) : null;
   const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return, linked_id });
@@ -2708,7 +2771,108 @@ async function financeSaveTransaction(){
   financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return, linked_id, created_at: new Date().toISOString() });
   await financePersist(); financeShowMsg('fin-save-msg', is_return ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
 }
-function financeClearForm(){ ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; }); const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday()); const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = ''; financeSetSplitMode('quick'); financeSetTxType('expense'); }
+function financeClearForm(){
+  ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday());
+  const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = '';
+  const itemLines=document.getElementById('fin-item-lines'); if(itemLines) itemLines.innerHTML = '';
+  const taxInput=document.getElementById('fin-items-tax'); if(taxInput) taxInput.value = '';
+  const itemToggle=document.getElementById('fin-items-toggle'); if(itemToggle) itemToggle.checked = false;
+  const itemSection=document.getElementById('fin-items-section'); if(itemSection) itemSection.classList.add('hidden');
+  financeSetSplitMode('quick'); financeSetTxType('expense');
+}
+
+function financeToggleItemize(checked) {
+  const section = document.getElementById('fin-items-section');
+  const totalEl = document.getElementById('fin-total');
+  if (!section) return;
+  if (checked) {
+    section.classList.remove('hidden');
+    if (totalEl) { totalEl.readOnly = true; totalEl.style.opacity = '0.6'; totalEl.title = 'Auto-calculated from items'; }
+    if (!document.querySelectorAll('#fin-item-lines .fin-item-line').length) financeAddItemLine();
+  } else {
+    // Warn if items exist
+    const existing = document.querySelectorAll('#fin-item-lines .fin-item-line').length;
+    if (existing > 0 && !confirm('Clear all items and switch to manual entry?')) {
+      document.getElementById('fin-items-toggle').checked = true; return;
+    }
+    section.classList.add('hidden');
+    const lines = document.getElementById('fin-item-lines'); if(lines) lines.innerHTML = '';
+    if (totalEl) { totalEl.readOnly = false; totalEl.style.opacity = ''; totalEl.title = ''; }
+  }
+}
+
+function financeItemCatOpts(selectedId) {
+  return FINANCE_CATS.map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
+}
+
+function financeAddItemLine(item={}) {
+  const wrap = document.getElementById('fin-item-lines');
+  if (!wrap) return;
+  const defaultCat = document.getElementById('fin-cat-quick')?.value || 'groceries';
+  const cat = item.cat || item.category || defaultCat;
+  // taxable: use item value if provided, else auto-detect from category
+  const taxable = item.taxable !== undefined ? item.taxable : itemTaxDefault(cat);
+  const div = document.createElement('div');
+  div.className = 'fin-item-line';
+  div.innerHTML = `
+    <input class="form-input fin-item-name" data-role="item-name" placeholder="Item name (e.g. Apples)" value="${escapeHtml(item.name||'')}" />
+    <input class="form-input fin-item-amt" type="number" step="0.01" min="0" data-role="item-amt" placeholder="0.00" value="${item.amount||''}" oninput="financeItemsAutoSum()" />
+    <select class="form-select fin-item-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
+    <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
+      type="button" onclick="financeToggleItemTax(this)" title="${taxable ? 'Taxable — click to mark as not taxable' : 'Not taxable — click to mark as taxable'}">${taxable ? 'T' : 'NT'}</button>
+    <button class="small-btn danger-btn fin-item-remove" type="button" onclick="this.closest('.fin-item-line').remove(); financeItemsAutoSum();">×</button>`;
+  wrap.appendChild(div);
+}
+
+function financeItemCatChanged(selectEl) {
+  const line = selectEl.closest('.fin-item-line');
+  if (!line) return;
+  const taxBtn = line.querySelector('[data-role="item-taxable"]');
+  if (!taxBtn) return;
+  const newTaxable = itemTaxDefault(selectEl.value);
+  taxBtn.dataset.taxable = newTaxable;
+  taxBtn.textContent = newTaxable ? 'T' : 'NT';
+  taxBtn.className = `small-btn fin-tax-toggle ${newTaxable ? 'tax-on' : 'tax-off'}`;
+  taxBtn.title = newTaxable ? 'Taxable — click to mark NT' : 'Not taxable — click to mark T';
+}
+
+function financeToggleItemTax(btn) {
+  const current = btn.dataset.taxable === 'true';
+  const next = !current;
+  btn.dataset.taxable = next;
+  btn.textContent = next ? 'T' : 'NT';
+  btn.className = `small-btn fin-tax-toggle ${next ? 'tax-on' : 'tax-off'}`;
+  btn.title = next ? 'Taxable — click to mark NT' : 'Not taxable — click to mark T';
+}
+
+function financeItemsAutoSum() {
+  const totalEl = document.getElementById('fin-total');
+  if (!totalEl || !document.getElementById('fin-items-toggle')?.checked) return;
+  let sum = 0;
+  document.querySelectorAll('#fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value) || 0; });
+  const tax = Number(document.getElementById('fin-items-tax')?.value) || 0;
+  const grandTotal = parseFloat((sum + tax).toFixed(2));
+  totalEl.value = grandTotal > 0 ? grandTotal : '';
+  // Update tax note with distribution preview
+  const noteEl = document.getElementById('fin-tax-note');
+  if (noteEl && tax > 0) {
+    const taxableSum = (() => {
+      let s = 0;
+      document.querySelectorAll('#fin-item-lines .fin-item-line').forEach(line => {
+        const taxable = line.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+        if (taxable) s += Number(line.querySelector('[data-role="item-amt"]')?.value) || 0;
+      });
+      return s;
+    })();
+    const txCount = document.querySelectorAll('#fin-item-lines [data-role="item-taxable"][data-taxable="true"]').length;
+    noteEl.textContent = taxableSum > 0
+      ? `distributed to ${txCount} taxable item${txCount!==1?'s':''}`
+      : '⚠ No taxable items — tax will go to Other';
+  } else if (noteEl) {
+    noteEl.textContent = 'distributed to taxable items';
+  }
+}
 async function financeSaveIncome(){
   const date = normalizeDateValue(document.getElementById('fin-income-date').value);
   const source = document.getElementById('fin-income-source').value.trim();
@@ -2929,16 +3093,63 @@ function financeEditTransactionCard(t){
   const splits=(t.splits&&t.splits.length?t.splits:[{cat:'other',subcat:'',amount:t.total}]);
   const isSplit=financeEditSplitMode==='split';
   const quick=splits[0]||{cat:'other',subcat:'',amount:t.total};
+  const hasItems = splits.some(s => s.name);
+
+  // Build editable item rows if transaction has named items
+  const itemRowsHtml = hasItems ? splits.map((s, i) => {
+    const taxable = s.taxable !== undefined ? s.taxable : itemTaxDefault(s.cat || 'other');
+    return `<div class="fin-item-line" data-split-idx="${i}">
+      <input class="form-input fin-item-name" data-role="item-name" placeholder="Item name" value="${escapeHtml(s.name||'')}" />
+      <input class="form-input fin-item-amt" type="number" step="0.01" min="0" data-role="item-amt" placeholder="0.00" value="${Number(s.amount||0)||''}" oninput="financeEditItemsAutoSum()" />
+      <select class="form-select fin-item-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===s.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select>
+      <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
+        type="button" onclick="financeToggleItemTax(this)">${taxable ? 'T' : 'NT'}</button>
+      <button class="small-btn danger-btn" type="button" onclick="this.closest('.fin-item-line').remove(); financeEditItemsAutoSum();">×</button>
+    </div>`;
+  }).join('') : '';
+
   return `<div class="tx-item tx-edit"><div class="finance-edit-grid">
     <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="edit-fin-date" value="${escapeHtml(t.date)}"></div>
     <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="edit-fin-store" list="finance-store-options" value="${escapeHtml(t.store||'')}"></div>
-    <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="edit-fin-total" value="${Number(t.total||0)}" oninput="financeEditUpdateTally()"></div>
+    <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="edit-fin-total" value="${Number(t.total||0)}" oninput="financeEditUpdateTally()" ${hasItems?'readonly style="opacity:0.6"':''}></div>
     <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="edit-fin-payment"><option value="credit" ${t.payment==='credit'?'selected':''}>Credit Card</option><option value="debit" ${t.payment==='debit'?'selected':''}>Debit Card</option><option value="cash" ${t.payment==='cash'?'selected':''}>Cash</option><option value="other" ${t.payment==='other'?'selected':''}>Other</option></select></div>
+    ${hasItems ? `
+    <div class="form-grid-full">
+      <div class="section-title small-title">Items</div>
+      <div class="items-section-note">Edit item names, amounts, or categories. Total updates automatically.</div>
+      <div id="edit-fin-item-lines">${itemRowsHtml}</div>
+      <button class="small-btn" type="button" onclick="financeEditAddItemLine()">+ Add item</button>
+    </div>` : `
     <div class="form-grid-full"><div class="section-title small-title">Category</div><div class="mode-toggle finance-category-toggle"><button class="mode-btn ${!isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('quick')">One category</button><button class="mode-btn ${isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('split')">Split categories</button></div></div>
     <div id="finance-edit-quick" class="form-row ${isSplit?'hidden':''}"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="edit-fin-cat">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${quick.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="edit-fin-subcat" value="${escapeHtml(quick.subcat||'')}"></div></div>
-    <div id="finance-edit-split" class="form-grid-full ${isSplit?'':'hidden'}"><div class="split-tally"><span>Allocated: <strong id="edit-fin-tally-alloc">$0.00</strong></span><span id="edit-fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="edit-fin-split-lines">${splits.map(s=>financeEditSplitLineHtml(s)).join('')}</div><button class="small-btn full" type="button" onclick="financeEditAddSplitLine()">+ Add category line</button></div>
+    <div id="finance-edit-split" class="form-grid-full ${isSplit?'':'hidden'}"><div class="split-tally"><span>Allocated: <strong id="edit-fin-tally-alloc">$0.00</strong></span><span id="edit-fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="edit-fin-split-lines">${splits.map(s=>financeEditSplitLineHtml(s)).join('')}</div><button class="small-btn full" type="button" onclick="financeEditAddSplitLine()">+ Add category line</button></div>`}
     <div class="form-group finance-edit-notes"><label class="form-label">Notes</label><input class="form-input" id="edit-fin-notes" value="${escapeHtml(t.notes||'')}"></div>
-  </div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveEditTransaction('${t.id}')">Save changes</button><button class="small-btn" type="button" onclick="financeCancelEditTransaction()">Cancel</button></div></div>`;
+  </div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveEditTransaction('${t.id}')">Save changes</button><button class="small-btn" type="button" onclick="financeCancelEditTransaction()">Cancel</button><span class="save-msg" id="edit-fin-msg"></span></div></div>`;
+}
+
+function financeEditAddItemLine() {
+  const wrap = document.getElementById('edit-fin-item-lines');
+  if (!wrap) return;
+  const cat = 'groceries';
+  const taxable = itemTaxDefault(cat);
+  const div = document.createElement('div');
+  div.className = 'fin-item-line';
+  div.innerHTML = `
+    <input class="form-input fin-item-name" data-role="item-name" placeholder="Item name" />
+    <input class="form-input fin-item-amt" type="number" step="0.01" min="0" data-role="item-amt" placeholder="0.00" oninput="financeEditItemsAutoSum()" />
+    <select class="form-select fin-item-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
+    <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
+      type="button" onclick="financeToggleItemTax(this)">${taxable ? 'T' : 'NT'}</button>
+    <button class="small-btn danger-btn" type="button" onclick="this.closest('.fin-item-line').remove(); financeEditItemsAutoSum();">×</button>`;
+  wrap.appendChild(div);
+}
+
+function financeEditItemsAutoSum() {
+  const totalEl = document.getElementById('edit-fin-total');
+  if (!totalEl) return;
+  let sum = 0;
+  document.querySelectorAll('#edit-fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value) || 0; });
+  if (sum > 0) totalEl.value = parseFloat(sum.toFixed(2));
 }
 function financeEditSplitLineHtml(split={cat:'groceries',amount:''}){ return `<div class="split-line"><select class="form-select" data-role="edit-cat" onchange="financeEditUpdateTally()">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${split.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select><input class="form-input" type="number" step="0.01" data-role="edit-amt" value="${Number(split.amount||0)||''}" oninput="financeEditUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeEditUpdateTally();">×</button></div>`; }
 function financeEditSetSplitMode(mode){ financeEditSplitMode=mode; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
@@ -2953,12 +3164,31 @@ async function financeSaveEditTransaction(id){
   const total=Number(document.getElementById('edit-fin-total').value);
   const payment=document.getElementById('edit-fin-payment').value;
   const notes=document.getElementById('edit-fin-notes').value.trim();
-  if(!date || !Number.isFinite(total) || total<=0){ alert('Date and positive amount are required.'); return; }
+  if(!date || !Number.isFinite(total) || total<=0){ financeShowMsg('edit-fin-msg','Date and positive amount are required.',true); return; }
+
   let splits=[];
-  if(financeEditSplitMode==='split'){
+  const itemLines = document.querySelectorAll('#edit-fin-item-lines .fin-item-line');
+  if (itemLines.length > 0) {
+    // Item-based edit
+    const rawEditItems = [];
+    itemLines.forEach(line => {
+      const name    = line.querySelector('[data-role="item-name"]')?.value.trim() || '';
+      const amount  = Number(line.querySelector('[data-role="item-amt"]')?.value || 0);
+      const cat     = line.querySelector('[data-role="item-cat"]')?.value || 'other';
+      const taxable = line.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+      if (amount > 0) rawEditItems.push({ name, amount, cat, taxable });
+    });
+    if (!rawEditItems.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
+    // Tax is already baked into amounts for existing items (from original save)
+    // Just rebuild splits preserving taxable flag
+    rawEditItems.forEach(item => {
+      splits.push({ cat: item.cat, subcat: '', amount: parseFloat(item.amount.toFixed(2)), ...(item.name ? {name: item.name} : {}), taxable: item.taxable });
+    });
+    if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
+  } else if(financeEditSplitMode==='split'){
     document.querySelectorAll('#edit-fin-split-lines .split-line').forEach(line=>{ const cat=line.querySelector('[data-role="edit-cat"]').value; const amount=Number(line.querySelector('[data-role="edit-amt"]').value||0); if(amount>0) splits.push({cat,subcat:'',amount}); });
     const alloc=splits.reduce((sum,x)=>sum+x.amount,0);
-    if(!splits.length || Math.abs(alloc-total)>.06){ alert(`Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`); return; }
+    if(!splits.length || Math.abs(alloc-total)>.06){ financeShowMsg('edit-fin-msg',`Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`,true); return; }
   } else {
     const cat=document.getElementById('edit-fin-cat').value;
     const subcat=document.getElementById('edit-fin-subcat').value.trim();
@@ -2966,7 +3196,7 @@ async function financeSaveEditTransaction(id){
   }
   const payload={date,store,total,payment,notes,splits,is_return:Boolean(t.is_return),linked_id:t.linked_id||null};
   const {error}=await financeUpdateRow('transactions', id, payload);
-  if(error){ alert('Could not update transaction in cloud.'); return; }
+  if(error){ financeShowMsg('edit-fin-msg','Could not update transaction in cloud.',true); return; }
   Object.assign(t,payload);
   financeEditingTransactionId=null;
   await financePersist(); financeRenderAll();
@@ -3107,6 +3337,19 @@ function financeLocalAnswer(q) {
 
 let _budgetRecMonths = 3;
 let _budgetRecWeight = 'recent';
+
+// Categories that are taxable by default (auto-detect for item rows)
+// NT = food/grocery items generally exempt; T = everything else
+const ITEM_TAX_DEFAULT = {
+  groceries: false, snacks: false,        // food — generally NT
+  dining: true,                            // prepared food — T
+  household: true, health: true, clothing: true, hobbies: true,
+  entertainment: true, gifts: true, travel: true, education: true,
+  gas: true, transport: true, subscriptions: true,
+  utilities: false, insurance: false, housing: false, savings: false,
+  'health-beauty': true, other: true
+};
+function itemTaxDefault(catId) { return ITEM_TAX_DEFAULT[catId] !== false; }
 
 const BUDGET_REC_FIXED_CATS = new Set(['housing','insurance','subscriptions','utilities','transport']);
 
@@ -3537,23 +3780,32 @@ function catPillHtml(catId, amt) {
   return `<span class="cat-pill" style="background:${bg};border-color:${border};color:${c.color}">${c.emoji} ${escapeHtml(c.label)}${amtStr}</span>`;
 }
 
-// Repatch financeTransactionCard with pill rendering — deduplicated by category
+// Repatch financeTransactionCard — category pills + item count badge + expandable items
 financeTransactionCard = function(t) {
-  // Consolidate splits by category so receipt scans don't show
-  // "Groceries Groceries Groceries..." — one pill per category with summed amount
   const catTotals = {};
   (t.splits || []).forEach(s => {
     const cat = s.cat || 'other';
     catTotals[cat] = (catTotals[cat] || 0) + Number(s.amount || 0);
   });
-  const cats = Object.entries(catTotals)
-    .map(([catId, amt]) => catPillHtml(catId, amt))
-    .join(' ');
+  const cats = Object.entries(catTotals).map(([catId, amt]) => catPillHtml(catId, amt)).join(' ');
 
-  return `<div class="tx-item">
-    <div>
+  const namedItems = (t.splits || []).filter(s => s.name);
+  const itemBadge = namedItems.length
+    ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}')">${namedItems.length} item${namedItems.length>1?'s':''}</button>`
+    : '';
+
+  const itemList = namedItems.length
+    ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
+        const cat = financeCat(s.cat);
+        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji} ${escapeHtml(cat.label)}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
+      }).join('')}</div>`
+    : '';
+
+  return `<div class="tx-item" id="tx-card-${t.id}">
+    <div style="min-width:0;flex:1;">
       <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}</div>
-      <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
+      <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${itemBadge}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
+      ${itemList}
     </div>
     <div class="tx-right">
       <strong>${t.is_return ? '-' : ''}${financeFmt(t.total)}</strong>
@@ -3565,6 +3817,11 @@ financeTransactionCard = function(t) {
     </div>
   </div>`;
 };
+
+function financeToggleItemList(id) {
+  const el = document.getElementById('tx-items-' + id);
+  if (el) el.classList.toggle('hidden');
+}
 
 // Also patch financeRenderCategoryBreakdown to use consistent colors (already uses c.color)
 // and financeRenderSubs to use cat pills

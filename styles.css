@@ -1927,3 +1927,148 @@ input[type="date"] {
   color: var(--text);
   margin-bottom: 10px;
 }
+
+/* ── Manual Item Entry ─────────────────────────────── */
+.items-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.items-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+.items-section-note {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.fin-items-table-head {
+  display: grid;
+  grid-template-columns: 1fr 80px 120px 36px 30px;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.fin-item-line {
+  display: grid;
+  grid-template-columns: 1fr 80px 120px 36px 30px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.fin-item-name  { font-size: 13px; }
+.fin-item-amt   { font-size: 13px; text-align: right; }
+.fin-item-cat   { font-size: 12px; }
+.fin-item-remove { padding: 5px 8px; font-size: 12px; }
+
+/* T / NT tax toggle button */
+.fin-tax-toggle {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: center;
+  min-width: 32px;
+}
+.fin-tax-toggle.tax-on {
+  background: rgba(74,144,217,0.12);
+  border-color: rgba(74,144,217,0.4);
+  color: #4a90d9;
+}
+.fin-tax-toggle.tax-off {
+  background: var(--surface2);
+  color: var(--muted);
+}
+
+/* Tax row at bottom of items section */
+.fin-items-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.fin-tax-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.fin-tax-input {
+  width: 90px;
+  text-align: right;
+}
+
+/* Item badge in history card */
+.tx-items-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 6px;
+  color: var(--muted);
+  vertical-align: middle;
+  transition: background 0.15s;
+}
+.tx-items-badge:hover { background: var(--accent); color: var(--accent-dark, #1a1200); border-color: var(--accent); }
+
+/* Expandable item list in history */
+.tx-item-list {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-size: 12px;
+}
+.tx-item-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.tx-item-row:last-child { border-bottom: none; }
+.tx-item-name { color: var(--text); }
+.tx-item-cat  { font-size: 11px; }
+.tx-item-amt  { font-weight: 600; text-align: right; white-space: nowrap; }
+
+/* Mobile: stack item line fields */
+@media (max-width: 640px) {
+  .fin-items-table-head { display: none; }
+  .fin-item-line {
+    grid-template-columns: 1fr 70px;
+    grid-template-rows: auto auto;
+  }
+  .fin-item-name  { grid-column: 1 / -1; }
+  .fin-item-amt   { grid-column: 1; }
+  .fin-item-cat   { grid-column: 1 / -1; }
+  .fin-tax-toggle { grid-column: 2; }
+  .fin-item-remove { grid-column: 2; grid-row: 2; }
+}
