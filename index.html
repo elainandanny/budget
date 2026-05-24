@@ -2051,6 +2051,9 @@ function formatAIContent(content, role = 'assistant') {
   // Strip any SUGGESTIONS line that leaked through (should already be parsed out)
   let text = raw.replace(/\nSUGGESTIONS:.*$/im, '').trimEnd();
 
+  // Strip markdown code fences Gemini sometimes adds despite instructions
+  text = text.replace(/^```[\w]*\n?/gm, '').replace(/^```\s*$/gm, '').trim();
+
   // Normalise line endings
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
