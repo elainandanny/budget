@@ -2215,13 +2215,18 @@ function compactEntriesForAI() {
 
 function extractGeminiStreamText(rawChunk) {
   const chunk = String(rawChunk || '');
-  let text = '';
+  if (!chunk.trim()) return '';
 
-  // Gemini streaming can arrive as SSE lines, JSON objects, JSON arrays, or partial JSON chunks.
-  // This parser is intentionally tolerant so the UI still updates instead of showing raw JSON.
-  const lines = chunk.split('\n').map(line => line.trim()).filter(Boolean);
+  // Our Edge Function streams plain text directly (already extracted from Gemini JSON).
+  // Try JSON parse first in case response is raw Gemini format; otherwise use as-is.
+  const lines = chunk.split('\n');
+  let text = '';
+  let hasJson = false;
+
   for (const line of lines) {
-    let payload = line.startsWith('data:') ? line.slice(5).trim() : line;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === '[DONE]') continue;
+    const payload = trimmed.startsWith('data:') ? trimmed.slice(5).trim() : trimmed;
     if (!payload || payload === '[DONE]') continue;
 
     try {
@@ -2230,14 +2235,12 @@ function extractGeminiStreamText(rawChunk) {
       for (const item of items) {
         const parts = item?.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
-          if (typeof part?.text === 'string') text += part.text;
+          if (typeof part?.text === 'string') { text += part.text; hasJson = true; }
         }
       }
     } catch {
-      // If the backend streams plain text, use it directly.
-      if (!payload.includes('"candidates"') && !payload.includes('"content"')) {
-        text += payload;
-      }
+      // Not JSON — treat as plain text (Edge Function already extracted text)
+      if (!hasJson) text += line; // preserve newlines for proper rendering
     }
   }
 
@@ -2423,12 +2426,15 @@ async function askGasAgent() {
 
       if (extracted) {
         streamedText += extracted;
-        // Strip markdown code fences — only full fence patterns, not inline code
+        // Strip code fences Gemini adds (``` or ```json at start/end)
+        // Use a simple string replace that works on partial chunks too
         const stripped = streamedText
-          .replace(/^```[\w]*\r?\n?/gm, '')  // opening fence like ```json
-          .replace(/^```\s*$/gm, '');          // closing fence ```
-        const { clean, suggestions } = parseSuggestionsFromText(stripped);
-        assistantMessage.content = clean || stripped;
+          .split('\n')
+          .filter(line => !/^```/.test(line.trim()))
+          .join('\n')
+          .trim();
+        const { clean, suggestions } = parseSuggestionsFromText(stripped || streamedText);
+        assistantMessage.content = clean || stripped || streamedText;
         if (suggestions.length) chatFollowUps = suggestions;
       } else if (!streamedText) {
         assistantMessage.content = '...';
@@ -2452,14 +2458,16 @@ async function askGasAgent() {
       renderChatMessages();
     }
 
-    // Final pass — strip any remaining fences and extract SUGGESTIONS
-    const finalStripped = (assistantMessage.content || '')
-      .replace(/^```[\w]*\r?\n?/gm, '')
-      .replace(/^```\s*$/gm, '');
-    const { clean: finalClean, suggestions: finalSuggestions } = parseSuggestionsFromText(finalStripped);
-    if (finalSuggestions.length || finalStripped !== assistantMessage.content) {
+    // Final pass — clean up any fence remnants and extract SUGGESTIONS
+    if (assistantMessage.content) {
+      const finalStripped = assistantMessage.content
+        .split('\n')
+        .filter(line => !/^```/.test(line.trim()))
+        .join('\n')
+        .trim();
+      const { clean: finalClean, suggestions: finalSuggestions } = parseSuggestionsFromText(finalStripped);
       chatFollowUps = finalSuggestions.length ? finalSuggestions : chatFollowUps;
-      assistantMessage.content = finalClean || finalStripped;
+      assistantMessage.content = finalClean || finalStripped || assistantMessage.content;
       renderChatMessages();
     }
 
