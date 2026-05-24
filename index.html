@@ -184,10 +184,24 @@
               <button class="mode-btn" id="fin-mode-income" type="button" onclick="financeSetTxType('income')">Income</button>
             </div>
             <div id="finance-expense-form">
+              <!-- Step 1: Date + Merchant (always visible) -->
               <div class="form-row">
                 <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="fin-date"></div>
-                <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon" oninput="financePopulateReturnLinks()"><datalist id="finance-store-options"></datalist><select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select recent merchant...</option></select></div>
+                <div class="form-group">
+                  <label class="form-label">Merchant</label>
+                  <input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon"
+                    oninput="financePopulateReturnLinks(); financeProgressReveal()">
+                  <datalist id="finance-store-options"></datalist>
+                  <div class="merchant-sort-row">
+                    <button class="small-btn merchant-sort-btn active" data-sort="recent5" onclick="financeMerchantSortChange('recent5',this)">Recent 5</button>
+                    <button class="small-btn merchant-sort-btn" data-sort="recent10" onclick="financeMerchantSortChange('recent10',this)">Recent 10</button>
+                    <button class="small-btn merchant-sort-btn" data-sort="alpha" onclick="financeMerchantSortChange('alpha',this)">A–Z</button>
+                  </div>
+                  <select class="form-select quick-select" id="fin-store-picker" onchange="financeChooseMerchant(this.value)"><option value="">Select merchant...</option></select>
+                </div>
               </div>
+
+              <!-- Return link (only for returns) -->
               <div id="finance-return-wrap" class="hidden return-link-card">
                 <div class="section-title small-title">Link return to original purchase</div>
                 <div class="form-row three finance-return-filters">
@@ -199,47 +213,77 @@
                   <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
                   <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link" onchange="financeReturnItemsChanged()"></select></div>
                 </div>
-                <!-- Item picker — shown when original transaction has named items -->
+                <button class="small-btn" type="button" id="fin-return-show-all" data-show-all="false"
+                  onclick="this.dataset.showAll=this.dataset.showAll==='true'?'false':'true'; financePopulateReturnLinks()"
+                  style="margin-top:4px;font-size:12px;">Show all time</button>
                 <div id="fin-return-item-wrap" class="hidden">
                   <div class="section-title small-title" style="margin-top:10px;">Select items you're returning</div>
-                  <div class="return-items-note">Check each item. Adjust the amount if the store refunded a different price. Tax is shown as included.</div>
+                  <div class="return-items-note">Check each item. Adjust if store refunded differently. Tax shown as included.</div>
                   <div id="fin-return-item-list"></div>
                   <div class="return-items-total" id="return-items-total-row"></div>
                 </div>
               </div>
-              <div class="form-row">
-                <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally()" placeholder="0.00"></div>
-                <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
-              </div>
-              <div class="section-title small-title">Category</div>
-              <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
-              <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick"></select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="fin-subcat" placeholder="Produce, electronics..."></div></div>
-              <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
-              <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="fin-notes" placeholder="Optional"></div>
-              <!-- Items section (optional) -->
-              <div class="items-toggle-row">
-                <span class="form-label" style="margin:0;">Items</span>
-                <label class="items-toggle-label">
-                  <input type="checkbox" id="fin-items-toggle" onchange="financeToggleItemize(this.checked)" />
-                  <span>Add individual items</span>
-                </label>
-              </div>
-              <div id="fin-items-section" class="hidden">
-                <div class="items-section-note">Items auto-sum the total. T = taxable · NT = not taxable (auto-detected by category).</div>
-                <div class="fin-items-table-head">
-                  <span>Item</span><span>Price</span><span>Category</span><span>Tax</span><span></span>
+
+              <!-- Step 2: Amount + Payment (revealed after merchant) -->
+              <div id="fin-step-amount" class="form-reveal hidden">
+                <div class="form-row">
+                  <div class="form-group"><label class="form-label">Total amount</label><input class="form-input" type="number" step="0.01" id="fin-total" oninput="financeUpdateTally(); financeProgressReveal()" placeholder="0.00"></div>
+                  <div class="form-group"><label class="form-label">Payment method</label><select class="form-select" id="fin-payment"><option value="credit">Credit Card</option><option value="debit">Debit Card</option><option value="cash">Cash</option><option value="other">Other</option></select></div>
                 </div>
-                <div id="fin-item-lines"></div>
-                <div class="fin-items-footer">
-                  <button class="small-btn" type="button" onclick="financeAddItemLine()">+ Add item</button>
-                  <div class="fin-tax-row">
-                    <label class="form-label" style="margin:0;white-space:nowrap;">Tax amount</label>
-                    <input class="form-input fin-tax-input" type="number" step="0.01" min="0" id="fin-items-tax" placeholder="0.00" oninput="financeItemsAutoSum()" />
-                    <span class="metric-sub" id="fin-tax-note">distributed to taxable items</span>
+              </div>
+
+              <!-- Step 3: Category (revealed after amount) -->
+              <div id="fin-step-category" class="form-reveal hidden">
+                <div class="section-title small-title">Category</div>
+                <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
+                <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick" onchange="financeProgressReveal()"></select></div></div>
+                <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
+              </div>
+
+              <!-- Step 4: Optional extras (revealed after category) -->
+              <div id="fin-step-extras" class="form-reveal hidden">
+                <!-- Items toggle -->
+                <div class="items-toggle-row">
+                  <span class="form-label" style="margin:0;">Items</span>
+                  <label class="items-toggle-label">
+                    <input type="checkbox" id="fin-items-toggle" onchange="financeToggleItemize(this.checked)" />
+                    <span>Add individual items</span>
+                  </label>
+                </div>
+                <div id="fin-items-section" class="hidden">
+                  <div class="items-section-note">Items auto-sum the total. T = taxable · NT = not taxable.</div>
+                  <div class="fin-items-table-head"><span>Item</span><span>Price</span><span>Category</span><span>Tax</span><span></span></div>
+                  <div id="fin-item-lines"></div>
+                  <div class="fin-items-footer">
+                    <button class="small-btn" type="button" onclick="financeAddItemLine()">+ Add item</button>
+                    <div class="fin-tax-row">
+                      <label class="form-label" style="margin:0;white-space:nowrap;">Tax amount</label>
+                      <input class="form-input fin-tax-input" type="number" step="0.01" min="0" id="fin-items-tax" placeholder="0.00" oninput="financeItemsAutoSum()" />
+                      <span class="metric-sub" id="fin-tax-note">distributed to taxable items</span>
+                    </div>
                   </div>
                 </div>
+                <!-- Tap-to-add optional fields -->
+                <div class="tap-to-add-row">
+                  <button class="tap-to-add-btn hidden" id="tap-add-subcat" type="button"
+                    onclick="financeShowTapField('subcat')">+ Subcategory</button>
+                  <button class="tap-to-add-btn" id="tap-add-notes" type="button"
+                    onclick="financeShowTapField('notes')">+ Add note</button>
+                </div>
+                <div id="fin-subcat-wrap" class="hidden">
+                  <div class="form-group"><label class="form-label">Subcategory</label>
+                    <input class="form-input" id="fin-subcat" placeholder="e.g. Produce, dairy, electronics..." /></div>
+                </div>
+                <div id="fin-notes-wrap" class="hidden">
+                  <div class="form-group"><label class="form-label">Note</label>
+                    <input class="form-input" id="fin-notes" placeholder="Optional note..." /></div>
+                </div>
               </div>
-              <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
+
+              <!-- Save (revealed after category) -->
+              <div id="fin-step-save" class="form-reveal hidden">
+                <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
+              </div>
             </div>
             <div id="finance-income-form" class="hidden">
               <div class="form-row three">
@@ -2603,8 +2647,20 @@ function financeAllTransactions(){
   return [...financeState.transactions, ...financeGasTransactions()].sort((a,b) => String(b.date).localeCompare(String(a.date)) || String(b.created_at || '').localeCompare(String(a.created_at || '')));
 }
 
+function financeSortedCats() {
+  // Sort categories by usage in last 3 months, most used first
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth()-3, 1).toISOString().split('T')[0];
+  const counts = {};
+  FINANCE_CATS.forEach(c => counts[c.id] = 0);
+  financeState.transactions
+    .filter(t => String(t.date||'') >= cutoff)
+    .forEach(t => (t.splits||[]).forEach(s => { if(counts[s.cat]!==undefined) counts[s.cat]++; }));
+  return [...FINANCE_CATS].sort((a,b) => (counts[b.id]||0) - (counts[a.id]||0));
+}
 function financeInitUI(){
-  const opts = FINANCE_CATS.map(c => `<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
+  const sorted = financeSortedCats();
+  const opts = sorted.map(c => `<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
   ['fin-cat-quick','fin-sub-cat'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = opts; });
   const hist = document.getElementById('fin-history-cat'); if(hist) hist.innerHTML = '<option value="">All categories</option>' + opts;
   ['fin-date','fin-income-date','fin-sub-next'].forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = dateForInput(financeDateToday()); });
@@ -2618,18 +2674,98 @@ function financeMerchantOptions(){
     ...(Array.isArray(entries) ? entries.map(e=>e.brand).filter(Boolean) : [])
   ].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)));
 }
+let _merchantSortMode = 'recent5';
+function financeMerchantSortChange(mode, btn) {
+  _merchantSortMode = mode;
+  document.querySelectorAll('.merchant-sort-btn').forEach(b => b.classList.toggle('active', b === btn));
+  financeRenderStoreOptions();
+}
 function financeRenderStoreOptions(){
-  const stores = financeMerchantOptions();
+  // All stores alphabetically for datalist
+  const allStores = financeMerchantOptions();
   const dl = document.getElementById('finance-store-options');
-  if(dl) dl.innerHTML = stores.map(s=>`<option value="${escapeHtml(s)}"></option>`).join('');
+  if(dl) dl.innerHTML = allStores.map(s=>`<option value="${escapeHtml(s)}"></option>`).join('');
+  // Picker sorted by mode
   const picker = document.getElementById('fin-store-picker');
-  if(picker){ const current = picker.value; picker.innerHTML = '<option value="">Select recent merchant...</option>' + stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join(''); picker.value = stores.includes(current) ? current : ''; }
+  if(picker){
+    const current = picker.value;
+    let pickerStores = [];
+    if (_merchantSortMode === 'recent5' || _merchantSortMode === 'recent10') {
+      const limit = _merchantSortMode === 'recent5' ? 5 : 10;
+      // Most recently used merchants (by last transaction date)
+      const seen = new Set(), recent = [];
+      [...financeState.transactions].sort((a,b)=>String(b.date).localeCompare(String(a.date))).forEach(t => {
+        if(t.store && !seen.has(t.store)){ seen.add(t.store); recent.push(t.store); }
+      });
+      pickerStores = recent.slice(0, limit);
+    } else {
+      pickerStores = [...allStores];
+    }
+    picker.innerHTML = '<option value="">Select merchant...</option>' + pickerStores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+    picker.value = pickerStores.includes(current) ? current : '';
+  }
   const histMerchant = document.getElementById('fin-history-merchant');
   if(histMerchant){ const current = histMerchant.value; histMerchant.innerHTML = '<option value="">All merchants</option>' + stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join(''); histMerchant.value = stores.includes(current) ? current : ''; }
   const returnCat = document.getElementById('fin-return-cat-filter');
   if(returnCat){ const current=returnCat.value; returnCat.innerHTML='<option value="">All categories</option>' + FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); returnCat.value=current; }
 }
-function financeChooseMerchant(value){ if(!value) return; const el=document.getElementById('fin-store'); if(el) el.value=value; financePopulateReturnLinks(); }
+function financeProgressReveal() {
+  const merchant = (document.getElementById('fin-store')?.value || '').trim();
+  const total    = Number(document.getElementById('fin-total')?.value || 0);
+  const cat      = document.getElementById('fin-cat-quick')?.value || '';
+  const txType   = financeTxType;
+
+  // Step 2: amount — show once merchant has value (or return type)
+  const showAmount = merchant.length > 0 || txType === 'return';
+  document.getElementById('fin-step-amount')?.classList.toggle('hidden', !showAmount);
+
+  // Step 3: category — show once amount entered (skip for return if item picker active)
+  const hasReturnItems = !document.getElementById('fin-return-item-wrap')?.classList.contains('hidden');
+  const showCat = showAmount && total > 0 && !hasReturnItems;
+  document.getElementById('fin-step-category')?.classList.toggle('hidden', !showCat);
+
+  // Step 4 + save: extras + save — show once category picked
+  const showExtras = showCat && cat !== '';
+  document.getElementById('fin-step-extras')?.classList.toggle('hidden', !showExtras);
+  document.getElementById('fin-step-save')?.classList.toggle('hidden', !showExtras);
+
+  // Show/hide subcategory tap button based on split mode (only for quick mode)
+  const subcatBtn = document.getElementById('tap-add-subcat');
+  if (subcatBtn) subcatBtn.classList.toggle('hidden', financeSplitMode !== 'quick' || !showExtras);
+}
+
+function financeShowTapField(field) {
+  if (field === 'subcat') {
+    document.getElementById('fin-subcat-wrap')?.classList.remove('hidden');
+    document.getElementById('tap-add-subcat')?.classList.add('hidden');
+    document.getElementById('fin-subcat')?.focus();
+  } else if (field === 'notes') {
+    document.getElementById('fin-notes-wrap')?.classList.remove('hidden');
+    document.getElementById('tap-add-notes')?.classList.add('hidden');
+    document.getElementById('fin-notes')?.focus();
+  }
+}
+
+function financeEditQtyChanged(input) {
+  const row = input.closest('.edit-item-inline');
+  if (!row) return;
+  const qtyEl  = row.querySelector('[data-role="item-qty"]');
+  const unitEl = row.querySelector('[data-role="item-unit-price"]');
+  const totEl  = row.querySelector('[data-role="item-amt"]');
+  if (!qtyEl || !unitEl || !totEl) return;
+  const qty  = Math.max(1, parseInt(qtyEl.value) || 1);
+  const unit = parseFloat(unitEl.value) || 0;
+  totEl.value = parseFloat((qty * unit).toFixed(2));
+  financeEditStickyUpdate();
+}
+
+function financeChooseMerchant(value) {
+  if(!value) return;
+  const el = document.getElementById('fin-store');
+  if(el) el.value = value;
+  financePopulateReturnLinks();
+  financeProgressReveal();
+}
 function financeRenderDashboardFilterOptions(){
   const catEl = document.getElementById('fin-filter-category');
   const merchantEl = document.getElementById('fin-filter-merchant');
@@ -2695,7 +2831,8 @@ function financeSetTxType(type){
   document.getElementById('finance-expense-form')?.classList.toggle('hidden', type === 'income');
   document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income');
   document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return');
-  if(type === 'return') financePopulateReturnLinks();
+  if(type === 'return') { financePopulateReturnLinks(); }
+  financeProgressReveal();
 }
 function financePopulateReturnLinks(){
   const sel = document.getElementById('fin-return-link');
@@ -2706,14 +2843,20 @@ function financePopulateReturnLinks(){
   const month = document.getElementById('fin-return-month-filter')?.value || '';
   const cat = document.getElementById('fin-return-cat-filter')?.value || '';
   const search = (document.getElementById('fin-return-search-filter')?.value || '').trim().toLowerCase();
+  const showAll = document.getElementById('fin-return-show-all')?.dataset.showAll === 'true';
+  const cutoff = showAll ? '' : (() => { const d = new Date(); d.setDate(d.getDate()-60); return d.toISOString().split('T')[0]; })();
   let rows = financeState.transactions.filter(t=>!t.is_return);
+  if(!showAll && cutoff) rows = rows.filter(t => String(t.date||'') >= cutoff);
   if(merchant) rows = rows.filter(t => String(t.store || '').toLowerCase().includes(merchant.toLowerCase()));
   if(month) rows = rows.filter(t => String(t.date || '').startsWith(month));
   if(cat) rows = rows.filter(t => (t.splits||[]).some(s=>s.cat===cat));
   if(search) rows = rows.filter(t => [t.store, t.notes, ...(t.splits||[]).map(s=>financeCat(s.cat).label)].join(' ').toLowerCase().includes(search));
   rows = rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,80);
-  const helper = rows.length ? '' : '<option value="">No matching purchases</option>';
+  const helper = rows.length ? '' : '<option value="">No matching purchases in last 60 days</option>';
   sel.innerHTML = '<option value="">No link</option>' + helper + rows.map(t=>`<option value="${t.id}">${formatDateShort(t.date)} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join('');
+  // Show/update "Show more" button
+  const showMoreBtn = document.getElementById('fin-return-show-all');
+  if (showMoreBtn) showMoreBtn.textContent = showAll ? 'Show last 60 days only' : `Show all time`;
   // Show item picker if selected transaction has items
   financeReturnItemsChanged();
 }
@@ -2850,11 +2993,18 @@ async function financeSaveTransaction(){
 function financeClearForm(){
   ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
   const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday());
-  const lines=document.getElementById('fin-split-lines'); if(lines) lines.innerHTML = '';
+  const linesEl=document.getElementById('fin-split-lines'); if(linesEl) linesEl.innerHTML = '';
   const itemLines=document.getElementById('fin-item-lines'); if(itemLines) itemLines.innerHTML = '';
   const taxInput=document.getElementById('fin-items-tax'); if(taxInput) taxInput.value = '';
   const itemToggle=document.getElementById('fin-items-toggle'); if(itemToggle) itemToggle.checked = false;
   const itemSection=document.getElementById('fin-items-section'); if(itemSection) itemSection.classList.add('hidden');
+  // Reset progressive disclosure steps
+  ['fin-step-amount','fin-step-category','fin-step-extras','fin-step-save'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  ['fin-subcat-wrap','fin-notes-wrap'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  document.getElementById('tap-add-notes')?.classList.remove('hidden');
+  document.getElementById('tap-add-subcat')?.classList.remove('hidden');
+  const totalEl = document.getElementById('fin-total');
+  if (totalEl) { totalEl.readOnly = false; totalEl.style.opacity = ''; totalEl.title = ''; }
   financeSetSplitMode('quick'); financeSetTxType('expense');
 }
 
@@ -2879,7 +3029,8 @@ function financeToggleItemize(checked) {
 }
 
 function financeItemCatOpts(selectedId) {
-  return FINANCE_CATS.map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
+  const sorted = (typeof financeSortedCats === 'function') ? financeSortedCats() : FINANCE_CATS;
+  return sorted.map(c => `<option value="${c.id}" ${c.id===selectedId?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
 }
 
 function financeAddItemLine(item={}) {
@@ -3194,16 +3345,38 @@ function financeEditTransactionCard(t){
 
   // ── Itemized transaction — grouped layout ──
 
-  // Detect duplicates (same name, case-insensitive)
-  const nameCounts = {};
-  splits.forEach(s => { if(s.name) { const k = s.name.toLowerCase(); nameCounts[k] = (nameCounts[k]||0)+1; } });
+  // Group same-named items into quantity bundles
+  // e.g. 4× "Flower Drip Tray" → shown as "Flower Drip Tray ×4"
+  const nameGroups = {}; // key → [splits]
+  splits.forEach((s, idx) => {
+    if (!s.name) return;
+    const k = s.name.toLowerCase().trim();
+    if (!nameGroups[k]) nameGroups[k] = [];
+    nameGroups[k].push({ ...s, _idx: idx });
+  });
+  // Build a deduplicated split list for rendering — grouped by name+category
+  const quantitySplits = [];
+  const seenKeys = new Set();
+  splits.forEach((s, idx) => {
+    if (!s.name) { quantitySplits.push({ ...s, _idx: idx, qty: 1, unitPrice: s.amount }); return; }
+    const k = s.name.toLowerCase().trim() + '|' + (s.cat||'other');
+    if (seenKeys.has(k)) return; // already grouped
+    seenKeys.add(k);
+    const group = nameGroups[s.name.toLowerCase().trim()].filter(x => (x.cat||'other') === (s.cat||'other'));
+    const qty = group.length;
+    const totalAmt = parseFloat(group.reduce((sum, x) => sum + Number(x.amount||0), 0).toFixed(2));
+    const unitPrice = qty > 1 ? parseFloat((totalAmt / qty).toFixed(2)) : s.amount;
+    quantitySplits.push({ ...s, _idx: idx, qty, unitPrice, totalAmt: qty > 1 ? totalAmt : s.amount,
+      _groupIdxs: group.map(x => x._idx) });
+  });
 
   // Group by category
+  // Group quantitySplits by category for display
   const groups = {};
-  splits.forEach((s, idx) => {
+  quantitySplits.forEach(s => {
     const cat = s.cat || 'other';
     if (!groups[cat]) groups[cat] = [];
-    groups[cat].push({ ...s, _idx: idx });
+    groups[cat].push(s);
   });
 
   const total = parseFloat(splits.reduce((sum,s) => sum + Number(s.amount||0), 0).toFixed(2));
@@ -3215,24 +3388,33 @@ function financeEditTransactionCard(t){
 
     const rowsHtml = items.map(item => {
       const taxable = item.taxable !== undefined ? item.taxable : itemTaxDefault(item.cat||'other');
-      const isDupe = item.name && (nameCounts[(item.name||'').toLowerCase()]||0) > 1;
-      const dupeBadge = isDupe ? `<span class="edit-dupe-badge" title="Duplicate item name">⚠ Dupe</span>` : '';
+      const qtyBadge = item.qty > 1 ? `<span class="edit-qty-badge">×${item.qty}</span>` : '';
+      const displayAmt = item.qty > 1 ? item.totalAmt : item.amount;
 
       // Compact display row (shown by default)
       const displayRow = `<div class="edit-item-display" data-item-idx="${item._idx}" onclick="financeEditItemExpand(this)">
-        <span class="edit-item-display-name">${escapeHtml(item.name||'—')}${dupeBadge}</span>
-        <span class="edit-item-display-amt">${financeFmt(item.amount)}</span>
+        <span class="edit-item-display-name">${escapeHtml(item.name||'—')}${qtyBadge}</span>
+        <span class="edit-item-display-amt">${financeFmt(displayAmt)}</span>
         <span class="fin-tax-toggle ${taxable?'tax-on':'tax-off'}" style="pointer-events:none;font-size:10px;padding:1px 5px;">${taxable?'T':'NT'}</span>
         <span class="edit-item-chevron">›</span>
       </div>`;
 
       // Inline edit row (hidden by default, shown on tap)
-      const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}">
+      const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}" data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}">
         <div class="edit-item-inline-fields">
           <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
             <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
+          ${item.qty > 1 ? `
+          <div class="form-group" style="margin:0;width:60px;"><label class="form-label">Qty</label>
+            <input class="form-input" type="number" min="1" step="1" data-role="item-qty" value="${item.qty}" oninput="financeEditQtyChanged(this)" /></div>
+          <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Unit price</label>
+            <input class="form-input" type="number" step="0.01" data-role="item-unit-price" value="${Number(item.unitPrice||0).toFixed(2)}" oninput="financeEditQtyChanged(this)" /></div>
+          <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Total</label>
+            <input class="form-input" type="number" step="0.01" data-role="item-amt" value="${Number(displayAmt||0).toFixed(2)}" readonly style="opacity:0.6" /></div>
+          ` : `
           <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Price</label>
             <input class="form-input" type="number" step="0.01" data-role="item-amt" value="${Number(item.amount||0)||''}" oninput="financeEditItemsAutoSum(); financeEditStickyUpdate()" /></div>
+          `}
           <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
             <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
@@ -3241,7 +3423,6 @@ function financeEditTransactionCard(t){
         <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
           <button class="small-btn" type="button" onclick="financeEditItemCollapse(this)">Done</button>
           <button class="small-btn danger-btn" type="button" onclick="financeEditItemDelete(this)">Remove</button>
-          ${isDupe ? `<button class="small-btn" type="button" onclick="financeEditMergeDupes('${escapeHtml(item.name||'')}')">Merge dupes</button>` : ''}
         </div>
       </div>`;
 
@@ -3266,8 +3447,7 @@ function financeEditTransactionCard(t){
         <span class="edit-sticky-value" id="edit-total-display">${financeFmt(total)}</span>
       </div>
       <div class="edit-sticky-meta">
-        <span class="edit-sticky-count">${splits.length} items</span>
-        ${Object.keys(nameCounts).some(k => nameCounts[k] > 1) ? '<span class="edit-dupe-alert">⚠ Duplicates found</span>' : ''}
+        <span class="edit-sticky-count">${splits.length} item${splits.length!==1?'s':''} · ${quantitySplits.length} unique</span>
       </div>
     </div>
     <!-- Header fields row -->
@@ -3415,19 +3595,25 @@ async function financeSaveEditTransaction(id){
   if (itemLines.length > 0) {
     // Grouped itemized edit — read from all inline edit rows (expanded or not)
     itemLines.forEach(row => {
-      const name    = row.querySelector('[data-role="item-name"]')?.value.trim() || '';
-      const amount  = Number(row.querySelector('[data-role="item-amt"]')?.value || 0);
-      const cat     = row.querySelector('[data-role="item-cat"]')?.value || 'other';
-      const taxable = row.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
-      if (amount > 0) splits.push({ cat, subcat:'', amount: parseFloat(amount.toFixed(2)), ...(name?{name}:{}), taxable });
-    });
-    // Also read display-only rows that were never expanded (original data preserved)
-    const allDisplayRows = document.querySelectorAll('#edit-fin-item-lines .edit-item-display');
-    allDisplayRows.forEach(display => {
-      const sibling = display.nextElementSibling;
-      if (!sibling || !sibling.classList.contains('edit-item-inline')) return;
-      // Only read display row if its sibling edit row has no amount (means it was never opened)
-      // Skip — inline rows cover all items including unexpanded ones via their hidden state
+      const name     = row.querySelector('[data-role="item-name"]')?.value.trim() || '';
+      const cat      = row.querySelector('[data-role="item-cat"]')?.value || 'other';
+      const taxable  = row.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+      const qtyEl    = row.querySelector('[data-role="item-qty"]');
+      const unitEl   = row.querySelector('[data-role="item-unit-price"]');
+      const amtEl    = row.querySelector('[data-role="item-amt"]');
+      if (qtyEl && unitEl) {
+        // Qty row — expand back into individual splits
+        const qty   = Math.max(1, parseInt(qtyEl.value) || 1);
+        const unit  = parseFloat(unitEl.value) || 0;
+        if (unit > 0) {
+          for (let q = 0; q < qty; q++) {
+            splits.push({ cat, subcat:'', amount: parseFloat(unit.toFixed(2)), ...(name?{name}:{}), taxable });
+          }
+        }
+      } else {
+        const amount = Number(amtEl?.value || 0);
+        if (amount > 0) splits.push({ cat, subcat:'', amount: parseFloat(amount.toFixed(2)), ...(name?{name}:{}), taxable });
+      }
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
   } else if(financeEditSplitMode==='split'){
