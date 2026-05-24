@@ -2405,3 +2405,138 @@ input[type="date"] {
 .rq-name  { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rq-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .rq-review-btn, .rq-retry-btn { font-size: 11px; padding: 3px 8px; }
+
+/* ── Compact item entry rows (fin-item-line) ───── */
+.fin-item-line {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.fil-row1 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.fil-name {
+  flex: 1;
+  font-size: 14px;
+}
+.fil-remove {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.fil-remove:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+.fil-row2 {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fil-unit-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.fil-unit-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  background: var(--surface2);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.fil-unit-btn.active {
+  background: var(--accent);
+  color: var(--accent-dark, #1a1200);
+}
+.fil-qty {
+  width: 64px;
+  text-align: center;
+  font-size: 14px;
+}
+.fil-unit-price {
+  width: 80px;
+  text-align: right;
+  font-size: 14px;
+}
+.fil-total {
+  width: 80px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+}
+.fil-at, .fil-eq {
+  font-size: 12px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.fil-row3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.fil-cat {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* Receipt unit badge */
+.receipt-unit-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(74,144,217,0.1);
+  border: 1px solid rgba(74,144,217,0.25);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #4a90d9;
+  margin-left: 5px;
+  flex-shrink: 0;
+}
+
+/* History item qty badge */
+.tx-item-qty {
+  display: inline-flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* Override old fin-item-line grid for items that might still use old layout */
+@media (max-width: 640px) {
+  .fil-row2 { gap: 4px; }
+  .fil-qty { width: 54px; }
+  .fil-unit-price { width: 68px; }
+  .fil-total { width: 68px; }
+}

@@ -2875,11 +2875,15 @@ async function financeSaveTransaction(){
     // Collect raw items with taxable flag
     const rawItems = [];
     itemLines.forEach(line => {
-      const name    = line.querySelector('[data-role="item-name"]').value.trim();
-      const amount  = Number(line.querySelector('[data-role="item-amt"]').value || 0);
-      const cat     = line.querySelector('[data-role="item-cat"]').value;
-      const taxable = line.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
-      if (amount > 0) rawItems.push({ name, amount, cat, taxable });
+      const name       = line.querySelector('[data-role="item-name"]').value.trim();
+      const amount     = Number(line.querySelector('[data-role="item-amt"]').value || 0);
+      const cat        = line.querySelector('[data-role="item-cat"]').value;
+      const taxable    = line.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+      const qty        = parseFloat(line.querySelector('[data-role="item-qty"]')?.value) || 1;
+      const unit_price = parseFloat(line.querySelector('[data-role="item-unit-price"]')?.value) || amount;
+      const unitBtn    = line.querySelector('.fil-unit-btn.active');
+      const unit       = unitBtn?.dataset.unit || 'each';
+      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit });
     });
     if (!rawItems.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
     // Distribute tax proportionally across taxable items (mirrors receipt scanner)
@@ -2888,7 +2892,9 @@ async function financeSaveTransaction(){
       const taxShare = (taxAmt > 0 && item.taxable && taxableTotal > 0)
         ? parseFloat((item.amount / taxableTotal * taxAmt).toFixed(2))
         : 0;
-      splits.push({ cat: item.cat, subcat: '', amount: parseFloat((item.amount + taxShare).toFixed(2)), ...(item.name ? {name: item.name} : {}), taxable: item.taxable });
+      splits.push({ cat: item.cat, subcat: '', amount: parseFloat((item.amount + taxShare).toFixed(2)),
+        ...(item.name ? {name: item.name} : {}), taxable: item.taxable,
+        qty: item.qty, unit_price: item.unit_price, unit: item.unit });
     });
     if (!splits.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
     total = parseFloat(splits.reduce((s,x)=>s+x.amount,0).toFixed(2));
@@ -2965,19 +2971,65 @@ function financeAddItemLine(item={}) {
   const wrap = document.getElementById('fin-item-lines');
   if (!wrap) return;
   const defaultCat = document.getElementById('fin-cat-quick')?.value || 'groceries';
-  const cat = item.cat || item.category || defaultCat;
-  // taxable: use item value if provided, else auto-detect from category
+  const cat     = item.cat || item.category || defaultCat;
   const taxable = item.taxable !== undefined ? item.taxable : itemTaxDefault(cat);
+  const unit    = item.unit || 'each';
+  const isLb    = unit === 'lb';
+  const qty     = item.qty !== undefined ? item.qty : (isLb ? '' : 1);
+  const unitPrice = item.unit_price !== undefined ? item.unit_price : (item.amount || '');
+  const total   = (qty && unitPrice) ? parseFloat((qty * unitPrice).toFixed(2)) : (item.amount || '');
+
   const div = document.createElement('div');
   div.className = 'fin-item-line';
   div.innerHTML = `
-    <input class="form-input fin-item-name" data-role="item-name" placeholder="Item name (e.g. Apples)" value="${escapeHtml(item.name||'')}" />
-    <input class="form-input fin-item-amt" type="number" step="0.01" min="0" data-role="item-amt" placeholder="0.00" value="${item.amount||''}" oninput="financeItemsAutoSum()" />
-    <select class="form-select fin-item-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
-    <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
-      type="button" onclick="financeToggleItemTax(this)" title="${taxable ? 'Taxable — click to mark as not taxable' : 'Not taxable — click to mark as taxable'}">${taxable ? 'T' : 'NT'}</button>
-    <button class="small-btn danger-btn fin-item-remove" type="button" onclick="this.closest('.fin-item-line').remove(); financeItemsAutoSum();">×</button>`;
+    <div class="fil-row1">
+      <input class="form-input fil-name" data-role="item-name" placeholder="Item name" value="${escapeHtml(item.name||'')}" />
+      <button class="fil-remove" type="button" onclick="this.closest('.fin-item-line').remove(); financeItemsAutoSum();" aria-label="Remove">×</button>
+    </div>
+    <div class="fil-row2">
+      <div class="fil-unit-toggle">
+        <button class="fil-unit-btn ${!isLb?'active':''}" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
+        <button class="fil-unit-btn ${isLb?'active':''}" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')">lb</button>
+      </div>
+      <input class="form-input fil-qty" type="number" data-role="item-qty"
+        min="0" step="${isLb?'0.01':'1'}" placeholder="${isLb?'lbs':'qty'}"
+        value="${qty}" oninput="financeItemCalcTotal(this)" />
+      <span class="fil-at">@</span>
+      <input class="form-input fil-unit-price" type="number" step="0.01" min="0" data-role="item-unit-price"
+        placeholder="$/unit" value="${unitPrice}" oninput="financeItemCalcTotal(this)" />
+      <span class="fil-eq">=</span>
+      <input class="form-input fil-total" type="number" step="0.01" min="0" data-role="item-amt"
+        placeholder="total" value="${total}" oninput="financeItemsAutoSum()" readonly style="background:var(--surface2);opacity:0.8;" />
+    </div>
+    <div class="fil-row3">
+      <select class="form-select fil-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
+      <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
+        type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button>
+    </div>`;
   wrap.appendChild(div);
+}
+
+function financeItemUnitMode(btn, unit) {
+  const line = btn.closest('.fin-item-line');
+  if (!line) return;
+  line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === unit));
+  const qtyEl = line.querySelector('[data-role="item-qty"]');
+  if (qtyEl) {
+    qtyEl.step = unit === 'lb' ? '0.01' : '1';
+    qtyEl.placeholder = unit === 'lb' ? 'lbs' : 'qty';
+    if (unit === 'each' && qtyEl.value) qtyEl.value = Math.round(Number(qtyEl.value)) || 1;
+  }
+  financeItemCalcTotal(line.querySelector('[data-role="item-qty"]'));
+}
+
+function financeItemCalcTotal(input) {
+  const line = input?.closest('.fin-item-line');
+  if (!line) return;
+  const qty   = parseFloat(line.querySelector('[data-role="item-qty"]')?.value) || 0;
+  const uPrice = parseFloat(line.querySelector('[data-role="item-unit-price"]')?.value) || 0;
+  const totEl  = line.querySelector('[data-role="item-amt"]');
+  if (totEl && qty > 0 && uPrice > 0) totEl.value = parseFloat((qty * uPrice).toFixed(2));
+  financeItemsAutoSum();
 }
 
 function financeItemCatChanged(selectEl) {
@@ -3370,27 +3422,36 @@ function financeEditTransactionCard(t){
       </div>`;
 
       // Inline edit row (hidden by default, shown on tap)
+      const eUnit      = item.unit || 'each';
+      const eIsLb      = eUnit === 'lb';
+      const eQty       = item.qty !== undefined ? item.qty : (item.qty > 1 ? item.qty : 1);
+      const eUnitPrice = item.unit_price || item.unitPrice || item.amount || 0;
       const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}" data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}">
         <div class="edit-item-inline-fields">
           <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
             <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
-          ${item.qty > 1 ? `
-          <div class="form-group" style="margin:0;width:60px;"><label class="form-label">Qty</label>
-            <input class="form-input" type="number" min="1" step="1" data-role="item-qty" value="${item.qty}" oninput="financeEditQtyChanged(this)" /></div>
-          <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Unit price</label>
-            <input class="form-input" type="number" step="0.01" data-role="item-unit-price" value="${Number(item.unitPrice||0).toFixed(2)}" oninput="financeEditQtyChanged(this)" /></div>
-          <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Total</label>
-            <input class="form-input" type="number" step="0.01" data-role="item-amt" value="${Number(displayAmt||0).toFixed(2)}" readonly style="opacity:0.6" /></div>
-          ` : `
-          <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Price</label>
-            <input class="form-input" type="number" step="0.01" data-role="item-amt" value="${Number(item.amount||0)||''}" oninput="financeEditItemsAutoSum(); financeEditStickyUpdate()" /></div>
-          `}
+          <div class="form-group" style="margin:0;width:80px;">
+            <label class="form-label">Unit</label>
+            <div class="fil-unit-toggle" style="margin-top:2px;">
+              <button class="fil-unit-btn ${!eIsLb?'active':''}" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
+              <button class="fil-unit-btn ${eIsLb?'active':''}" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')">lb</button>
+            </div>
+          </div>
+          <div class="form-group" style="margin:0;width:65px;"><label class="form-label">${eIsLb?'Lbs':'Qty'}</label>
+            <input class="form-input" type="number" step="${eIsLb?'0.01':'1'}" min="0" data-role="item-qty"
+              value="${eQty}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
+          <div class="form-group" style="margin:0;width:80px;"><label class="form-label">$/unit</label>
+            <input class="form-input" type="number" step="0.01" min="0" data-role="item-unit-price"
+              value="${Number(eUnitPrice||0).toFixed(2)}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
+          <div class="form-group" style="margin:0;width:80px;"><label class="form-label">Total</label>
+            <input class="form-input" type="number" step="0.01" data-role="item-amt"
+              value="${Number(displayAmt||0).toFixed(2)}" oninput="financeEditStickyUpdate()" readonly style="opacity:0.7" /></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
             <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
             <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
         </div>
-        <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
           <button class="small-btn" type="button" onclick="financeEditItemCollapse(this)">Done</button>
           <button class="small-btn danger-btn" type="button" onclick="financeEditItemDelete(this)">Remove</button>
         </div>
@@ -3565,25 +3626,18 @@ async function financeSaveEditTransaction(id){
   if (itemLines.length > 0) {
     // Grouped itemized edit — read from all inline edit rows (expanded or not)
     itemLines.forEach(row => {
-      const name     = row.querySelector('[data-role="item-name"]')?.value.trim() || '';
-      const cat      = row.querySelector('[data-role="item-cat"]')?.value || 'other';
-      const taxable  = row.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
-      const qtyEl    = row.querySelector('[data-role="item-qty"]');
-      const unitEl   = row.querySelector('[data-role="item-unit-price"]');
-      const amtEl    = row.querySelector('[data-role="item-amt"]');
-      if (qtyEl && unitEl) {
-        // Qty row — expand back into individual splits
-        const qty   = Math.max(1, parseInt(qtyEl.value) || 1);
-        const unit  = parseFloat(unitEl.value) || 0;
-        if (unit > 0) {
-          for (let q = 0; q < qty; q++) {
-            splits.push({ cat, subcat:'', amount: parseFloat(unit.toFixed(2)), ...(name?{name}:{}), taxable });
-          }
-        }
-      } else {
-        const amount = Number(amtEl?.value || 0);
-        if (amount > 0) splits.push({ cat, subcat:'', amount: parseFloat(amount.toFixed(2)), ...(name?{name}:{}), taxable });
-      }
+      const name       = row.querySelector('[data-role="item-name"]')?.value.trim() || '';
+      const cat        = row.querySelector('[data-role="item-cat"]')?.value || 'other';
+      const taxable    = row.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+      const unitPriceEl= row.querySelector('[data-role="item-unit-price"]');
+      const amtEl      = row.querySelector('[data-role="item-amt"]');
+      const unitBtn    = row.querySelector('.fil-unit-btn.active');
+      const unit       = unitBtn?.dataset.unit || 'each';
+      const qty        = parseFloat(row.querySelector('[data-role="item-qty"]')?.value) || 1;
+      const unit_price = parseFloat(unitPriceEl?.value) || 0;
+      const amount     = parseFloat(amtEl?.value) || (unit_price > 0 ? parseFloat((qty*unit_price).toFixed(2)) : 0);
+      if (amount > 0) splits.push({ cat, subcat: '', amount: parseFloat(amount.toFixed(2)),
+        ...(name?{name}:{}), taxable, qty, unit_price: unit_price || amount, unit });
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
   } else if(financeEditSplitMode==='split'){
@@ -4198,7 +4252,9 @@ financeTransactionCard = function(t) {
   const itemList = namedItems.length
     ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
         const cat = financeCat(s.cat);
-        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji} ${escapeHtml(cat.label)}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
+        const qtyLabel = s.qty && s.unit && (s.qty !== 1 || s.unit !== 'each')
+          ? `<span class="tx-item-qty">${s.unit==='lb'?s.qty+'lb':(s.qty>1?'×'+s.qty:'')}</span>` : '';
+        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}${qtyLabel}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
       }).join('')}</div>`
     : '';
 
@@ -4535,11 +4591,14 @@ Return this exact JSON shape:
   "items": [
     {
       "name": "readable item name (not the SKU code)",
-      "amount": number (net after any item-level discounts),
+      "amount": number (net after any item-level discounts, equals qty * unit_price),
       "taxable": true or false,
       "category": "one of the category ids above",
       "subcategory": "food|tip|tax|discount|other — for dining use tip/tax/food, for grocery use produce/dairy/cleaning etc.",
-      "discount": number or 0
+      "discount": number or 0,
+      "qty": number (default 1 for regular items; for weight-priced items use the weight e.g. 1.43),
+      "unit": "each" or "lb" or "oz" or "kg" (use "lb" for weight-priced items, "each" for everything else),
+      "unit_price": number (price per unit/lb — for regular items same as amount; for weight items the per-lb price)
     }
   ]
 }
@@ -4696,8 +4755,10 @@ function receiptBuildSplits(items, taxShares, manualTax) {
       cat,
       subcat: item.subcategory || '',
       amount,
-      // name stored for AI queries — never shown in the UI transaction list
-      ...(item.name ? { name: item.name } : {})
+      ...(item.name       ? { name: item.name }             : {}),
+      ...(item.qty        ? { qty: item.qty }               : {}),
+      ...(item.unit       ? { unit: item.unit }             : {}),
+      ...(item.unit_price ? { unit_price: item.unit_price } : {})
     };
   });
 }
@@ -4827,6 +4888,9 @@ function receiptRenderReview(parsed) {
             placeholder="Item name"
             data-item-idx="${item._idx}"
             oninput="receiptItemNameChange(${item._idx}, this.value)" />
+          ${item.unit && item.unit !== 'each' && item.qty
+            ? `<span class="receipt-unit-badge">${item.qty}${item.unit} @$${Number(item.unit_price||0).toFixed(2)}/${item.unit}</span>`
+            : item.qty > 1 ? `<span class="receipt-unit-badge">×${item.qty}</span>` : ''}
           ${taxMarker}
         </div>
         <div class="${amtClass}">${amtText}</div>
