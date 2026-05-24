@@ -2335,29 +2335,32 @@ function parseSuggestionsFromText(text) {
   return { clean, suggestions };
 }
 
+function stripFences(text) {
+  // Remove all markdown code fence patterns, anywhere they appear
+  return (text || '').replace(/```[\w]*/g, '').replace(/```/g, '').trim();
+}
+
 async function askGasAgent() {
   const input = document.getElementById('chat-question');
-  const btn = document.getElementById('chat-send-btn');
-  const msg = document.getElementById('chat-msg');
-  const win = document.getElementById('chat-window');
+  const btn   = document.getElementById('chat-send-btn');
+  const msg   = document.getElementById('chat-msg');
+  const win   = document.getElementById('chat-window');
   const question = (input?.value || '').trim();
 
   if (!question) return;
 
   if (!currentUser || !supabaseClient) {
-    msg.textContent = 'Log in first so the chat can securely use your gas data.';
-    msg.style.color = 'var(--danger)';
+    if (msg) { msg.textContent = 'Log in first.'; msg.style.color = 'var(--danger)'; }
     return;
   }
 
   appendChat('user', question);
-  input.value = '';
-  btn.disabled = true;
-  btn.textContent = 'Streaming...';
-  msg.textContent = '';
+  if (input) input.value = '';
+  if (btn)   { btn.disabled = true; btn.textContent = 'Thinking...'; }
+  if (msg)   msg.textContent = '';
   chatFollowUps = [];
 
-  const assistantMessage = { role: 'assistant', content: '' };
+  const assistantMessage = { role: 'assistant', content: '...' };
   chatMessages.push(assistantMessage);
   renderChatMessages();
 
@@ -2372,100 +2375,58 @@ async function askGasAgent() {
         'apikey': SUPABASE_ANON_KEY,
         ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
       },
-      body: JSON.stringify({
-        question,
-        entries: compactEntriesForAI()
-      })
+      body: JSON.stringify({ question, entries: compactEntriesForAI() })
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '');
-      let backendMessage = errorText || `Request failed with status ${response.status}`;
-
-      try {
-        const parsed = JSON.parse(errorText);
-        backendMessage = parsed?.error || parsed?.message || parsed?.[0]?.error?.message || backendMessage;
-      } catch {}
-
-      const friendly = friendlyAIError(backendMessage, response.status);
-      throw new Error(friendly);
+      let backendMsg = errorText || `Error ${response.status}`;
+      try { const p = JSON.parse(errorText); backendMsg = p?.error || p?.message || backendMsg; } catch {}
+      throw new Error(friendlyAIError(backendMsg, response.status));
     }
 
-    if (!response.body) {
+    // Collect the full response then display — avoids partial-chunk backtick issues
+    let fullText = '';
+
+    if (response.body) {
+      const reader  = response.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        // Show progress while streaming — strip fences from what we have so far
+        const preview = stripFences(fullText);
+        const { clean } = parseSuggestionsFromText(preview);
+        assistantMessage.content = clean || preview || '...';
+        renderChatMessages();
+        if (win) win.scrollTop = win.scrollHeight;
+      }
+    } else {
       const data = await response.json().catch(() => ({}));
-      assistantMessage.content = data?.answer || '';
-      renderChatMessages();
-      return;
+      fullText = data?.answer || data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let streamedText = '';
-    let rawFallback = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = decoder.decode(value, { stream: true });
-      rawFallback += chunk;
-      const extracted = extractGeminiStreamText(chunk);
-
-      if (extracted) {
-        streamedText += extracted;
-        // Strip ALL triple-backtick fence patterns wherever they appear
-        const stripped = streamedText.replace(/```[\w]*\n?/g, '').replace(/```/g, '').trim();
-        const display = stripped || streamedText;
-        const { clean, suggestions } = parseSuggestionsFromText(display);
-        assistantMessage.content = clean || display;
-        if (suggestions.length) chatFollowUps = suggestions;
-      } else if (!streamedText) {
-        assistantMessage.content = '...';
-      }
-
-      renderChatMessages();
-      if (win) win.scrollTop = win.scrollHeight;
-    }
-
-    if (!streamedText) {
-      try {
-        const parsed = JSON.parse(rawFallback);
-        const raw = parsed?.answer || parsed?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-        const stripped = raw.replace(/^```[\w]*\r?\n?/gm, '').replace(/^```\s*$/gm, '');
-        const { clean, suggestions } = parseSuggestionsFromText(stripped);
-        assistantMessage.content = clean || stripped || 'I could not generate an answer.';
-        if (suggestions.length) chatFollowUps = suggestions;
-      } catch {
-        assistantMessage.content = rawFallback.trim() || 'I could not generate an answer.';
-      }
-      renderChatMessages();
-    }
-
-    // Final pass — strip any fence remnants and parse SUGGESTIONS
-    if (assistantMessage.content) {
-      const finalStripped = assistantMessage.content.replace(/```[\w]*\n?/g, '').replace(/```/g, '').trim();
-      const { clean: finalClean, suggestions: finalSuggestions } = parseSuggestionsFromText(finalStripped);
-      if (finalSuggestions.length) chatFollowUps = finalSuggestions;
-      assistantMessage.content = finalClean || finalStripped || assistantMessage.content;
-      renderChatMessages();
-    }
+    // Final clean — strip ALL fences, extract suggestions
+    const cleaned = stripFences(fullText);
+    const { clean: finalContent, suggestions } = parseSuggestionsFromText(cleaned);
+    assistantMessage.content = finalContent || cleaned || 'I could not generate an answer.';
+    if (suggestions.length) chatFollowUps = suggestions;
+    renderChatMessages();
+    if (win) win.scrollTop = win.scrollHeight;
 
   } catch (err) {
-    console.error('AI chat failed:', err);
-    assistantMessage.content = friendlyAIError(err);
+    console.error('AI chat error:', err);
+    assistantMessage.content = friendlyAIError(err.message || err);
     chatFollowUps = [];
     renderChatMessages();
-    msg.textContent = '';
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Send';
+    if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
   }
 }
 
 // generateFollowUps replaced — suggestions now extracted inline from the main response
-
-
-
 
 // ══════════════════════════════════════════════════
 // FINANCE TRACKER MODULE
