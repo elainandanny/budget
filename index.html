@@ -2705,7 +2705,7 @@ function financeRenderStoreOptions(){
     picker.value = pickerStores.includes(current) ? current : '';
   }
   const histMerchant = document.getElementById('fin-history-merchant');
-  if(histMerchant){ const current = histMerchant.value; histMerchant.innerHTML = '<option value="">All merchants</option>' + stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join(''); histMerchant.value = stores.includes(current) ? current : ''; }
+  if(histMerchant){ const current = histMerchant.value; histMerchant.innerHTML = '<option value="">All merchants</option>' + allStores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join(''); histMerchant.value = allStores.includes(current) ? current : ''; }
   const returnCat = document.getElementById('fin-return-cat-filter');
   if(returnCat){ const current=returnCat.value; returnCat.innerHTML='<option value="">All categories</option>' + FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); returnCat.value=current; }
 }
