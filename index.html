@@ -197,7 +197,14 @@
                 </div>
                 <div class="form-row">
                   <div class="form-group"><label class="form-label">Search original purchase</label><input class="form-input" id="fin-return-search-filter" placeholder="Search merchant or note" oninput="financePopulateReturnLinks()"></div>
-                  <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link"></select></div>
+                  <div class="form-group"><label class="form-label">Original transaction</label><select class="form-select" id="fin-return-link" onchange="financeReturnItemsChanged()"></select></div>
+                </div>
+                <!-- Item picker — shown when original transaction has named items -->
+                <div id="fin-return-item-wrap" class="hidden">
+                  <div class="section-title small-title" style="margin-top:10px;">Select items you're returning</div>
+                  <div class="return-items-note">Check each item. Adjust the amount if the store refunded a different price. Tax is shown as included.</div>
+                  <div id="fin-return-item-list"></div>
+                  <div class="return-items-total" id="return-items-total-row"></div>
                 </div>
               </div>
               <div class="form-row">
@@ -2707,6 +2714,75 @@ function financePopulateReturnLinks(){
   rows = rows.sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,80);
   const helper = rows.length ? '' : '<option value="">No matching purchases</option>';
   sel.innerHTML = '<option value="">No link</option>' + helper + rows.map(t=>`<option value="${t.id}">${formatDateShort(t.date)} — ${escapeHtml(t.store || 'Unknown')} — ${financeFmt(t.total)}</option>`).join('');
+  // Show item picker if selected transaction has items
+  financeReturnItemsChanged();
+}
+
+function financeReturnItemsChanged() {
+  const sel = document.getElementById('fin-return-link');
+  const itemWrap = document.getElementById('fin-return-item-wrap');
+  const totalEl = document.getElementById('fin-total');
+  if (!sel || !itemWrap) return;
+  const txId = sel.value;
+  const tx = txId ? financeState.transactions.find(t => t.id === txId) : null;
+  const namedItems = tx ? (tx.splits||[]).filter(s => s.name) : [];
+
+  if (!namedItems.length) {
+    // Fall back — pre-fill total and hide item picker
+    itemWrap.classList.add('hidden');
+    if (tx && totalEl && !totalEl.value) totalEl.value = tx.total;
+    return;
+  }
+
+  // Show item picker
+  itemWrap.classList.remove('hidden');
+  const list = document.getElementById('fin-return-item-list');
+  if (!list) return;
+  list.innerHTML = namedItems.map((s, i) => {
+    const cat = financeCat(s.cat);
+    // Estimate tax by checking if taxable field exists
+    const hasTaxInfo = s.taxable !== undefined;
+    const taxNote = hasTaxInfo
+      ? (s.taxable ? '<span class="return-tax-note">incl. tax</span>' : '<span class="return-tax-note nt">tax-free</span>')
+      : '';
+    return `<label class="return-item-row">
+      <input type="checkbox" class="return-item-check" data-amount="${s.amount}" data-name="${escapeHtml(s.name)}" data-cat="${s.cat}"
+        onchange="financeReturnItemsSum()" />
+      <span class="return-item-name">${escapeHtml(s.name)}</span>
+      <span class="return-item-cat" style="color:${cat.color}">${cat.emoji}</span>
+      <span class="return-item-price">${financeFmt(s.amount)} ${taxNote}</span>
+      <input class="form-input return-item-adj" type="number" step="0.01" min="0"
+        placeholder="${Number(s.amount).toFixed(2)}"
+        title="Adjust refund amount if store gives different amount"
+        oninput="financeReturnItemsSum()" style="display:none;width:80px;" />
+    </label>`;
+  }).join('');
+  financeReturnItemsSum();
+}
+
+function financeReturnItemsSum() {
+  let total = 0;
+  document.querySelectorAll('.return-item-check:checked').forEach(cb => {
+    const row = cb.closest('.return-item-row');
+    const adj = row?.querySelector('.return-item-adj');
+    // Show adjustment field when checked
+    if (adj) adj.style.display = '';
+    const adjVal = Number(adj?.value || 0);
+    total += adjVal > 0 ? adjVal : Number(cb.dataset.amount || 0);
+  });
+  // Hide adj fields for unchecked items
+  document.querySelectorAll('.return-item-check:not(:checked)').forEach(cb => {
+    const adj = cb.closest('.return-item-row')?.querySelector('.return-item-adj');
+    if (adj) { adj.style.display = 'none'; adj.value = ''; }
+  });
+  const totalEl = document.getElementById('fin-total');
+  if (totalEl) totalEl.value = total > 0 ? parseFloat(total.toFixed(2)) : '';
+  // Update category quick-select to match first checked item
+  const firstChecked = document.querySelector('.return-item-check:checked');
+  if (firstChecked) {
+    const catEl = document.getElementById('fin-cat-quick');
+    if (catEl) catEl.value = firstChecked.dataset.cat || 'other';
+  }
 }
 function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } }
 function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
@@ -3090,70 +3166,238 @@ function financeTransactionCard(t){
   return `<div class="tx-item"><div><div class="tx-title">${escapeHtml(t.store||'—')} ${t.is_return?'<span class="badge">Return</span>':''}${t.source==='gas'?'<span class="badge">Gas import</span>':''}</div><div class="tx-sub">${formatDateShort(t.date)} · ${(t.splits||[]).map(s=>financeCat(s.cat).emoji+' '+financeCat(s.cat).label).join(', ')}${t.notes?' · '+escapeHtml(t.notes):''}</div></div><div class="tx-right"><strong>${t.is_return?'-':''}${financeFmt(t.total)}</strong>${t.source==='gas'?'<span class="metric-sub">Edit in Gas History</span>':`<div class="btn-row compact-actions"><button class="small-btn" type="button" onclick="financeStartEditTransaction('${t.id}')">Edit</button><button class="small-btn danger-btn" type="button" onclick="financeDeleteTransaction('${t.id}')">Delete</button></div>`}</div></div>`;
 }
 function financeEditTransactionCard(t){
-  const splits=(t.splits&&t.splits.length?t.splits:[{cat:'other',subcat:'',amount:t.total}]);
-  const isSplit=financeEditSplitMode==='split';
-  const quick=splits[0]||{cat:'other',subcat:'',amount:t.total};
+  const splits = (t.splits && t.splits.length ? t.splits : [{cat:'other',subcat:'',amount:t.total}]);
   const hasItems = splits.some(s => s.name);
+  const isSplit = financeEditSplitMode === 'split';
+  const quick = splits[0] || {cat:'other',subcat:'',amount:t.total};
 
-  // Build editable item rows if transaction has named items
-  const itemRowsHtml = hasItems ? splits.map((s, i) => {
-    const taxable = s.taxable !== undefined ? s.taxable : itemTaxDefault(s.cat || 'other');
-    return `<div class="fin-item-line" data-split-idx="${i}">
-      <input class="form-input fin-item-name" data-role="item-name" placeholder="Item name" value="${escapeHtml(s.name||'')}" />
-      <input class="form-input fin-item-amt" type="number" step="0.01" min="0" data-role="item-amt" placeholder="0.00" value="${Number(s.amount||0)||''}" oninput="financeEditItemsAutoSum()" />
-      <select class="form-select fin-item-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===s.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select>
-      <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
-        type="button" onclick="financeToggleItemTax(this)">${taxable ? 'T' : 'NT'}</button>
-      <button class="small-btn danger-btn" type="button" onclick="this.closest('.fin-item-line').remove(); financeEditItemsAutoSum();">×</button>
+  if (!hasItems) {
+    // ── Simple transaction (no named items) — original compact form ──
+    return `<div class="tx-item tx-edit">
+      <div class="edit-sticky-total" id="edit-sticky-total">
+        <span class="edit-sticky-label">Total</span>
+        <span class="edit-sticky-value" id="edit-total-display">${financeFmt(t.total)}</span>
+      </div>
+      <div class="finance-edit-grid">
+        <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="edit-fin-date" value="${escapeHtml(t.date)}"></div>
+        <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="edit-fin-store" list="finance-store-options" value="${escapeHtml(t.store||'')}"></div>
+        <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="edit-fin-total" value="${Number(t.total||0)}" oninput="financeEditUpdateTally(); financeEditStickyUpdate()"></div>
+        <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="edit-fin-payment"><option value="credit" ${t.payment==='credit'?'selected':''}>Credit Card</option><option value="debit" ${t.payment==='debit'?'selected':''}>Debit Card</option><option value="cash" ${t.payment==='cash'?'selected':''}>Cash</option><option value="other" ${t.payment==='other'?'selected':''}>Other</option></select></div>
+        <div class="form-grid-full"><div class="section-title small-title">Category</div><div class="mode-toggle finance-category-toggle"><button class="mode-btn ${!isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('quick')">One category</button><button class="mode-btn ${isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('split')">Split categories</button></div></div>
+        <div id="finance-edit-quick" class="form-row ${isSplit?'hidden':''}"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="edit-fin-cat">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${quick.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="edit-fin-subcat" value="${escapeHtml(quick.subcat||'')}"></div></div>
+        <div id="finance-edit-split" class="form-grid-full ${isSplit?'':'hidden'}"><div class="split-tally"><span>Allocated: <strong id="edit-fin-tally-alloc">$0.00</strong></span><span id="edit-fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="edit-fin-split-lines">${splits.map(s=>financeEditSplitLineHtml(s)).join('')}</div><button class="small-btn full" type="button" onclick="financeEditAddSplitLine()">+ Add category line</button></div>
+        <div class="form-group finance-edit-notes"><label class="form-label">Notes</label><input class="form-input" id="edit-fin-notes" value="${escapeHtml(t.notes||'')}"></div>
+      </div>
+      <div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveEditTransaction('${t.id}')">Save changes</button><button class="small-btn" type="button" onclick="financeCancelEditTransaction()">Cancel</button><span class="save-msg" id="edit-fin-msg"></span></div>
     </div>`;
-  }).join('') : '';
+  }
 
-  return `<div class="tx-item tx-edit"><div class="finance-edit-grid">
-    <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="edit-fin-date" value="${escapeHtml(t.date)}"></div>
-    <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="edit-fin-store" list="finance-store-options" value="${escapeHtml(t.store||'')}"></div>
-    <div class="form-group"><label class="form-label">Amount</label><input class="form-input" type="number" step="0.01" id="edit-fin-total" value="${Number(t.total||0)}" oninput="financeEditUpdateTally()" ${hasItems?'readonly style="opacity:0.6"':''}></div>
-    <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="edit-fin-payment"><option value="credit" ${t.payment==='credit'?'selected':''}>Credit Card</option><option value="debit" ${t.payment==='debit'?'selected':''}>Debit Card</option><option value="cash" ${t.payment==='cash'?'selected':''}>Cash</option><option value="other" ${t.payment==='other'?'selected':''}>Other</option></select></div>
-    ${hasItems ? `
-    <div class="form-grid-full">
-      <div class="section-title small-title">Items</div>
-      <div class="items-section-note">Edit item names, amounts, or categories. Total updates automatically.</div>
-      <div id="edit-fin-item-lines">${itemRowsHtml}</div>
+  // ── Itemized transaction — grouped layout ──
+
+  // Detect duplicates (same name, case-insensitive)
+  const nameCounts = {};
+  splits.forEach(s => { if(s.name) { const k = s.name.toLowerCase(); nameCounts[k] = (nameCounts[k]||0)+1; } });
+
+  // Group by category
+  const groups = {};
+  splits.forEach((s, idx) => {
+    const cat = s.cat || 'other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push({ ...s, _idx: idx });
+  });
+
+  const total = parseFloat(splits.reduce((sum,s) => sum + Number(s.amount||0), 0).toFixed(2));
+
+  const groupsHtml = Object.entries(groups).map(([catId, items]) => {
+    const cat = financeCat(catId);
+    const groupTotal = items.reduce((s,i) => s + Number(i.amount||0), 0);
+    const pillBg = cat.color + '22', pillBo = cat.color + '55';
+
+    const rowsHtml = items.map(item => {
+      const taxable = item.taxable !== undefined ? item.taxable : itemTaxDefault(item.cat||'other');
+      const isDupe = item.name && (nameCounts[(item.name||'').toLowerCase()]||0) > 1;
+      const dupeBadge = isDupe ? `<span class="edit-dupe-badge" title="Duplicate item name">⚠ Dupe</span>` : '';
+
+      // Compact display row (shown by default)
+      const displayRow = `<div class="edit-item-display" data-item-idx="${item._idx}" onclick="financeEditItemExpand(this)">
+        <span class="edit-item-display-name">${escapeHtml(item.name||'—')}${dupeBadge}</span>
+        <span class="edit-item-display-amt">${financeFmt(item.amount)}</span>
+        <span class="fin-tax-toggle ${taxable?'tax-on':'tax-off'}" style="pointer-events:none;font-size:10px;padding:1px 5px;">${taxable?'T':'NT'}</span>
+        <span class="edit-item-chevron">›</span>
+      </div>`;
+
+      // Inline edit row (hidden by default, shown on tap)
+      const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}">
+        <div class="edit-item-inline-fields">
+          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
+            <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
+          <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Price</label>
+            <input class="form-input" type="number" step="0.01" data-role="item-amt" value="${Number(item.amount||0)||''}" oninput="financeEditItemsAutoSum(); financeEditStickyUpdate()" /></div>
+          <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
+            <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
+          <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
+            <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+          <button class="small-btn" type="button" onclick="financeEditItemCollapse(this)">Done</button>
+          <button class="small-btn danger-btn" type="button" onclick="financeEditItemDelete(this)">Remove</button>
+          ${isDupe ? `<button class="small-btn" type="button" onclick="financeEditMergeDupes('${escapeHtml(item.name||'')}')">Merge dupes</button>` : ''}
+        </div>
+      </div>`;
+
+      return displayRow + editRow;
+    }).join('');
+
+    return `<div class="edit-item-group" id="edit-group-${catId}">
+      <div class="edit-group-header" onclick="financeEditGroupToggle('${catId}')">
+        <span class="edit-group-pill" style="background:${pillBg};border:1px solid ${pillBo};color:${cat.color};">${cat.emoji} ${escapeHtml(cat.label)}</span>
+        <span class="edit-group-total">${financeFmt(groupTotal)}</span>
+        <span class="edit-group-chevron" id="edit-group-chevron-${catId}">▾</span>
+      </div>
+      <div class="edit-group-body" id="edit-group-body-${catId}">${rowsHtml}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="tx-item tx-edit tx-edit-items">
+    <!-- Sticky total bar -->
+    <div class="edit-sticky-total">
+      <div class="edit-sticky-left">
+        <span class="edit-sticky-label">Total</span>
+        <span class="edit-sticky-value" id="edit-total-display">${financeFmt(total)}</span>
+      </div>
+      <div class="edit-sticky-meta">
+        <span class="edit-sticky-count">${splits.length} items</span>
+        ${Object.keys(nameCounts).some(k => nameCounts[k] > 1) ? '<span class="edit-dupe-alert">⚠ Duplicates found</span>' : ''}
+      </div>
+    </div>
+    <!-- Header fields row -->
+    <div class="finance-edit-grid" style="margin-bottom:10px;">
+      <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="edit-fin-date" value="${escapeHtml(t.date)}"></div>
+      <div class="form-group"><label class="form-label">Merchant</label><input class="form-input" id="edit-fin-store" list="finance-store-options" value="${escapeHtml(t.store||'')}"></div>
+      <div class="form-group"><label class="form-label">Payment</label><select class="form-select" id="edit-fin-payment"><option value="credit" ${t.payment==='credit'?'selected':''}>Credit Card</option><option value="debit" ${t.payment==='debit'?'selected':''}>Debit Card</option><option value="cash" ${t.payment==='cash'?'selected':''}>Cash</option><option value="other" ${t.payment==='other'?'selected':''}>Other</option></select></div>
+      <div class="form-group"><label class="form-label">Notes</label><input class="form-input" id="edit-fin-notes" value="${escapeHtml(t.notes||'')}"></div>
+    </div>
+    <!-- Hidden total field driven by items sum -->
+    <input type="hidden" id="edit-fin-total" value="${total}" />
+    <!-- Grouped items -->
+    <div id="edit-fin-item-lines">${groupsHtml}</div>
+    <div style="margin-top:8px;">
       <button class="small-btn" type="button" onclick="financeEditAddItemLine()">+ Add item</button>
-    </div>` : `
-    <div class="form-grid-full"><div class="section-title small-title">Category</div><div class="mode-toggle finance-category-toggle"><button class="mode-btn ${!isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('quick')">One category</button><button class="mode-btn ${isSplit?'active':''}" type="button" onclick="financeEditSetSplitMode('split')">Split categories</button></div></div>
-    <div id="finance-edit-quick" class="form-row ${isSplit?'hidden':''}"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="edit-fin-cat">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${quick.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div><div class="form-group"><label class="form-label">Subcategory</label><input class="form-input" id="edit-fin-subcat" value="${escapeHtml(quick.subcat||'')}"></div></div>
-    <div id="finance-edit-split" class="form-grid-full ${isSplit?'':'hidden'}"><div class="split-tally"><span>Allocated: <strong id="edit-fin-tally-alloc">$0.00</strong></span><span id="edit-fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="edit-fin-split-lines">${splits.map(s=>financeEditSplitLineHtml(s)).join('')}</div><button class="small-btn full" type="button" onclick="financeEditAddSplitLine()">+ Add category line</button></div>`}
-    <div class="form-group finance-edit-notes"><label class="form-label">Notes</label><input class="form-input" id="edit-fin-notes" value="${escapeHtml(t.notes||'')}"></div>
-  </div><div class="btn-row"><button class="save-btn" type="button" onclick="financeSaveEditTransaction('${t.id}')">Save changes</button><button class="small-btn" type="button" onclick="financeCancelEditTransaction()">Cancel</button><span class="save-msg" id="edit-fin-msg"></span></div></div>`;
+    </div>
+    <div class="btn-row" style="margin-top:12px;"><button class="save-btn" type="button" onclick="financeSaveEditTransaction('${t.id}')">Save changes</button><button class="small-btn" type="button" onclick="financeCancelEditTransaction()">Cancel</button><span class="save-msg" id="edit-fin-msg"></span></div>
+  </div>`;
 }
 
+// ── Edit item interactions ──────────────────────────
+function financeEditItemExpand(displayRow) {
+  const idx = displayRow.dataset.itemIdx;
+  const editRow = displayRow.nextElementSibling;
+  if (!editRow) return;
+  displayRow.classList.add('hidden');
+  editRow.classList.remove('hidden');
+  editRow.querySelector('[data-role="item-name"]')?.focus();
+}
+
+function financeEditItemCollapse(btn) {
+  const editRow = btn.closest('.edit-item-inline');
+  if (!editRow) return;
+  const displayRow = editRow.previousElementSibling;
+  // Update display row with new values
+  const name = editRow.querySelector('[data-role="item-name"]')?.value.trim() || '—';
+  const amt  = Number(editRow.querySelector('[data-role="item-amt"]')?.value || 0);
+  const taxable = editRow.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+  const nameEl = displayRow?.querySelector('.edit-item-display-name');
+  const amtEl  = displayRow?.querySelector('.edit-item-display-amt');
+  const taxEl  = displayRow?.querySelector('.fin-tax-toggle');
+  if (nameEl) nameEl.textContent = name;
+  if (amtEl)  amtEl.textContent  = financeFmt(amt);
+  if (taxEl)  { taxEl.textContent = taxable ? 'T' : 'NT'; taxEl.className = `fin-tax-toggle ${taxable?'tax-on':'tax-off'}`; }
+  editRow.classList.add('hidden');
+  displayRow?.classList.remove('hidden');
+}
+
+function financeEditItemDelete(btn) {
+  const editRow = btn.closest('.edit-item-inline');
+  const displayRow = editRow?.previousElementSibling;
+  editRow?.remove();
+  displayRow?.remove();
+  financeEditItemsAutoSum();
+  financeEditStickyUpdate();
+}
+
+function financeEditGroupToggle(catId) {
+  const body    = document.getElementById('edit-group-body-' + catId);
+  const chevron = document.getElementById('edit-group-chevron-' + catId);
+  if (!body) return;
+  const collapsed = body.classList.toggle('hidden');
+  if (chevron) chevron.textContent = collapsed ? '›' : '▾';
+}
+
+function financeEditMergeDupes(name) {
+  const lower = name.toLowerCase();
+  // Collect all edit rows with matching name
+  const matches = [...document.querySelectorAll('#edit-fin-item-lines .edit-item-inline')]
+    .filter(row => (row.querySelector('[data-role="item-name"]')?.value || '').toLowerCase() === lower);
+  if (matches.length < 2) return;
+  // Sum all amounts into the first, remove the rest
+  let total = 0;
+  matches.forEach(row => { total += Number(row.querySelector('[data-role="item-amt"]')?.value || 0); });
+  matches[0].querySelector('[data-role="item-amt"]').value = parseFloat(total.toFixed(2));
+  for (let i = 1; i < matches.length; i++) {
+    matches[i].previousElementSibling?.remove(); // display row
+    matches[i].remove(); // edit row
+  }
+  // Collapse merged item
+  financeEditItemCollapse(matches[0].querySelector('button'));
+  financeEditItemsAutoSum();
+  financeEditStickyUpdate();
+}
+
+function financeEditStickyUpdate() {
+  let sum = 0;
+  document.querySelectorAll('#edit-fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value)||0; });
+  const totalHidden = document.getElementById('edit-fin-total');
+  const display     = document.getElementById('edit-total-display');
+  const computed    = parseFloat(sum.toFixed(2));
+  if (totalHidden) totalHidden.value = computed;
+  if (display) display.textContent = financeFmt(computed);
+  // Also update non-itemized sticky
+  const manualTotal = Number(document.getElementById('edit-fin-total')?.value || 0);
+  if (display && sum === 0 && manualTotal > 0) display.textContent = financeFmt(manualTotal);
+}
+function financeEditSplitLineHtml(split={cat:'groceries',amount:''}){ return `<div class="split-line"><select class="form-select" data-role="edit-cat" onchange="financeEditUpdateTally()">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${split.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select><input class="form-input" type="number" step="0.01" data-role="edit-amt" value="${Number(split.amount||0)||''}" oninput="financeEditUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeEditUpdateTally();">×</button></div>`; }
+
+function financeEditItemsAutoSum() { financeEditStickyUpdate(); }
+function financeEditSetSplitMode(mode){ financeEditSplitMode=mode; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
+function financeEditAddSplitLine(){ const wrap=document.getElementById('edit-fin-split-lines'); if(!wrap) return; wrap.insertAdjacentHTML('beforeend', financeEditSplitLineHtml()); financeEditUpdateTally(); }
 function financeEditAddItemLine() {
+  // Adds a new ungrouped item — expanded for immediate edit
   const wrap = document.getElementById('edit-fin-item-lines');
   if (!wrap) return;
   const cat = 'groceries';
   const taxable = itemTaxDefault(cat);
+  // Create a mini group "New item" at the bottom
   const div = document.createElement('div');
-  div.className = 'fin-item-line';
+  div.className = 'edit-item-group';
   div.innerHTML = `
-    <input class="form-input fin-item-name" data-role="item-name" placeholder="Item name" />
-    <input class="form-input fin-item-amt" type="number" step="0.01" min="0" data-role="item-amt" placeholder="0.00" oninput="financeEditItemsAutoSum()" />
-    <select class="form-select fin-item-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
-    <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
-      type="button" onclick="financeToggleItemTax(this)">${taxable ? 'T' : 'NT'}</button>
-    <button class="small-btn danger-btn" type="button" onclick="this.closest('.fin-item-line').remove(); financeEditItemsAutoSum();">×</button>`;
+    <div class="edit-item-inline" style="padding:10px 12px;">
+      <div class="edit-item-inline-fields">
+        <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
+          <input class="form-input" data-role="item-name" placeholder="Item name" /></div>
+        <div class="form-group" style="margin:0;width:90px;"><label class="form-label">Price</label>
+          <input class="form-input" type="number" step="0.01" data-role="item-amt" placeholder="0.00" oninput="financeEditItemsAutoSum(); financeEditStickyUpdate()" /></div>
+        <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
+          <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select></div>
+        <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
+          <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+        <button class="small-btn danger-btn" type="button" onclick="this.closest('.edit-item-group').remove(); financeEditStickyUpdate();">Remove</button>
+      </div>
+    </div>`;
   wrap.appendChild(div);
+  div.querySelector('[data-role="item-name"]')?.focus();
 }
-
-function financeEditItemsAutoSum() {
-  const totalEl = document.getElementById('edit-fin-total');
-  if (!totalEl) return;
-  let sum = 0;
-  document.querySelectorAll('#edit-fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value) || 0; });
-  if (sum > 0) totalEl.value = parseFloat(sum.toFixed(2));
-}
-function financeEditSplitLineHtml(split={cat:'groceries',amount:''}){ return `<div class="split-line"><select class="form-select" data-role="edit-cat" onchange="financeEditUpdateTally()">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${split.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select><input class="form-input" type="number" step="0.01" data-role="edit-amt" value="${Number(split.amount||0)||''}" oninput="financeEditUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeEditUpdateTally();">×</button></div>`; }
-function financeEditSetSplitMode(mode){ financeEditSplitMode=mode; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
-function financeEditAddSplitLine(){ const wrap=document.getElementById('edit-fin-split-lines'); if(!wrap) return; wrap.insertAdjacentHTML('beforeend', financeEditSplitLineHtml()); financeEditUpdateTally(); }
 function financeEditUpdateTally(){ const total=Number(document.getElementById('edit-fin-total')?.value||0); let alloc=0; document.querySelectorAll('#edit-fin-split-lines [data-role="edit-amt"]').forEach(el=>alloc+=Number(el.value||0)); const rem=total-alloc; const a=document.getElementById('edit-fin-tally-alloc'); const r=document.getElementById('edit-fin-tally-rem'); if(a) a.textContent=financeFmt(alloc); if(r){ r.textContent=`Remaining: ${financeFmt(rem)}`; r.style.color=Math.abs(rem)<.02?'var(--success)':rem<0?'var(--danger)':'var(--muted)'; } }
 function financeStartEditTransaction(id){ const t=financeState.transactions.find(x=>x.id===id); financeEditingTransactionId=id; financeEditSplitMode=(t?.splits?.length||0)>1?'split':'quick'; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
 function financeCancelEditTransaction(){ financeEditingTransactionId=null; financeRenderHistory(); }
@@ -3167,22 +3411,23 @@ async function financeSaveEditTransaction(id){
   if(!date || !Number.isFinite(total) || total<=0){ financeShowMsg('edit-fin-msg','Date and positive amount are required.',true); return; }
 
   let splits=[];
-  const itemLines = document.querySelectorAll('#edit-fin-item-lines .fin-item-line');
+  const itemLines = document.querySelectorAll('#edit-fin-item-lines .edit-item-inline');
   if (itemLines.length > 0) {
-    // Item-based edit
-    const rawEditItems = [];
-    itemLines.forEach(line => {
-      const name    = line.querySelector('[data-role="item-name"]')?.value.trim() || '';
-      const amount  = Number(line.querySelector('[data-role="item-amt"]')?.value || 0);
-      const cat     = line.querySelector('[data-role="item-cat"]')?.value || 'other';
-      const taxable = line.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
-      if (amount > 0) rawEditItems.push({ name, amount, cat, taxable });
+    // Grouped itemized edit — read from all inline edit rows (expanded or not)
+    itemLines.forEach(row => {
+      const name    = row.querySelector('[data-role="item-name"]')?.value.trim() || '';
+      const amount  = Number(row.querySelector('[data-role="item-amt"]')?.value || 0);
+      const cat     = row.querySelector('[data-role="item-cat"]')?.value || 'other';
+      const taxable = row.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+      if (amount > 0) splits.push({ cat, subcat:'', amount: parseFloat(amount.toFixed(2)), ...(name?{name}:{}), taxable });
     });
-    if (!rawEditItems.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
-    // Tax is already baked into amounts for existing items (from original save)
-    // Just rebuild splits preserving taxable flag
-    rawEditItems.forEach(item => {
-      splits.push({ cat: item.cat, subcat: '', amount: parseFloat(item.amount.toFixed(2)), ...(item.name ? {name: item.name} : {}), taxable: item.taxable });
+    // Also read display-only rows that were never expanded (original data preserved)
+    const allDisplayRows = document.querySelectorAll('#edit-fin-item-lines .edit-item-display');
+    allDisplayRows.forEach(display => {
+      const sibling = display.nextElementSibling;
+      if (!sibling || !sibling.classList.contains('edit-item-inline')) return;
+      // Only read display row if its sibling edit row has no amount (means it was never opened)
+      // Skip — inline rows cover all items including unexpanded ones via their hidden state
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
   } else if(financeEditSplitMode==='split'){
