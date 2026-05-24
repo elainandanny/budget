@@ -2048,11 +2048,11 @@ function formatAIContent(content, role = 'assistant') {
   if (role !== 'assistant') return escapeHtml(raw);
   if (!raw.trim()) return '';
 
-  // Strip any SUGGESTIONS line that leaked through (should already be parsed out)
+  // Strip any SUGGESTIONS line that leaked through
   let text = raw.replace(/\nSUGGESTIONS:.*$/im, '').trimEnd();
 
-  // Strip markdown code fences Gemini sometimes adds despite instructions
-  text = text.replace(/^```[\w]*\n?/gm, '').replace(/^```\s*$/gm, '').trim();
+  // Strip ALL triple-backtick fence patterns (last resort catch-all)
+  text = text.replace(/```[\w]*\n?/g, '').replace(/```/g, '').trim();
 
   // Normalise line endings
   text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
@@ -2215,36 +2215,23 @@ function compactEntriesForAI() {
 
 function extractGeminiStreamText(rawChunk) {
   const chunk = String(rawChunk || '');
-  if (!chunk.trim()) return '';
+  if (!chunk) return '';
 
-  // Our Edge Function streams plain text directly (already extracted from Gemini JSON).
-  // Try JSON parse first in case response is raw Gemini format; otherwise use as-is.
-  const lines = chunk.split('\n');
-  let text = '';
-  let hasJson = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed === '[DONE]') continue;
-    const payload = trimmed.startsWith('data:') ? trimmed.slice(5).trim() : trimmed;
-    if (!payload || payload === '[DONE]') continue;
-
-    try {
-      const parsed = JSON.parse(payload);
-      const items = Array.isArray(parsed) ? parsed : [parsed];
-      for (const item of items) {
-        const parts = item?.candidates?.[0]?.content?.parts || [];
-        for (const part of parts) {
-          if (typeof part?.text === 'string') { text += part.text; hasJson = true; }
-        }
-      }
-    } catch {
-      // Not JSON — treat as plain text (Edge Function already extracted text)
-      if (!hasJson) text += line; // preserve newlines for proper rendering
+  // Our Edge Function already extracts text from Gemini JSON and streams plain text.
+  // Simply return the chunk as-is. Only try JSON parsing if it looks like Gemini JSON.
+  if (chunk.includes('"candidates"') && chunk.includes('"content"')) {
+    // Raw Gemini JSON format — extract text fields
+    let text = '';
+    const matches = chunk.match(/"text"\s*:\s*"((?:\\.|[^"\\])*)"/g) || [];
+    for (const m of matches) {
+      const raw = m.replace(/^"text"\s*:\s*"/, '').replace(/"$/, '');
+      try { text += JSON.parse('"' + raw + '"'); } catch { text += raw; }
     }
+    return text;
   }
 
-  return text;
+  // Plain text stream — return as-is, preserving all whitespace and newlines
+  return chunk;
 }
 
 function friendlyAIError(error, status = null) {
@@ -2426,15 +2413,11 @@ async function askGasAgent() {
 
       if (extracted) {
         streamedText += extracted;
-        // Strip code fences Gemini adds (``` or ```json at start/end)
-        // Use a simple string replace that works on partial chunks too
-        const stripped = streamedText
-          .split('\n')
-          .filter(line => !/^```/.test(line.trim()))
-          .join('\n')
-          .trim();
-        const { clean, suggestions } = parseSuggestionsFromText(stripped || streamedText);
-        assistantMessage.content = clean || stripped || streamedText;
+        // Strip ALL triple-backtick fence patterns wherever they appear
+        const stripped = streamedText.replace(/```[\w]*\n?/g, '').replace(/```/g, '').trim();
+        const display = stripped || streamedText;
+        const { clean, suggestions } = parseSuggestionsFromText(display);
+        assistantMessage.content = clean || display;
         if (suggestions.length) chatFollowUps = suggestions;
       } else if (!streamedText) {
         assistantMessage.content = '...';
@@ -2458,15 +2441,11 @@ async function askGasAgent() {
       renderChatMessages();
     }
 
-    // Final pass — clean up any fence remnants and extract SUGGESTIONS
+    // Final pass — strip any fence remnants and parse SUGGESTIONS
     if (assistantMessage.content) {
-      const finalStripped = assistantMessage.content
-        .split('\n')
-        .filter(line => !/^```/.test(line.trim()))
-        .join('\n')
-        .trim();
+      const finalStripped = assistantMessage.content.replace(/```[\w]*\n?/g, '').replace(/```/g, '').trim();
       const { clean: finalClean, suggestions: finalSuggestions } = parseSuggestionsFromText(finalStripped);
-      chatFollowUps = finalSuggestions.length ? finalSuggestions : chatFollowUps;
+      if (finalSuggestions.length) chatFollowUps = finalSuggestions;
       assistantMessage.content = finalClean || finalStripped || assistantMessage.content;
       renderChatMessages();
     }
