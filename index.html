@@ -2423,13 +2423,12 @@ async function askGasAgent() {
 
       if (extracted) {
         streamedText += extracted;
-        // Strip markdown code fences aggressively — Gemini adds these despite instructions
-        // Must strip from raw accumulated text, not just at render time
+        // Strip markdown code fences — only full fence patterns, not inline code
         const stripped = streamedText
-          .replace(/```[\w]*\n?/g, '')   // opening fence: ```json or ```
-          .replace(/`{1,3}/g, '');        // any remaining backtick clusters
+          .replace(/^```[\w]*\r?\n?/gm, '')  // opening fence like ```json
+          .replace(/^```\s*$/gm, '');          // closing fence ```
         const { clean, suggestions } = parseSuggestionsFromText(stripped);
-        assistantMessage.content = clean;
+        assistantMessage.content = clean || stripped;
         if (suggestions.length) chatFollowUps = suggestions;
       } else if (!streamedText) {
         assistantMessage.content = '...';
@@ -2443,9 +2442,9 @@ async function askGasAgent() {
       try {
         const parsed = JSON.parse(rawFallback);
         const raw = parsed?.answer || parsed?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-        const stripped = raw.replace(/```[\w]*\n?/g, '').replace(/`{1,3}/g, '');
+        const stripped = raw.replace(/^```[\w]*\r?\n?/gm, '').replace(/^```\s*$/gm, '');
         const { clean, suggestions } = parseSuggestionsFromText(stripped);
-        assistantMessage.content = clean || 'I could not generate an answer.';
+        assistantMessage.content = clean || stripped || 'I could not generate an answer.';
         if (suggestions.length) chatFollowUps = suggestions;
       } catch {
         assistantMessage.content = rawFallback.trim() || 'I could not generate an answer.';
@@ -2453,14 +2452,14 @@ async function askGasAgent() {
       renderChatMessages();
     }
 
-    // Final pass — strip any remaining backticks and extract SUGGESTIONS
+    // Final pass — strip any remaining fences and extract SUGGESTIONS
     const finalStripped = (assistantMessage.content || '')
-      .replace(/```[\w]*\n?/g, '')
-      .replace(/`{1,3}/g, '');
+      .replace(/^```[\w]*\r?\n?/gm, '')
+      .replace(/^```\s*$/gm, '');
     const { clean: finalClean, suggestions: finalSuggestions } = parseSuggestionsFromText(finalStripped);
     if (finalSuggestions.length || finalStripped !== assistantMessage.content) {
       chatFollowUps = finalSuggestions.length ? finalSuggestions : chatFollowUps;
-      assistantMessage.content = finalClean;
+      assistantMessage.content = finalClean || finalStripped;
       renderChatMessages();
     }
 
