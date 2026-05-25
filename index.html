@@ -5667,6 +5667,198 @@ showCorrectView = function() {
     if (hint) useAndSendChatHint(hint);
   }
 });
+
+
+/* =========================================================
+   FIX: itemized finance edit unit/quantity/total behavior
+   Added by ChatGPT - May 25, 2026
+   ========================================================= */
+
+function financeLineContainer(el) {
+  return el?.closest?.('.fin-item-line') || el?.closest?.('.edit-item-inline') || null;
+}
+
+function financeLineTotalInput(line) {
+  return line?.querySelector?.('[data-role="item-amt"]') || null;
+}
+
+function financeItemUnitMode(btn, unit) {
+  const line = financeLineContainer(btn);
+  if (!line) return;
+
+  line.querySelectorAll('.fil-unit-btn').forEach(b => {
+    b.classList.toggle('active', b === btn || b.dataset.unit === unit);
+  });
+
+  const qtyEl = line.querySelector('[data-role="item-qty"]');
+  if (qtyEl) {
+    qtyEl.step = unit === 'lb' ? '0.01' : '1';
+    qtyEl.min = unit === 'lb' ? '0' : '1';
+    qtyEl.placeholder = unit === 'lb' ? 'lbs' : 'qty';
+
+    const label = qtyEl.closest('.form-group')?.querySelector('.form-label');
+    if (label) label.textContent = unit === 'lb' ? 'Lbs' : 'Qty';
+
+    if (unit === 'each') {
+      const currentQty = parseFloat(qtyEl.value);
+      qtyEl.value = Number.isFinite(currentQty) && currentQty > 0
+        ? Math.max(1, Math.round(currentQty))
+        : 1;
+    }
+  }
+
+  financeItemCalcTotal(line);
+}
+
+function financeItemCalcTotal(inputOrLine) {
+  const line = inputOrLine?.matches?.('.fin-item-line, .edit-item-inline')
+    ? inputOrLine
+    : financeLineContainer(inputOrLine);
+  if (!line) return;
+
+  const qtyEl = line.querySelector('[data-role="item-qty"]');
+  const unitPriceEl = line.querySelector('[data-role="item-unit-price"]');
+  const totalEl = financeLineTotalInput(line);
+  if (!qtyEl || !unitPriceEl || !totalEl) return;
+
+  const unit = line.querySelector('.fil-unit-btn.active')?.dataset.unit || 'each';
+  let qty = parseFloat(qtyEl.value);
+  const unitPrice = parseFloat(unitPriceEl.value);
+
+  if (!Number.isFinite(qty) || qty <= 0) qty = unit === 'lb' ? 0 : 1;
+  if (unit === 'each') {
+    qty = Math.max(1, Math.round(qty));
+    qtyEl.value = qty;
+  }
+
+  const total = Number.isFinite(unitPrice) && unitPrice > 0 ? qty * unitPrice : 0;
+  totalEl.value = total > 0 ? total.toFixed(2) : '';
+
+  if (line.classList.contains('edit-item-inline')) {
+    financeEditStickyUpdate();
+  } else if (typeof financeItemsAutoSum === 'function') {
+    financeItemsAutoSum();
+  }
+}
+
+function financeEditQtyChanged(input) {
+  financeItemCalcTotal(input);
+}
+
+function financeEditStickyUpdate() {
+  let sum = 0;
+  document.querySelectorAll('#edit-fin-item-lines .edit-item-inline').forEach(row => {
+    const totalEl = row.querySelector('[data-role="item-amt"]');
+    const amount = parseFloat(totalEl?.value);
+    if (Number.isFinite(amount)) sum += amount;
+  });
+
+  sum = parseFloat(sum.toFixed(2));
+
+  const hiddenTotal = document.getElementById('edit-fin-total');
+  if (hiddenTotal) hiddenTotal.value = sum.toFixed(2);
+
+  const display = document.getElementById('edit-total-display');
+  if (display) display.textContent = financeFmt(sum);
+
+  if (typeof financeEditUpdateTally === 'function') financeEditUpdateTally();
+}
+
+function financeEditItemCollapse(btn) {
+  const editRow = btn.closest('.edit-item-inline');
+  if (!editRow) return;
+
+  financeItemCalcTotal(editRow);
+
+  const displayRow = editRow.previousElementSibling;
+  const name = editRow.querySelector('[data-role="item-name"]')?.value.trim() || '—';
+  const qty = parseFloat(editRow.querySelector('[data-role="item-qty"]')?.value || '1');
+  const unit = editRow.querySelector('.fil-unit-btn.active')?.dataset.unit || 'each';
+  const amt  = Number(editRow.querySelector('[data-role="item-amt"]')?.value || 0);
+  const taxable = editRow.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
+
+  const qtyBadge = unit === 'lb'
+    ? ` <span class="edit-qty-badge">${qty} lb</span>`
+    : qty > 1 ? ` <span class="edit-qty-badge">×${qty}</span>` : '';
+
+  const nameEl = displayRow?.querySelector('.edit-item-display-name');
+  const amtEl  = displayRow?.querySelector('.edit-item-display-amt');
+  const taxEl  = displayRow?.querySelector('.fin-tax-toggle');
+
+  if (nameEl) nameEl.innerHTML = `${escapeHtml(name)}${qtyBadge}`;
+  if (amtEl)  amtEl.textContent = financeFmt(amt);
+  if (taxEl)  {
+    taxEl.textContent = taxable ? 'T' : 'NT';
+    taxEl.className = `fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}`;
+  }
+
+  editRow.classList.add('hidden');
+  displayRow?.classList.remove('hidden');
+  financeEditStickyUpdate();
+}
+
+function financeEditAddItemLine() {
+  const wrap = document.getElementById('edit-fin-item-lines');
+  if (!wrap) return;
+
+  const cat = 'groceries';
+  const taxable = typeof itemTaxDefault === 'function' ? itemTaxDefault(cat) : true;
+  const div = document.createElement('div');
+  div.className = 'edit-item-group';
+  div.innerHTML = `
+    <div class="edit-item-inline" style="padding:10px 12px;">
+      <div class="edit-item-inline-fields">
+        <div class="form-group" style="margin:0;flex:1;min-width:120px;">
+          <label class="form-label">Name</label>
+          <input class="form-input" data-role="item-name" placeholder="Item name" />
+        </div>
+        <div class="form-group" style="margin:0;width:80px;">
+          <label class="form-label">Unit</label>
+          <div class="fil-unit-toggle" style="margin-top:2px;">
+            <button class="fil-unit-btn active" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
+            <button class="fil-unit-btn" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')">lb</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin:0;width:65px;">
+          <label class="form-label">Qty</label>
+          <input class="form-input" type="number" step="1" min="1" data-role="item-qty" value="1" oninput="financeItemCalcTotal(this)" />
+        </div>
+        <div class="form-group" style="margin:0;width:80px;">
+          <label class="form-label">$/unit</label>
+          <input class="form-input" type="number" step="0.01" min="0" data-role="item-unit-price" placeholder="0.00" oninput="financeItemCalcTotal(this)" />
+        </div>
+        <div class="form-group" style="margin:0;width:80px;">
+          <label class="form-label">Total</label>
+          <input class="form-input" type="number" step="0.01" data-role="item-amt" placeholder="0.00" readonly style="opacity:0.7" />
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Category</label>
+          <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Tax</label>
+          <button class="small-btn fin-tax-toggle ${taxable ? 'tax-on' : 'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable ? 'T' : 'NT'}</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:6px;justify-content:flex-end;">
+        <button class="small-btn danger-btn" type="button" onclick="this.closest('.edit-item-group').remove(); financeEditStickyUpdate();">Remove</button>
+      </div>
+    </div>`;
+
+  wrap.appendChild(div);
+  div.querySelector('[data-role="item-name"]')?.focus();
+  financeEditStickyUpdate();
+}
+
+const financeSaveEditTransactionOriginalForUnitFix = financeSaveEditTransaction;
+financeSaveEditTransaction = async function(id) {
+  document.querySelectorAll('#edit-fin-item-lines .edit-item-inline').forEach(row => {
+    financeItemCalcTotal(row);
+  });
+  financeEditStickyUpdate();
+  return financeSaveEditTransactionOriginalForUnitFix(id);
+};
+
 </script>
 </body>
 </html>
