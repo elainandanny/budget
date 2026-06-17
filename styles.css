@@ -2540,3 +2540,49 @@ input[type="date"] {
   .fil-unit-price { width: 68px; }
   .fil-total { width: 68px; }
 }
+
+/* ── Return / Price Match badges on transaction items ── */
+.badge-returned {
+  background: rgba(226,75,74,0.12);
+  color: var(--danger);
+  border: 1px solid rgba(226,75,74,0.25);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+.badge-pricematch {
+  background: rgba(46,171,111,0.12);
+  color: var(--success);
+  border: 1px solid rgba(46,171,111,0.25);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+/* ── Weight-mode toggle button on item rows ── */
+.fil-weight-toggle {
+  flex-shrink: 0;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  opacity: 0.65;
+  transition: opacity 0.15s, background 0.15s;
+}
+.fil-weight-toggle:hover { opacity: 1; background: rgba(232,200,64,0.15); }
+.fil-weight-toggle.active {
+  background: rgba(74,144,217,0.15);
+  border-color: rgba(74,144,217,0.4);
+  color: #4a90d9;
+  opacity: 1;
+}
+
+/* ── Return sub-type toggle (Return | Price Match) ── */
+.finance-return-type-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 10px;
+}
