@@ -190,7 +190,7 @@
                 <div class="form-group">
                   <label class="form-label">Merchant</label>
                   <input class="form-input" id="fin-store" list="finance-store-options" placeholder="Costco, Target, Amazon"
-                    oninput="financePopulateReturnLinks(); financeProgressReveal()">
+                    oninput="financePopulateReturnLinks(); financeProgressReveal(); if(financeTxType==='return'){const f=document.getElementById('fin-return-merchant-filter');if(f&&!f.value)f.value=this.value;}">
                   <datalist id="finance-store-options"></datalist>
                   <div class="merchant-sort-row">
                     <button class="small-btn merchant-sort-btn active" data-sort="recent5" onclick="financeMerchantSortChange('recent5',this)">Recent 5</button>
@@ -2731,6 +2731,9 @@ function financeChooseMerchant(value) {
   if(!value) return;
   const el = document.getElementById('fin-store');
   if(el) el.value = value;
+  // Auto-fill the return merchant filter field
+  const retFilter = document.getElementById('fin-return-merchant-filter');
+  if (retFilter && financeTxType === 'return') retFilter.value = value;
   financePopulateReturnLinks();
   financeProgressReveal();
 }
@@ -2799,7 +2802,13 @@ function financeSetTxType(type){
   document.getElementById('finance-expense-form')?.classList.toggle('hidden', type === 'income');
   document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income');
   document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return');
-  if(type === 'return') { financePopulateReturnLinks(); }
+  if(type === 'return') {
+    financePopulateReturnLinks();
+    // Auto-fill merchant filter from merchant field
+    const merchant = document.getElementById('fin-store')?.value.trim() || '';
+    const retFilter = document.getElementById('fin-return-merchant-filter');
+    if (retFilter && merchant) retFilter.value = merchant;
+  }
   financeProgressReveal();
 }
 let financeReturnSubType = 'return'; // 'return' | 'price_match'
@@ -3525,14 +3534,38 @@ function financeRenderCalendar(){
     (t.splits||[]).forEach(s => { catTotals[s.cat] = (catTotals[s.cat]||0) + Number(s.amount||0); });
     const cats = Object.entries(catTotals).map(([id,amt]) => catPillHtml(id, amt)).join(' ');
 
-    // Named items from receipt scans or manual itemized entry
+    // Collect return/price-match info for item badges
+    const linkedTxs = financeState.transactions.filter(r => r.linked_id === t.id && r.is_return);
+    const returnedNames = new Set();
+    const pmNames = {};
+    linkedTxs.forEach(r => {
+      (r.splits||[]).forEach(s => {
+        if (s.name) {
+          if (r.return_type === 'price_match') pmNames[s.name.toLowerCase()] = (pmNames[s.name.toLowerCase()]||0) + Number(s.amount||0);
+          else returnedNames.add(s.name.toLowerCase());
+        }
+      });
+      if (!(r.splits||[]).some(s=>s.name)) {
+        if (r.return_type === 'price_match') pmNames['__whole__'] = r.total;
+        else returnedNames.add('__whole__');
+      }
+    });
+
+    const { adjLine } = financeTxNetInfo(t);
+    const netLine = adjLine ? `<div class="cal-net-line">${adjLine}</div>` : '';
+
     const namedItems = (t.splits||[]).filter(s => s.name);
     const itemsHtml = namedItems.length
       ? `<div class="cal-entry-items hidden" id="cal-items-${t.id}">
           ${namedItems.map(s => {
             const c = financeCat(s.cat);
+            const weightStr = financeItemWeightLabel(s);
+            const itemLower = (s.name||'').toLowerCase();
+            const retBadge = returnedNames.has(itemLower) ? ' <span class="badge badge-returned" style="font-size:9px;">↩</span>' : '';
+            const pmBadge  = pmNames[itemLower] ? ' <span class="badge badge-pricematch" style="font-size:9px;">💲</span>' : '';
             return `<div class="cal-item-row">
-              <span class="cal-item-name">${escapeHtml(s.name)}</span>
+              <span class="cal-item-name">${escapeHtml(s.name)}${retBadge}${pmBadge}</span>
+              ${weightStr ? `<span class="cal-item-weight">${weightStr}</span>` : ''}
               <span class="cal-item-cat" style="color:${c.color}">${c.emoji}</span>
               <span class="cal-item-amt">${financeFmt(s.amount)}</span>
             </div>`;
@@ -3546,13 +3579,19 @@ function financeRenderCalendar(){
         </button>`
       : '';
 
+    const wholeRetBadge = returnedNames.has('__whole__') ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
+    const wholePMBadge  = pmNames['__whole__'] ? ' <span class="badge badge-pricematch">💲 Price Matched</span>' : '';
+
     return `<div class="calendar-entry">
       <div class="calendar-entry-title">
         ${escapeHtml(t.store || 'Transaction')}
         ${t.is_return?'<span class="badge">Return</span>':''}
+        ${t.return_type==='price_match'?'<span class="badge badge-pricematch">Price Match</span>':''}
         ${t.source==='gas'?'<span class="badge">Gas import</span>':''}
+        ${wholeRetBadge}${wholePMBadge}
       </div>
       <div class="calendar-entry-sub">${t.is_return?'-':''}${financeFmt(t.total)} · ${cats}${itemsToggle}</div>
+      ${netLine}
       ${t.notes?`<div class="calendar-entry-sub">${escapeHtml(t.notes)}</div>`:''}
       ${itemsHtml}
     </div>`;
@@ -4703,7 +4742,7 @@ financeTransactionCard = function(t) {
         const cat = financeCat(s.cat);
         const qtyLabel = s.qty && s.unit && (s.qty !== 1 || s.unit !== 'each')
           ? `<span class="tx-item-qty">${s.unit==='lb'?s.qty+'lb':(s.qty>1?'×'+s.qty:'')}</span>` : '';
-        const lbsLabel = s.lbs ? `<span class="tx-item-qty">${s.lbs}lb</span>` : '';
+        const lbsLabel = s.lbs ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
         const itemLower = (s.name || '').toLowerCase();
         const retBadge = returnedItemNames.has(itemLower) ? ' <span class="badge badge-returned" style="font-size:9px;">↩ Returned</span>' : '';
         const pmBadge  = priceMatchedItems[itemLower] ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 Price Match</span>` : '';
@@ -4711,14 +4750,19 @@ financeTransactionCard = function(t) {
       }).join('')}</div>`
     : '';
 
+  const { netTotal, adjLine } = financeTxNetInfo(t);
+  const netLine = adjLine ? `<div class="tx-net-line">${adjLine}</div>` : '';
+
   return `<div class="tx-item" id="tx-card-${t.id}">
     <div style="min-width:0;flex:1;">
       <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.return_type === 'price_match' ? '<span class="badge badge-pricematch">Price Match</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}${wholeReturnBadge}${wholePMBadge}</div>
       <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${itemBadge}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
+      ${netLine}
       ${itemList}
     </div>
     <div class="tx-right">
       <strong>${t.is_return ? '-' : ''}${financeFmt(t.total)}</strong>
+      ${adjLine ? `<div class="tx-net-amt">${financeFmt(netTotal)}</div>` : ''}
       ${t.source === 'gas' ? '<span class="metric-sub">Edit in Gas History</span>' :
         `<div class="btn-row compact-actions">
           <button class="small-btn" type="button" onclick="financeStartEditTransaction('${t.id}')">Edit</button>
@@ -4731,6 +4775,40 @@ financeTransactionCard = function(t) {
 function financeToggleItemList(id) {
   const el = document.getElementById('tx-items-' + id);
   if (el) el.classList.toggle('hidden');
+}
+
+// ── Shared helpers used by history, calendar, and transaction cards ──
+
+// Returns weight display string for an item split: "$2.50/lb · 2lb"
+function financeItemWeightLabel(s) {
+  if (!s.lbs || s.lbs <= 0) return '';
+  const perLb = s.amount > 0 ? (s.amount / s.lbs).toFixed(2) : null;
+  return perLb ? `$${perLb}/lb · ${s.lbs}lb` : `${s.lbs}lb`;
+}
+
+// Returns { netTotal, adjLine } for a transaction:
+//   netTotal = original total minus any linked returns/price-matches
+//   adjLine  = human-readable string like "↩ $5.33 returned · Net $88.96"
+function financeTxNetInfo(t) {
+  const linkedTxs = financeState.transactions.filter(r =>
+    r.linked_id === t.id && r.is_return
+  );
+  if (!linkedTxs.length) return { netTotal: t.total, adjLine: '' };
+  const totalRefunded = linkedTxs.reduce((sum, r) => sum + Number(r.total || 0), 0);
+  const netTotal = parseFloat((t.total - totalRefunded).toFixed(2));
+  const returns  = linkedTxs.filter(r => r.return_type !== 'price_match');
+  const pms      = linkedTxs.filter(r => r.return_type === 'price_match');
+  const parts = [];
+  if (returns.length) {
+    const amt = returns.reduce((s,r) => s + r.total, 0);
+    parts.push(`↩ ${financeFmt(amt)} returned`);
+  }
+  if (pms.length) {
+    const amt = pms.reduce((s,r) => s + r.total, 0);
+    parts.push(`💲 ${financeFmt(amt)} price matched`);
+  }
+  parts.push(`Net ${financeFmt(netTotal)}`);
+  return { netTotal, adjLine: parts.join(' · ') };
 }
 
 // Also patch financeRenderCategoryBreakdown to use consistent colors (already uses c.color)
