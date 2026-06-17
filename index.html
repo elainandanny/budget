@@ -241,31 +241,35 @@
               <!-- Step 3: Category (revealed after amount) -->
               <div id="fin-step-category" class="form-reveal hidden">
                 <div class="section-title small-title">Category</div>
-                <div class="mode-toggle finance-category-toggle"><button class="mode-btn active" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
-                <div id="finance-split-quick" class="form-row"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick" onchange="financeProgressReveal()"></select></div></div>
-                <div id="finance-split-detail" class="hidden"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
+                <div class="mode-toggle finance-category-toggle"><button class="mode-btn" id="fin-split-quick-btn" type="button" onclick="financeSetSplitMode('quick')">One category</button><button class="mode-btn active" id="fin-split-split-btn" type="button" onclick="financeSetSplitMode('split')">Split categories</button></div>
+                <div id="finance-split-quick" class="form-row hidden"><div class="form-group"><label class="form-label">Category</label><select class="form-select" id="fin-cat-quick" onchange="financeProgressReveal()"></select></div></div>
+                <div id="finance-split-detail"><div class="split-tally"><span>Allocated: <strong id="fin-tally-alloc">$0.00</strong></span><span id="fin-tally-rem">Remaining: $0.00</span></div><div class="split-lines" id="fin-split-lines"></div><button class="small-btn full" type="button" onclick="financeAddSplitLine()">+ Add category line</button></div>
               </div>
 
               <!-- Step 4: Optional extras (revealed after category) -->
               <div id="fin-step-extras" class="form-reveal hidden">
-                <!-- Items toggle -->
+                <!-- Items toggle — default ON -->
                 <div class="items-toggle-row">
                   <span class="form-label" style="margin:0;">Items</span>
                   <label class="items-toggle-label">
-                    <input type="checkbox" id="fin-items-toggle" onchange="financeToggleItemize(this.checked)" />
+                    <input type="checkbox" id="fin-items-toggle" checked onchange="financeToggleItemize(this.checked)" />
                     <span>Add individual items</span>
                   </label>
                 </div>
-                <div id="fin-items-section" class="hidden">
+                <div id="fin-items-section">
                   <div class="items-section-note">Items auto-sum the total. T = taxable · NT = not taxable.</div>
                   <div class="fin-items-table-head"><span>Item</span><span>Price</span><span>Category</span><span>Tax</span><span></span></div>
                   <div id="fin-item-lines"></div>
                   <div class="fin-items-footer">
                     <button class="small-btn" type="button" onclick="financeAddItemLine()">+ Add item</button>
-                    <div class="fin-tax-row">
+                    <div class="fin-tax-row" style="display:none;">
                       <label class="form-label" style="margin:0;white-space:nowrap;">Tax amount</label>
                       <input class="form-input fin-tax-input" type="number" step="0.01" min="0" id="fin-items-tax" placeholder="0.00" oninput="financeItemsAutoSum()" />
                       <span class="metric-sub" id="fin-tax-note">distributed to taxable items</span>
+                    </div>
+                    <div class="fin-tip-row" id="fin-tip-row" style="display:none;">
+                      <label class="form-label" style="margin:0;white-space:nowrap;">Tip amount</label>
+                      <input class="form-input fin-tax-input" type="number" step="0.01" min="0" id="fin-items-tip" placeholder="0.00" oninput="financeItemsAutoSum()" />
                     </div>
                   </div>
                 </div>
@@ -2600,6 +2604,12 @@ function financeInitUI(){
   ['fin-cat-quick','fin-sub-cat'].forEach(id => { const el = document.getElementById(id); if(el) el.innerHTML = opts; });
   const hist = document.getElementById('fin-history-cat'); if(hist) hist.innerHTML = '<option value="">All categories</option>' + opts;
   ['fin-date','fin-income-date','fin-sub-next'].forEach(id => { const el = document.getElementById(id); if(el && !el.value) el.value = dateForInput(financeDateToday()); });
+  // Default: split mode + items on
+  financeSetSplitMode('split');
+  const itemToggle = document.getElementById('fin-items-toggle');
+  if (itemToggle && !itemToggle.checked) { itemToggle.checked = true; }
+  const totalEl = document.getElementById('fin-total');
+  if (totalEl && !totalEl.readOnly) { totalEl.readOnly = true; totalEl.style.opacity = '0.6'; totalEl.title = 'Auto-calculated from items'; }
   financeRenderStoreOptions();
   financeRenderDashboardFilterOptions();
 }
@@ -2661,13 +2671,18 @@ function financeProgressReveal() {
   document.getElementById('fin-step-category')?.classList.toggle('hidden', !showCat);
 
   // Step 4 + save: extras + save — show once category picked
-  const showExtras = showCat && cat !== '';
+  // In split mode, always show extras (no single category required)
+  const catReady = financeSplitMode === 'split' || cat !== '';
+  const showExtras = showCat && catReady;
   document.getElementById('fin-step-extras')?.classList.toggle('hidden', !showExtras);
   document.getElementById('fin-step-save')?.classList.toggle('hidden', !showExtras);
 
   // Show/hide subcategory tap button based on split mode (only for quick mode)
   const subcatBtn = document.getElementById('tap-add-subcat');
   if (subcatBtn) subcatBtn.classList.toggle('hidden', financeSplitMode !== 'quick' || !showExtras);
+
+  // Show tip row if any item is in the dining category
+  financeUpdateTipVisibility();
 }
 
 function financeShowTapField(field) {
@@ -2881,7 +2896,7 @@ function financeReturnItemsSum() {
     if (catEl) catEl.value = firstChecked.dataset.cat || 'other';
   }
 }
-function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } }
+function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } financeProgressReveal(); }
 function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
 function financeUpdateTally(){ const total = Number(document.getElementById('fin-total')?.value || 0); let alloc = 0; document.querySelectorAll('#fin-split-lines [data-role="amt"]').forEach(el => alloc += Number(el.value || 0)); const rem = total - alloc; const a = document.getElementById('fin-tally-alloc'); const r = document.getElementById('fin-tally-rem'); if(a) a.textContent = financeFmt(alloc); if(r){ r.textContent = `Remaining: ${financeFmt(rem)}`; r.style.color = Math.abs(rem) < .02 ? 'var(--success)' : rem < 0 ? 'var(--danger)' : 'var(--muted)'; } }
 async function financeSaveTransaction(){
@@ -2898,6 +2913,7 @@ async function financeSaveTransaction(){
     const itemLines = document.querySelectorAll('#fin-item-lines .fin-item-line');
     if (!itemLines.length) { financeShowMsg('fin-save-msg','Add at least one item.',true); return; }
     const taxAmt = Number(document.getElementById('fin-items-tax')?.value) || 0;
+    const tipAmt = Number(document.getElementById('fin-items-tip')?.value) || 0;
     // Collect raw items with taxable flag
     const rawItems = [];
     itemLines.forEach(line => {
@@ -2923,6 +2939,10 @@ async function financeSaveTransaction(){
         qty: item.qty, unit_price: item.unit_price, unit: item.unit });
     });
     if (!splits.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
+    // Add tip as a separate dining split if present
+    if (tipAmt > 0) {
+      splits.push({ cat: 'dining', subcat: 'tip', amount: parseFloat(tipAmt.toFixed(2)), name: 'Tip', taxable: false, qty: 1, unit_price: tipAmt, unit: 'each' });
+    }
     total = parseFloat(splits.reduce((s,x)=>s+x.amount,0).toFixed(2));
     // Update total display
     const totalEl = document.getElementById('fin-total');
@@ -2986,16 +3006,17 @@ function financeClearForm(){
   const linesEl=document.getElementById('fin-split-lines'); if(linesEl) linesEl.innerHTML = '';
   const itemLines=document.getElementById('fin-item-lines'); if(itemLines) itemLines.innerHTML = '';
   const taxInput=document.getElementById('fin-items-tax'); if(taxInput) taxInput.value = '';
-  const itemToggle=document.getElementById('fin-items-toggle'); if(itemToggle) itemToggle.checked = false;
-  const itemSection=document.getElementById('fin-items-section'); if(itemSection) itemSection.classList.add('hidden');
+  const tipInput=document.getElementById('fin-items-tip'); if(tipInput) tipInput.value = '';
+  const itemToggle=document.getElementById('fin-items-toggle'); if(itemToggle) itemToggle.checked = true;
+  const itemSection=document.getElementById('fin-items-section'); if(itemSection) itemSection.classList.remove('hidden');
   // Reset progressive disclosure steps
   ['fin-step-amount','fin-step-category','fin-step-extras','fin-step-save'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
   ['fin-subcat-wrap','fin-notes-wrap'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
   document.getElementById('tap-add-notes')?.classList.remove('hidden');
   document.getElementById('tap-add-subcat')?.classList.remove('hidden');
   const totalEl = document.getElementById('fin-total');
-  if (totalEl) { totalEl.readOnly = false; totalEl.style.opacity = ''; totalEl.title = ''; }
-  financeSetSplitMode('quick'); financeSetTxType('expense');
+  if (totalEl) { totalEl.readOnly = true; totalEl.style.opacity = '0.6'; totalEl.title = 'Auto-calculated from items'; }
+  financeSetSplitMode('split'); financeSetTxType('expense');
   financeReturnSubType = 'return';
   financeSetReturnSubType('return');
 }
@@ -3117,6 +3138,7 @@ function financeItemCatChanged(selectEl) {
   taxBtn.textContent = newTaxable ? 'T' : 'NT';
   taxBtn.className = `small-btn fin-tax-toggle ${newTaxable ? 'tax-on' : 'tax-off'}`;
   taxBtn.title = newTaxable ? 'Taxable — click to mark NT' : 'Not taxable — click to mark T';
+  if (typeof financeUpdateTipVisibility === 'function') financeUpdateTipVisibility();
 }
 
 function financeToggleWeightMode(btn) {
@@ -3131,21 +3153,40 @@ function financeToggleWeightMode(btn) {
 
   const isEach = eachBtn.classList.contains('active');
   if (isEach) {
-    // Switch from "1 each @ $5" → "X lb @ $5"
-    // Total stays the same; user will update lbs which recalcs unit price
-    const currentTotal = parseFloat(amtEl?.value || unitPriceEl?.value || 0);
-    // Activate lb mode
+    // --- Switch to weight mode ---
+    // Capture the total cost before switching (e.g. $5 for 1 bag)
+    const lockedTotal = parseFloat(amtEl?.value || unitPriceEl?.value || 0);
+
+    // Show lb button and activate it
     lbBtn.style.display = '';
-    financeItemUnitMode(lbBtn, 'lb');
-    // Pre-fill qty with 1 so user can change it; total stays locked
-    qtyEl.value = '1';
-    if (unitPriceEl && currentTotal > 0) unitPriceEl.value = currentTotal.toFixed(2);
-    btn.title = 'Currently: weight mode — click to switch to each';
+    // Manually activate lb without triggering a recalc that wipes total
+    line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === 'lb'));
+    const qtyLabel = line.querySelector('.form-group label.form-label');
+    if (qtyEl) { qtyEl.step = '0.01'; qtyEl.min = '0'; qtyEl.placeholder = 'lbs'; }
+
+    // Set qty to empty so user enters lbs; keep total locked at original cost
+    qtyEl.value = '';
+    if (amtEl) { amtEl.readOnly = true; amtEl.value = lockedTotal > 0 ? lockedTotal.toFixed(2) : ''; }
+
+    // Attach a one-time lbs input handler: as user types lbs, update $/lb but keep total
+    qtyEl.oninput = function() {
+      const lbs = parseFloat(qtyEl.value) || 0;
+      const total = parseFloat(amtEl?.value || 0);
+      if (unitPriceEl && lbs > 0 && total > 0) {
+        unitPriceEl.value = (total / lbs).toFixed(2);
+      }
+    };
+
+    btn.title = 'Currently: weight mode — click to switch back to each';
     btn.classList.add('active');
+
   } else {
-    // Switch back to each
-    financeItemUnitMode(eachBtn, 'each');
-    qtyEl.value = '1';
+    // --- Switch back to each mode ---
+    line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === 'each'));
+    if (qtyEl) { qtyEl.step = '1'; qtyEl.min = '1'; qtyEl.placeholder = 'qty'; qtyEl.value = '1'; qtyEl.oninput = function() { financeItemCalcTotal(qtyEl); }; }
+    if (amtEl) { amtEl.readOnly = false; }
+    // Restore normal total calculation
+    financeItemCalcTotal(qtyEl);
     btn.title = 'Switch to weight mode (lbs)';
     btn.classList.remove('active');
   }
@@ -3159,6 +3200,20 @@ function financeToggleItemTax(btn) {
   btn.className = `small-btn fin-tax-toggle ${next ? 'tax-on' : 'tax-off'}`;
   btn.title = next ? 'Taxable — click to mark NT' : 'Not taxable — click to mark T';
   if (typeof financeUpdateTaxVisibility === 'function') financeUpdateTaxVisibility();
+}
+
+function financeUpdateTipVisibility() {
+  // Show tip row if any item is in the dining category (add form) or quick-cat is dining
+  const hasDining = Array.from(document.querySelectorAll('#fin-item-lines [data-role="item-cat"]'))
+    .some(s => s.value === 'dining') || document.getElementById('fin-cat-quick')?.value === 'dining';
+  const tipRow = document.getElementById('fin-tip-row');
+  if (tipRow) {
+    tipRow.style.display = hasDining ? '' : 'none';
+    if (!hasDining) {
+      const tipInput = document.getElementById('fin-items-tip');
+      if (tipInput) tipInput.value = '';
+    }
+  }
 }
 
 function financeUpdateTaxVisibility() {
@@ -3178,10 +3233,12 @@ function financeItemsAutoSum() {
   const totalEl = document.getElementById('fin-total');
   if (!totalEl || !document.getElementById('fin-items-toggle')?.checked) return;
   financeUpdateTaxVisibility();
+  financeUpdateTipVisibility();
   let sum = 0;
   document.querySelectorAll('#fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value) || 0; });
   const tax = Number(document.getElementById('fin-items-tax')?.value) || 0;
-  const grandTotal = parseFloat((sum + tax).toFixed(2));
+  const tip = Number(document.getElementById('fin-items-tip')?.value) || 0;
+  const grandTotal = parseFloat((sum + tax + tip).toFixed(2));
   totalEl.value = grandTotal > 0 ? grandTotal : '';
   // Update tax note with distribution preview
   const noteEl = document.getElementById('fin-tax-note');
@@ -3637,6 +3694,22 @@ function financeEditTransactionCard(t){
     </div>
     <!-- Hidden total field driven by items sum -->
     <input type="hidden" id="edit-fin-total" value="${total}" />
+    <!-- Tax / Tip adjustment row -->
+    <div class="fin-edit-adj-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:8px 0 4px;">
+      <div class="form-group" style="min-width:130px;">
+        <label class="form-label">Tax amount</label>
+        <input class="form-input" type="number" step="0.01" min="0" id="edit-fin-tax"
+          value="${Number(t._editTax||0)||''}" placeholder="0.00"
+          oninput="financeEditAdjSum()" />
+      </div>
+      ${(t.splits||[]).some(s=>s.cat==='dining') ? `
+      <div class="form-group" style="min-width:130px;">
+        <label class="form-label">Tip amount</label>
+        <input class="form-input" type="number" step="0.01" min="0" id="edit-fin-tip"
+          value="${Number(t._editTip||0)||''}" placeholder="0.00"
+          oninput="financeEditAdjSum()" />
+      </div>` : ''}
+    </div>
     <!-- Grouped items -->
     <div id="edit-fin-item-lines">${groupsHtml}</div>
     <div style="margin-top:8px;">
@@ -3714,14 +3787,17 @@ function financeEditMergeDupes(name) {
 function financeEditStickyUpdate() {
   let sum = 0;
   document.querySelectorAll('#edit-fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value)||0; });
+  const tax = Number(document.getElementById('edit-fin-tax')?.value) || 0;
+  const tip = Number(document.getElementById('edit-fin-tip')?.value) || 0;
   const totalHidden = document.getElementById('edit-fin-total');
   const display     = document.getElementById('edit-total-display');
-  const computed    = parseFloat(sum.toFixed(2));
-  if (totalHidden) totalHidden.value = computed;
-  if (display) display.textContent = financeFmt(computed);
-  // Also update non-itemized sticky
-  const manualTotal = Number(document.getElementById('edit-fin-total')?.value || 0);
-  if (display && sum === 0 && manualTotal > 0) display.textContent = financeFmt(manualTotal);
+  const computed    = parseFloat((sum + tax + tip).toFixed(2));
+  if (totalHidden) totalHidden.value = computed || sum;
+  if (display) display.textContent = financeFmt(computed || sum);
+}
+
+function financeEditAdjSum() {
+  financeEditStickyUpdate();
 }
 function financeEditSplitLineHtml(split={cat:'groceries',amount:''}){ return `<div class="split-line"><select class="form-select" data-role="edit-cat" onchange="financeEditUpdateTally()">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${split.cat===c.id?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select><input class="form-input" type="number" step="0.01" data-role="edit-amt" value="${Number(split.amount||0)||''}" oninput="financeEditUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeEditUpdateTally();">×</button></div>`; }
 
@@ -3787,6 +3863,23 @@ async function financeSaveEditTransaction(id){
         ...(name?{name}:{}), taxable, qty, unit_price: unit_price || amount, unit });
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
+    // Redistribute tax from edit-fin-tax across taxable items
+    const editTax = Number(document.getElementById('edit-fin-tax')?.value) || 0;
+    if (editTax > 0) {
+      const taxableTotal = splits.filter(s=>s.taxable).reduce((a,s)=>a+s.amount,0);
+      if (taxableTotal > 0) {
+        splits.forEach(s => {
+          if (s.taxable) s.amount = parseFloat((s.amount + s.amount/taxableTotal*editTax).toFixed(2));
+        });
+      }
+    }
+    // Add tip as a separate dining split if entered
+    const editTip = Number(document.getElementById('edit-fin-tip')?.value) || 0;
+    if (editTip > 0) {
+      const existingTipIdx = splits.findIndex(s => s.subcat === 'tip');
+      if (existingTipIdx >= 0) splits[existingTipIdx].amount = parseFloat(editTip.toFixed(2));
+      else splits.push({ cat:'dining', subcat:'tip', amount:parseFloat(editTip.toFixed(2)), name:'Tip', taxable:false, qty:1, unit_price:editTip, unit:'each' });
+    }
   } else if(financeEditSplitMode==='split'){
     document.querySelectorAll('#edit-fin-split-lines .split-line').forEach(line=>{ const cat=line.querySelector('[data-role="edit-cat"]').value; const amount=Number(line.querySelector('[data-role="edit-amt"]').value||0); if(amount>0) splits.push({cat,subcat:'',amount}); });
     const alloc=splits.reduce((sum,x)=>sum+x.amount,0);
