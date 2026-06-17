@@ -228,6 +228,12 @@
                   <div id="fin-return-item-list"></div>
                   <div class="return-items-total" id="return-items-total-row"></div>
                 </div>
+                <!-- Dedicated Save button for return / price match — always inside this card -->
+                <div class="btn-row" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);">
+                  <button class="save-btn" type="button" id="fin-return-save-btn" onclick="financeSaveTransaction()">Log return</button>
+                  <button class="small-btn" type="button" onclick="financeClearForm()">Clear</button>
+                  <span class="save-msg" id="fin-return-save-msg"></span>
+                </div>
               </div>
 
               <!-- Step 2: Amount + Payment (revealed after merchant) -->
@@ -2803,7 +2809,10 @@ function financeSetReturnSubType(type) {
   document.getElementById('fin-return-type-return')?.classList.toggle('active', type === 'return');
   document.getElementById('fin-return-type-pricematch')?.classList.toggle('active', type === 'price_match');
   document.getElementById('fin-pricematch-note')?.classList.toggle('hidden', type !== 'price_match');
-  // Always re-render item picker so it updates for the current mode
+  // Update save button label
+  const saveBtn = document.getElementById('fin-return-save-btn');
+  if (saveBtn) saveBtn.textContent = type === 'price_match' ? 'Log price match' : 'Log return';
+  // Re-render item picker for new mode
   financeReturnItemsChanged();
 }
 
@@ -3052,10 +3061,11 @@ async function financeSaveTransaction(){
     }
   }
 
+  const msgId = is_return ? 'fin-return-save-msg' : 'fin-save-msg';
   const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return, linked_id, return_type });
-  if(error){ financeShowMsg('fin-save-msg','Could not save to cloud. Check Supabase SQL/policies.',true); return; }
+  if(error){ financeShowMsg(msgId,'Could not save to cloud. Check Supabase SQL/policies.',true); return; }
   financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return, linked_id, created_at: new Date().toISOString() });
-  await financePersist(); financeShowMsg('fin-save-msg', is_return ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
+  await financePersist(); financeShowMsg(msgId, is_return ? (return_type==='price_match' ? 'Price match logged.' : 'Return logged.') : 'Saved.'); financeClearForm(); financeRenderAll();
 }
 function financeClearForm(){
   ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
