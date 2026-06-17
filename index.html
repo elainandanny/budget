@@ -204,6 +204,12 @@
               <!-- Return link (only for returns) -->
               <div id="finance-return-wrap" class="hidden return-link-card">
                 <div class="section-title small-title">Link return to original purchase</div>
+                <!-- Return type toggle: Return vs Price Match -->
+                <div class="mode-toggle finance-return-type-toggle" style="margin-bottom:12px;">
+                  <button class="mode-btn active" id="fin-return-type-return" type="button" onclick="financeSetReturnSubType('return')">Return</button>
+                  <button class="mode-btn" id="fin-return-type-pricematch" type="button" onclick="financeSetReturnSubType('price_match')">Price Match</button>
+                </div>
+                <div id="fin-pricematch-note" class="hidden" style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;">💲 Price Match: item kept but price was reduced. Enter the refund amount you received (tax included).</div>
                 <div class="form-row three finance-return-filters">
                   <div class="form-group"><label class="form-label">Filter by merchant</label><input class="form-input" id="fin-return-merchant-filter" list="finance-store-options" placeholder="Auto uses merchant above" oninput="financePopulateReturnLinks()"></div>
                   <div class="form-group"><label class="form-label">Month</label><input class="form-input" type="month" id="fin-return-month-filter" onchange="financePopulateReturnLinks()"></div>
@@ -2470,7 +2476,7 @@ function loadFinanceLocal(){
   } catch { return { transactions: [], income: [], subscriptions: [], goals: [], settings: { monthly_limit:0, category_budgets:{}, excluded_categories:[], default_payment:'credit' } }; }
 }
 function saveFinanceLocal(){ localStorage.setItem(FINANCE_STORAGE_KEY, JSON.stringify(financeState)); }
-function normalizeFinanceTransaction(t){ return {...t,total:Number(t.total||0),is_return:Boolean(t.is_return),splits:Array.isArray(t.splits)?t.splits:[],store:String(t.store||'').trim(),payment:t.payment||'',notes:t.notes||''}; }
+function normalizeFinanceTransaction(t){ return {...t,total:Number(t.total||0),is_return:Boolean(t.is_return),splits:Array.isArray(t.splits)?t.splits:[],store:String(t.store||'').trim(),payment:t.payment||'',notes:t.notes||'',return_type:t.return_type||null}; }
 function normalizeFinanceStatePayload(){ financeState.transactions=(financeState.transactions||[]).map(normalizeFinanceTransaction); financeState.income=(financeState.income||[]).map(i=>({...i,amount:Number(i.amount||0)})); financeState.subscriptions=(financeState.subscriptions||[]).map(s=>({...s,amount:Number(s.amount||0)})); financeState.goals=(financeState.goals||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})); financeState.settings=financeState.settings||{monthly_limit:0,category_budgets:{},excluded_categories:[],default_payment:'credit'}; financeState.settings.monthly_limit=Number(financeState.settings.monthly_limit||0); financeState.settings.category_budgets=financeState.settings.category_budgets||{}; financeState.settings.excluded_categories=Array.isArray(financeState.settings.excluded_categories)?financeState.settings.excluded_categories:[]; financeState.settings.default_payment=financeState.settings.default_payment||'credit'; }
 async function loadFinanceFromCloud(){
   if(!currentUser||!supabaseClient){ normalizeFinanceStatePayload(); saveFinanceLocal(); financeRenderAll(); return; }
@@ -2485,6 +2491,8 @@ async function loadFinanceFromCloud(){
     if(tx.error) throw tx.error; if(inc.error) throw inc.error; if(subs.error) throw subs.error; if(goalsRes.error) throw goalsRes.error; if(settingsRes.error) throw settingsRes.error;
     financeState={transactions:(tx.data||[]).map(normalizeFinanceTransaction),income:(inc.data||[]).map(i=>({...i,amount:Number(i.amount||0)})),subscriptions:(subs.data||[]).map(s=>({...s,amount:Number(s.amount||0)})),goals:(goalsRes.data||[]).map(g=>({...g,target:Number(g.target||0),current:Number(g.current||0)})),settings:settingsRes.data?{monthly_limit:Number(settingsRes.data.monthly_limit||0),category_budgets:settingsRes.data.category_budgets||{},excluded_categories:Array.isArray(settingsRes.data.excluded_categories)?settingsRes.data.excluded_categories:[],default_payment:settingsRes.data.default_payment||'credit'}:{monthly_limit:0,category_budgets:{},excluded_categories:[],default_payment:'credit'}};
     saveFinanceLocal(); financeRenderAll(); if(!settingsRes.data) await saveFinanceSettingsToCloud();
+    // Feature 7: auto-log subscriptions that are due
+    await financeAutoLogSubscriptions();
   }catch(err){ console.error('Finance cloud load failed:',err); normalizeFinanceStatePayload(); saveFinanceLocal(); financeRenderAll(); }
 }
 async function financePersist(){ normalizeFinanceStatePayload(); saveFinanceLocal(); }
@@ -2751,8 +2759,8 @@ function financeSwitch(name){
   if (name !== 'scan') financeRenderAll();
 }
 function financeRenderAll(){ financeInitUI(); financeRenderDashboard(); financeRenderRecent(); financeRenderHistory(); financeRenderBudgets(); financeRenderSubs(); }
-function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeRenderDashboard(); }
-function financeGoNow(){ financeMonth = new Date(); financeRenderDashboard(); }
+function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeCalendarMonth = new Date(financeMonth); financeRenderDashboard(); }
+function financeGoNow(){ financeMonth = new Date(); financeCalendarMonth = new Date(); financeRenderDashboard(); }
 function financeSetTxType(type){
   financeTxType = type;
   ['expense','return','income'].forEach(t => document.getElementById('fin-mode-'+t)?.classList.toggle('active', t === type));
@@ -2762,7 +2770,25 @@ function financeSetTxType(type){
   if(type === 'return') { financePopulateReturnLinks(); }
   financeProgressReveal();
 }
-function financePopulateReturnLinks(){
+let financeReturnSubType = 'return'; // 'return' | 'price_match'
+
+function financeSetReturnSubType(type) {
+  financeReturnSubType = type;
+  document.getElementById('fin-return-type-return')?.classList.toggle('active', type === 'return');
+  document.getElementById('fin-return-type-pricematch')?.classList.toggle('active', type === 'price_match');
+  document.getElementById('fin-pricematch-note')?.classList.toggle('hidden', type !== 'price_match');
+  // For price match, hide item checkbox picker — user enters one refund total
+  const itemWrap = document.getElementById('fin-return-item-wrap');
+  if (itemWrap) {
+    if (type === 'price_match') {
+      itemWrap.classList.add('hidden');
+    } else {
+      financeReturnItemsChanged();
+    }
+  }
+}
+
+
   const sel = document.getElementById('fin-return-link');
   if(!sel) return;
   const merchantTyped = (document.getElementById('fin-store')?.value || '').trim();
@@ -2919,7 +2945,37 @@ async function financeSaveTransaction(){
   if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
   const is_return = financeTxType === 'return';
   const linked_id = is_return ? (document.getElementById('fin-return-link').value || null) : null;
-  const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return, linked_id });
+  const return_type = is_return ? financeReturnSubType : null;
+
+  // Feature 5: For price match, back-calculate item reduction from the refund total
+  // and annotate the original transaction's split item
+  if (is_return && return_type === 'price_match' && linked_id) {
+    const origTx = financeState.transactions.find(t => t.id === linked_id);
+    if (origTx) {
+      // Determine which item was price matched (first named item from the linked tx, or whole tx)
+      const returnItemName = splits[0]?.name || null;
+      (origTx.splits || []).forEach(s => {
+        if (!returnItemName || (s.name && s.name.toLowerCase() === returnItemName.toLowerCase())) {
+          // Calculate item-level tax rate for back-calculation
+          const taxRate = s.taxable && s.amount > 0 ? (Number(s.tax_share || 0) / s.amount) : 0;
+          const itemReduction = taxRate > 0 ? parseFloat((total / (1 + taxRate)).toFixed(2)) : total;
+          const taxReduction  = parseFloat((total - itemReduction).toFixed(2));
+          s.price_match = {
+            refund: total,
+            item_reduction: itemReduction,
+            tax_reduction: taxReduction,
+            effective_price: parseFloat(((s.amount || 0) - itemReduction).toFixed(2)),
+            date,
+            linked_tx_id: null // will be set after insert
+          };
+        }
+      });
+      // Persist original tx update
+      await financeUpdateRow('transactions', linked_id, { splits: origTx.splits });
+    }
+  }
+
+  const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return, linked_id, return_type });
   if(error){ financeShowMsg('fin-save-msg','Could not save to cloud. Check Supabase SQL/policies.',true); return; }
   financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return, linked_id, created_at: new Date().toISOString() });
   await financePersist(); financeShowMsg('fin-save-msg', is_return ? 'Return logged.' : 'Saved.'); financeClearForm(); financeRenderAll();
@@ -2940,6 +2996,8 @@ function financeClearForm(){
   const totalEl = document.getElementById('fin-total');
   if (totalEl) { totalEl.readOnly = false; totalEl.style.opacity = ''; totalEl.title = ''; }
   financeSetSplitMode('quick'); financeSetTxType('expense');
+  financeReturnSubType = 'return';
+  financeSetReturnSubType('return');
 }
 
 function financeToggleItemize(checked) {
@@ -2950,6 +3008,7 @@ function financeToggleItemize(checked) {
     section.classList.remove('hidden');
     if (totalEl) { totalEl.readOnly = true; totalEl.style.opacity = '0.6'; totalEl.title = 'Auto-calculated from items'; }
     if (!document.querySelectorAll('#fin-item-lines .fin-item-line').length) financeAddItemLine();
+    financeUpdateTaxVisibility();
   } else {
     // Warn if items exist
     const existing = document.querySelectorAll('#fin-item-lines .fin-item-line').length;
@@ -3005,12 +3064,13 @@ function financeAddItemLine(item={}) {
       <select class="form-select fil-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
       <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
         type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button>
+      ${cat === 'groceries' ? `<button class="small-btn fil-weight-toggle" type="button" title="Switch between each ↔ weight" onclick="financeToggleWeightMode(this)">⚖</button>` : ''}
     </div>`;
   wrap.appendChild(div);
+  // Feature 2: hide lb button if default category is not groceries
+  const lbBtnInit = div.querySelector('.fil-unit-btn[data-unit="lb"]');
+  if (lbBtnInit && cat !== 'groceries') lbBtnInit.style.display = 'none';
 }
-
-function financeItemUnitMode(btn, unit) {
-  const line = btn.closest('.fin-item-line');
   if (!line) return;
   line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === unit));
   const qtyEl = line.querySelector('[data-role="item-qty"]');
@@ -3033,8 +3093,20 @@ function financeItemCalcTotal(input) {
 }
 
 function financeItemCatChanged(selectEl) {
-  const line = selectEl.closest('.fin-item-line');
+  const line = selectEl.closest('.fin-item-line') || selectEl.closest('.edit-item-inline');
   if (!line) return;
+  const cat = selectEl.value;
+  // lb unit only available for Groceries
+  const lbBtn = line.querySelector('.fil-unit-btn[data-unit="lb"]');
+  if (lbBtn) {
+    const showLb = (cat === 'groceries');
+    lbBtn.style.display = showLb ? '' : 'none';
+    // If lb was active and category changed away from groceries, reset to each
+    if (!showLb && lbBtn.classList.contains('active')) {
+      const eachBtn = line.querySelector('.fil-unit-btn[data-unit="each"]');
+      if (eachBtn) financeItemUnitMode(eachBtn, 'each');
+    }
+  }
   const taxBtn = line.querySelector('[data-role="item-taxable"]');
   if (!taxBtn) return;
   const newTaxable = itemTaxDefault(selectEl.value);
@@ -3044,18 +3116,65 @@ function financeItemCatChanged(selectEl) {
   taxBtn.title = newTaxable ? 'Taxable — click to mark NT' : 'Not taxable — click to mark T';
 }
 
-function financeToggleItemTax(btn) {
+function financeToggleWeightMode(btn) {
+  const line = btn.closest('.fin-item-line') || btn.closest('.edit-item-inline');
+  if (!line) return;
+  const eachBtn = line.querySelector('.fil-unit-btn[data-unit="each"]');
+  const lbBtn   = line.querySelector('.fil-unit-btn[data-unit="lb"]');
+  const qtyEl   = line.querySelector('[data-role="item-qty"]');
+  const unitPriceEl = line.querySelector('[data-role="item-unit-price"]');
+  const amtEl   = line.querySelector('[data-role="item-amt"]');
+  if (!eachBtn || !lbBtn || !qtyEl) return;
+
+  const isEach = eachBtn.classList.contains('active');
+  if (isEach) {
+    // Switch from "1 each @ $5" → "X lb @ $5"
+    // Total stays the same; user will update lbs which recalcs unit price
+    const currentTotal = parseFloat(amtEl?.value || unitPriceEl?.value || 0);
+    // Activate lb mode
+    lbBtn.style.display = '';
+    financeItemUnitMode(lbBtn, 'lb');
+    // Pre-fill qty with 1 so user can change it; total stays locked
+    qtyEl.value = '1';
+    if (unitPriceEl && currentTotal > 0) unitPriceEl.value = currentTotal.toFixed(2);
+    btn.title = 'Currently: weight mode — click to switch to each';
+    btn.classList.add('active');
+  } else {
+    // Switch back to each
+    financeItemUnitMode(eachBtn, 'each');
+    qtyEl.value = '1';
+    btn.title = 'Switch to weight mode (lbs)';
+    btn.classList.remove('active');
+  }
+}
+
+
   const current = btn.dataset.taxable === 'true';
   const next = !current;
   btn.dataset.taxable = next;
   btn.textContent = next ? 'T' : 'NT';
   btn.className = `small-btn fin-tax-toggle ${next ? 'tax-on' : 'tax-off'}`;
   btn.title = next ? 'Taxable — click to mark NT' : 'Not taxable — click to mark T';
+  if (typeof financeUpdateTaxVisibility === 'function') financeUpdateTaxVisibility();
+}
+
+function financeUpdateTaxVisibility() {
+  // Show tax row only when at least one item is marked taxable
+  const hasTaxable = document.querySelectorAll('#fin-item-lines [data-role="item-taxable"][data-taxable="true"]').length > 0;
+  const taxRow = document.querySelector('.fin-tax-row');
+  if (taxRow) {
+    taxRow.style.display = hasTaxable ? '' : 'none';
+    if (!hasTaxable) {
+      const taxInput = document.getElementById('fin-items-tax');
+      if (taxInput) taxInput.value = '';
+    }
+  }
 }
 
 function financeItemsAutoSum() {
   const totalEl = document.getElementById('fin-total');
   if (!totalEl || !document.getElementById('fin-items-toggle')?.checked) return;
+  financeUpdateTaxVisibility();
   let sum = 0;
   document.querySelectorAll('#fin-item-lines [data-role="item-amt"]').forEach(el => { sum += Number(el.value) || 0; });
   const tax = Number(document.getElementById('fin-items-tax')?.value) || 0;
@@ -3172,7 +3291,14 @@ function financeRenderCharts(){
 function financeChangeCalendarMonth(delta){
   financeCalendarMonth = new Date(financeCalendarMonth.getFullYear(), financeCalendarMonth.getMonth() + delta, 1);
   financeSelectedCalendarDate = '';
-  financeRenderCalendar();
+  // Feature 6: calendar navigation drives the top-bar month filter
+  financeMonth = new Date(financeCalendarMonth.getFullYear(), financeCalendarMonth.getMonth(), 1);
+  // Clear any custom month range filter so the month selector takes effect
+  const startEl = document.getElementById('fin-filter-month-start');
+  const endEl   = document.getElementById('fin-filter-month-end');
+  if (startEl) startEl.value = '';
+  if (endEl)   endEl.value   = '';
+  financeRenderDashboard();
 }
 function financeSelectCalendarDate(dateKey){
   financeSelectedCalendarDate = dateKey;
@@ -3746,6 +3872,73 @@ function financeEditSub(id){ const s=financeState.subscriptions.find(x=>x.id===i
 function financeCancelSubEdit(){ financeEditingSubId=null; ['fin-sub-name','fin-sub-amount','fin-sub-next'].forEach(id=>document.getElementById(id).value=''); document.getElementById('finance-sub-save-btn').textContent='Add subscription'; document.getElementById('finance-sub-cancel-btn').classList.add('hidden'); }
 async function financeDeleteSub(id){ const {error}=await financeDeleteRow('subscriptions',id); if(error){alert('Could not delete subscription from cloud.'); return;} financeState.subscriptions=financeState.subscriptions.filter(s=>s.id!==id); await financePersist(); financeRenderAll(); }
 
+// ── Feature 7: Auto-log subscriptions that are due ──────────────────
+async function financeAutoLogSubscriptions() {
+  const today = financeDateToday();
+  const toLog = [];
+
+  for (const sub of (financeState.subscriptions || [])) {
+    if (!sub.next_date || !sub.amount || sub.cycle !== 'monthly') continue;
+    if (sub.next_date > today) continue;
+
+    // Duplicate guard: check if a transaction already exists this month for this sub
+    const subYM = sub.next_date.slice(0, 7);
+    const alreadyLogged = financeState.transactions.some(t =>
+      !t.is_return &&
+      String(t.store || '').toLowerCase() === String(sub.name || '').toLowerCase() &&
+      String(t.date || '').slice(0, 7) === subYM &&
+      (t.splits || []).some(s => s.cat === sub.cat)
+    );
+    if (alreadyLogged) {
+      // Advance next_date even if already logged so it doesn't keep firing
+      const nd = new Date(sub.next_date + 'T12:00:00');
+      nd.setMonth(nd.getMonth() + 1);
+      sub.next_date = nd.toISOString().split('T')[0];
+      await financeUpdateRow('subscriptions', sub.id, { next_date: sub.next_date });
+      continue;
+    }
+
+    toLog.push(sub);
+  }
+
+  if (!toLog.length) return;
+
+  // Show a confirmation toast for all due subscriptions
+  const names = toLog.map(s => `${s.name} (${financeFmt(s.amount)})`).join(', ');
+  const confirmed = confirm(`Auto-log ${toLog.length} subscription${toLog.length>1?'s':''} for this billing period?\n\n${names}`);
+  if (!confirmed) return;
+
+  for (const sub of toLog) {
+    const splits = [{ cat: sub.cat || 'subscriptions', subcat: '', amount: Number(sub.amount) }];
+    const { data, error } = await financeInsertRow('transactions', {
+      date: sub.next_date,
+      store: sub.name,
+      total: Number(sub.amount),
+      payment: financeState.settings.default_payment || 'credit',
+      notes: 'Auto-logged subscription',
+      splits,
+      is_return: false,
+      linked_id: null,
+      return_type: null
+    });
+    if (!error) {
+      financeState.transactions.unshift(data
+        ? normalizeFinanceTransaction(data)
+        : { id: financeId(), date: sub.next_date, store: sub.name, total: Number(sub.amount), payment: financeState.settings.default_payment || 'credit', notes: 'Auto-logged subscription', splits, is_return: false, linked_id: null, return_type: null, created_at: new Date().toISOString() }
+      );
+      // Advance next_date by 1 month
+      const nd = new Date(sub.next_date + 'T12:00:00');
+      nd.setMonth(nd.getMonth() + 1);
+      sub.next_date = nd.toISOString().split('T')[0];
+      await financeUpdateRow('subscriptions', sub.id, { next_date: sub.next_date });
+      showUndoToast(`"${sub.name}" auto-logged — ${financeFmt(sub.amount)}`);
+    }
+  }
+
+  await financePersist();
+  financeRenderAll();
+}
+
 function financeBuildContext(){
   const now = new Date();
   const tx  = financeForMonth(financeAllTransactions(), now.getFullYear(), now.getMonth());
@@ -4263,6 +4456,33 @@ financeTransactionCard = function(t) {
   const cats = Object.entries(catTotals).map(([catId, amt]) => catPillHtml(catId, amt)).join(' ');
 
   const namedItems = (t.splits || []).filter(s => s.name);
+
+  // Feature 4/5: collect return/price-match info for this transaction's items
+  const linkedTxs = financeState.transactions.filter(r =>
+    r.linked_id === t.id && (r.is_return || r.return_type === 'price_match')
+  );
+  const returnedItemNames = new Set();
+  const priceMatchedItems = {}; // name → refund amount
+  linkedTxs.forEach(r => {
+    (r.splits || []).forEach(s => {
+      if (s.name) {
+        if (r.return_type === 'price_match') {
+          priceMatchedItems[s.name.toLowerCase()] = (priceMatchedItems[s.name.toLowerCase()] || 0) + Number(s.amount || 0);
+        } else {
+          returnedItemNames.add(s.name.toLowerCase());
+        }
+      }
+    });
+    // If no named splits but linked, mark whole tx
+    if (!(r.splits || []).some(s => s.name)) {
+      if (r.return_type === 'price_match') priceMatchedItems['__whole__'] = r.total;
+      else returnedItemNames.add('__whole__');
+    }
+  });
+
+  const wholeReturnBadge = returnedItemNames.has('__whole__') ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
+  const wholePMBadge = priceMatchedItems['__whole__'] ? ` <span class="badge badge-pricematch">💲 Price Matched</span>` : '';
+
   const itemBadge = namedItems.length
     ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}')">${namedItems.length} item${namedItems.length>1?'s':''}</button>`
     : '';
@@ -4272,13 +4492,16 @@ financeTransactionCard = function(t) {
         const cat = financeCat(s.cat);
         const qtyLabel = s.qty && s.unit && (s.qty !== 1 || s.unit !== 'each')
           ? `<span class="tx-item-qty">${s.unit==='lb'?s.qty+'lb':(s.qty>1?'×'+s.qty:'')}</span>` : '';
-        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}${qtyLabel}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
+        const itemLower = (s.name || '').toLowerCase();
+        const retBadge = returnedItemNames.has(itemLower) ? ' <span class="badge badge-returned" style="font-size:9px;">↩ Returned</span>' : '';
+        const pmBadge  = priceMatchedItems[itemLower] ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 Price Match</span>` : '';
+        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}${qtyLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
       }).join('')}</div>`
     : '';
 
   return `<div class="tx-item" id="tx-card-${t.id}">
     <div style="min-width:0;flex:1;">
-      <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}</div>
+      <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.return_type === 'price_match' ? '<span class="badge badge-pricematch">Price Match</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}${wholeReturnBadge}${wholePMBadge}</div>
       <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${itemBadge}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
       ${itemList}
     </div>
