@@ -2788,7 +2788,7 @@ function financeSetReturnSubType(type) {
   }
 }
 
-
+function financePopulateReturnLinks(){
   const sel = document.getElementById('fin-return-link');
   if(!sel) return;
   const merchantTyped = (document.getElementById('fin-store')?.value || '').trim();
@@ -3071,6 +3071,9 @@ function financeAddItemLine(item={}) {
   const lbBtnInit = div.querySelector('.fil-unit-btn[data-unit="lb"]');
   if (lbBtnInit && cat !== 'groceries') lbBtnInit.style.display = 'none';
 }
+
+function financeItemUnitMode(btn, unit) {
+  const line = btn.closest('.fin-item-line');
   if (!line) return;
   line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === unit));
   const qtyEl = line.querySelector('[data-role="item-qty"]');
@@ -3148,7 +3151,7 @@ function financeToggleWeightMode(btn) {
   }
 }
 
-
+function financeToggleItemTax(btn) {
   const current = btn.dataset.taxable === 'true';
   const next = !current;
   btn.dataset.taxable = next;
