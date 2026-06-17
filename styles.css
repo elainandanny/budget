@@ -2632,3 +2632,45 @@ input[type="date"] {
   margin-bottom: 10px;
 }
 
+
+/* ── Return / Price Match visual treatment ─────────── */
+.tx-orig-total {
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: line-through;
+  display: block;
+  text-align: right;
+  margin-top: 1px;
+}
+.tx-item-amt-strike {
+  text-decoration: line-through;
+  opacity: 0.45;
+  color: var(--danger);
+}
+.tx-item-amt-pm {
+  color: var(--success);
+  font-weight: 600;
+}
+.tx-item-amt-orig {
+  font-size: 10px;
+  text-decoration: line-through;
+  opacity: 0.5;
+  margin-left: 4px;
+  color: var(--muted);
+  font-weight: normal;
+}
+.tx-item-row-returned { opacity: 0.65; }
+
+/* Receipt review price input */
+.receipt-item-price-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.receipt-item-price-input {
+  width: 80px;
+  text-align: right;
+  font-size: 13px;
+  padding: 4px 6px;
+}
