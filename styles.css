@@ -2589,6 +2589,25 @@ input[type="date"] {
   flex-wrap: wrap;
 }
 
+/* Price Match item selector rows */
+.pm-item-row {
+  cursor: pointer;
+}
+.pm-item-radio {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  accent-color: var(--success);
+}
+.pm-refund-row {
+  padding: 10px 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 /* ── Return sub-type toggle (Return | Price Match) ── */
 .finance-return-type-toggle {
   display: inline-flex;
