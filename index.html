@@ -207,7 +207,7 @@
                 <!-- Return type toggle: Return vs Price Match -->
                 <div class="mode-toggle finance-return-type-toggle" style="margin-bottom:12px;">
                   <button class="mode-btn active" id="fin-return-type-return" type="button" onclick="financeSetReturnSubType('return')">Return</button>
-                  <button class="mode-btn" id="fin-return-type-pricematch" type="button" onclick="financeSetReturnSubType('price_match')">Price Match</button>
+                  <button class="mode-btn" id="fin-return-type-pricematch" type="button" onclick="financeSetReturnSubType('price_match')" style="min-width:110px;">💲 Price Match</button>
                 </div>
                 <div id="fin-pricematch-note" class="hidden" style="font-size:12px;color:var(--muted);margin-bottom:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;">💲 Price Match: item kept but price was reduced. Enter the refund amount you received (tax included).</div>
                 <div class="form-row three finance-return-filters">
@@ -2657,7 +2657,14 @@ function financeRenderStoreOptions(){
 }
 function financeProgressReveal() {
   const merchant = (document.getElementById('fin-store')?.value || '').trim();
-  const total    = Number(document.getElementById('fin-total')?.value || 0);
+  const isItemized = document.getElementById('fin-items-toggle')?.checked;
+  const manualTotal = Number(document.getElementById('fin-total')?.value || 0);
+  // Items auto-sum total, so treat as "has total" when items exist and any have a price
+  const itemsTotal = isItemized
+    ? Array.from(document.querySelectorAll('#fin-item-lines [data-role="item-amt"]'))
+        .reduce((s,el) => s + (Number(el.value)||0), 0)
+    : 0;
+  const total = isItemized ? itemsTotal : manualTotal;
   const cat      = document.getElementById('fin-cat-quick')?.value || '';
   const txType   = financeTxType;
 
@@ -2667,15 +2674,20 @@ function financeProgressReveal() {
 
   // Step 3: category — show once amount entered (skip for return if item picker active)
   const hasReturnItems = !document.getElementById('fin-return-item-wrap')?.classList.contains('hidden');
-  const showCat = showAmount && total > 0 && !hasReturnItems;
+  // For itemized mode: show category step immediately after merchant (items drive the total)
+  const showCat = showAmount && (isItemized || total > 0) && !hasReturnItems;
   document.getElementById('fin-step-category')?.classList.toggle('hidden', !showCat);
 
-  // Step 4 + save: extras + save — show once category picked
-  // In split mode, always show extras (no single category required)
+  // Step 4 + save: show once category mode chosen
   const catReady = financeSplitMode === 'split' || cat !== '';
   const showExtras = showCat && catReady;
   document.getElementById('fin-step-extras')?.classList.toggle('hidden', !showExtras);
   document.getElementById('fin-step-save')?.classList.toggle('hidden', !showExtras);
+
+  // For return flow: also show save once items are selected
+  if (txType === 'return' && hasReturnItems && total > 0) {
+    document.getElementById('fin-step-save')?.classList.remove('hidden');
+  }
 
   // Show/hide subcategory tap button based on split mode (only for quick mode)
   const subcatBtn = document.getElementById('tap-add-subcat');
@@ -2792,15 +2804,8 @@ function financeSetReturnSubType(type) {
   document.getElementById('fin-return-type-return')?.classList.toggle('active', type === 'return');
   document.getElementById('fin-return-type-pricematch')?.classList.toggle('active', type === 'price_match');
   document.getElementById('fin-pricematch-note')?.classList.toggle('hidden', type !== 'price_match');
-  // For price match, hide item checkbox picker — user enters one refund total
-  const itemWrap = document.getElementById('fin-return-item-wrap');
-  if (itemWrap) {
-    if (type === 'price_match') {
-      itemWrap.classList.add('hidden');
-    } else {
-      financeReturnItemsChanged();
-    }
-  }
+  // Always re-render item picker so it updates for the current mode
+  financeReturnItemsChanged();
 }
 
 function financePopulateReturnLinks(){
@@ -2837,39 +2842,90 @@ function financeReturnItemsChanged() {
   if (!sel || !itemWrap) return;
   const txId = sel.value;
   const tx = txId ? financeState.transactions.find(t => t.id === txId) : null;
-  const namedItems = tx ? (tx.splits||[]).filter(s => s.name) : [];
+  const namedItems = tx ? (tx.splits||[]).filter(s => s.name && s.subcat !== 'tip') : [];
+  const isPriceMatch = financeReturnSubType === 'price_match';
 
   if (!namedItems.length) {
-    // Fall back — pre-fill total and hide item picker
     itemWrap.classList.add('hidden');
     if (tx && totalEl && !totalEl.value) totalEl.value = tx.total;
+    financeProgressReveal();
     return;
   }
 
-  // Show item picker
   itemWrap.classList.remove('hidden');
   const list = document.getElementById('fin-return-item-list');
   if (!list) return;
-  list.innerHTML = namedItems.map((s, i) => {
-    const cat = financeCat(s.cat);
-    // Estimate tax by checking if taxable field exists
-    const hasTaxInfo = s.taxable !== undefined;
-    const taxNote = hasTaxInfo
-      ? (s.taxable ? '<span class="return-tax-note">incl. tax</span>' : '<span class="return-tax-note nt">tax-free</span>')
-      : '';
-    return `<label class="return-item-row">
-      <input type="checkbox" class="return-item-check" data-amount="${s.amount}" data-name="${escapeHtml(s.name)}" data-cat="${s.cat}"
-        onchange="financeReturnItemsSum()" />
-      <span class="return-item-name">${escapeHtml(s.name)}</span>
-      <span class="return-item-cat" style="color:${cat.color}">${cat.emoji}</span>
-      <span class="return-item-price">${financeFmt(s.amount)} ${taxNote}</span>
-      <input class="form-input return-item-adj" type="number" step="0.01" min="0"
-        placeholder="${Number(s.amount).toFixed(2)}"
-        title="Adjust refund amount if store gives different amount"
-        oninput="financeReturnItemsSum()" style="display:none;width:80px;" />
-    </label>`;
-  }).join('');
+
+  if (isPriceMatch) {
+    // Price Match: show each item with a refund amount field; user picks which item and enters refund
+    list.innerHTML = `<div class="return-items-note" style="margin-bottom:8px;">Select the item that was price matched and enter the refund amount you received.</div>` +
+      namedItems.map((s, i) => {
+        const cat = financeCat(s.cat);
+        return `<label class="return-item-row pm-item-row">
+          <input type="radio" name="pm-item-select" class="pm-item-radio" data-amount="${s.amount}" data-name="${escapeHtml(s.name)}" data-cat="${s.cat}"
+            onchange="financePriceMatchItemSelected()" />
+          <span class="return-item-name">${escapeHtml(s.name)}</span>
+          <span class="return-item-cat" style="color:${cat.color}">${cat.emoji}</span>
+          <span class="return-item-price">${financeFmt(s.amount)}</span>
+        </label>`;
+      }).join('') +
+      `<div class="pm-refund-row" id="pm-refund-row" style="display:none;margin-top:10px;">
+        <label class="form-label">Refund amount received (tax included)</label>
+        <input class="form-input" type="number" step="0.01" min="0" id="pm-refund-input"
+          placeholder="0.00" oninput="financePriceMatchRefundChanged()" style="max-width:160px;" />
+        <span class="metric-sub" id="pm-refund-note" style="margin-left:8px;"></span>
+      </div>`;
+  } else {
+    // Regular return: checkboxes with adjustment fields
+    list.innerHTML = namedItems.map((s, i) => {
+      const cat = financeCat(s.cat);
+      const hasTaxInfo = s.taxable !== undefined;
+      const taxNote = hasTaxInfo
+        ? (s.taxable ? '<span class="return-tax-note">incl. tax</span>' : '<span class="return-tax-note nt">tax-free</span>')
+        : '';
+      return `<label class="return-item-row">
+        <input type="checkbox" class="return-item-check" data-amount="${s.amount}" data-name="${escapeHtml(s.name)}" data-cat="${s.cat}"
+          onchange="financeReturnItemsSum()" />
+        <span class="return-item-name">${escapeHtml(s.name)}</span>
+        <span class="return-item-cat" style="color:${cat.color}">${cat.emoji}</span>
+        <span class="return-item-price">${financeFmt(s.amount)} ${taxNote}</span>
+        <input class="form-input return-item-adj" type="number" step="0.01" min="0"
+          placeholder="${Number(s.amount).toFixed(2)}"
+          title="Adjust refund amount if store gives different amount"
+          oninput="financeReturnItemsSum()" style="display:none;width:80px;" />
+      </label>`;
+    }).join('');
+  }
   financeReturnItemsSum();
+}
+
+function financePriceMatchItemSelected() {
+  const refundRow = document.getElementById('pm-refund-row');
+  const radio = document.querySelector('.pm-item-radio:checked');
+  if (refundRow) refundRow.style.display = radio ? '' : 'none';
+  const refundInput = document.getElementById('pm-refund-input');
+  if (refundInput && radio) { refundInput.value = ''; refundInput.focus(); }
+  financePriceMatchRefundChanged();
+}
+
+function financePriceMatchRefundChanged() {
+  const radio = document.querySelector('.pm-item-radio:checked');
+  const refund = parseFloat(document.getElementById('pm-refund-input')?.value) || 0;
+  const totalEl = document.getElementById('fin-total');
+  if (totalEl) totalEl.value = refund > 0 ? refund.toFixed(2) : '';
+  // Show back-calculated note
+  const noteEl = document.getElementById('pm-refund-note');
+  if (noteEl && radio && refund > 0) {
+    const origAmt = Number(radio.dataset.amount || 0);
+    const newPrice = parseFloat((origAmt - refund).toFixed(2));
+    noteEl.textContent = newPrice >= 0 ? `New effective price: ${financeFmt(newPrice)}` : '';
+  } else if (noteEl) {
+    noteEl.textContent = '';
+  }
+  // Update return total display row
+  const totalRow = document.getElementById('return-items-total-row');
+  if (totalRow) totalRow.textContent = refund > 0 ? `Refund: ${financeFmt(refund)}` : '';
+  financeProgressReveal();
 }
 
 function financeReturnItemsSum() {
@@ -2877,12 +2933,10 @@ function financeReturnItemsSum() {
   document.querySelectorAll('.return-item-check:checked').forEach(cb => {
     const row = cb.closest('.return-item-row');
     const adj = row?.querySelector('.return-item-adj');
-    // Show adjustment field when checked
     if (adj) adj.style.display = '';
     const adjVal = Number(adj?.value || 0);
     total += adjVal > 0 ? adjVal : Number(cb.dataset.amount || 0);
   });
-  // Hide adj fields for unchecked items
   document.querySelectorAll('.return-item-check:not(:checked)').forEach(cb => {
     const adj = cb.closest('.return-item-row')?.querySelector('.return-item-adj');
     if (adj) { adj.style.display = 'none'; adj.value = ''; }
@@ -2895,6 +2949,11 @@ function financeReturnItemsSum() {
     const catEl = document.getElementById('fin-cat-quick');
     if (catEl) catEl.value = firstChecked.dataset.cat || 'other';
   }
+  // Update return total display row
+  const totalRow = document.getElementById('return-items-total-row');
+  if (totalRow) totalRow.textContent = total > 0 ? `Refund total: ${financeFmt(total)}` : '';
+  // Reveal Save button when items are checked
+  financeProgressReveal();
 }
 function financeSetSplitMode(mode){ financeSplitMode = mode; document.getElementById('fin-split-quick-btn')?.classList.toggle('active', mode==='quick'); document.getElementById('fin-split-split-btn')?.classList.toggle('active', mode==='split'); document.getElementById('finance-split-quick')?.classList.toggle('hidden', mode!=='quick'); document.getElementById('finance-split-detail')?.classList.toggle('hidden', mode!=='split'); if(mode==='split' && !document.getElementById('fin-split-lines')?.children.length){ financeAddSplitLine(); financeAddSplitLine(); } financeProgressReveal(); }
 function financeAddSplitLine(){ const wrap = document.getElementById('fin-split-lines'); if(!wrap) return; const opts = FINANCE_CATS.map(c=>`<option value="${c.id}">${c.emoji} ${escapeHtml(c.label)}</option>`).join(''); const div = document.createElement('div'); div.className = 'split-line'; div.innerHTML = `<select class="form-select" data-role="cat" onchange="financeUpdateTally()">${opts}</select><input class="form-input" type="number" step="0.01" data-role="amt" oninput="financeUpdateTally()" placeholder="0.00"><button class="small-btn" type="button" onclick="this.closest('.split-line').remove(); financeUpdateTally();">×</button>`; wrap.appendChild(div); financeUpdateTally(); }
@@ -2972,25 +3031,22 @@ async function financeSaveTransaction(){
   if (is_return && return_type === 'price_match' && linked_id) {
     const origTx = financeState.transactions.find(t => t.id === linked_id);
     if (origTx) {
-      // Determine which item was price matched (first named item from the linked tx, or whole tx)
-      const returnItemName = splits[0]?.name || null;
+      // Read the selected item from the radio button
+      const pmRadio = document.querySelector('.pm-item-radio:checked');
+      const matchedName = pmRadio?.dataset.name || null;
       (origTx.splits || []).forEach(s => {
-        if (!returnItemName || (s.name && s.name.toLowerCase() === returnItemName.toLowerCase())) {
-          // Calculate item-level tax rate for back-calculation
-          const taxRate = s.taxable && s.amount > 0 ? (Number(s.tax_share || 0) / s.amount) : 0;
-          const itemReduction = taxRate > 0 ? parseFloat((total / (1 + taxRate)).toFixed(2)) : total;
-          const taxReduction  = parseFloat((total - itemReduction).toFixed(2));
+        if (!matchedName || (s.name && s.name.toLowerCase() === matchedName.toLowerCase())) {
+          const origItemAmt = Number(pmRadio?.dataset.amount || s.amount || 0);
           s.price_match = {
             refund: total,
-            item_reduction: itemReduction,
-            tax_reduction: taxReduction,
-            effective_price: parseFloat(((s.amount || 0) - itemReduction).toFixed(2)),
+            item_reduction: total,
+            tax_reduction: 0,
+            effective_price: parseFloat((origItemAmt - total).toFixed(2)),
             date,
-            linked_tx_id: null // will be set after insert
+            linked_tx_id: null
           };
         }
       });
-      // Persist original tx update
       await financeUpdateRow('transactions', linked_id, { splits: origTx.splits });
     }
   }
@@ -3031,15 +3087,15 @@ function financeToggleItemize(checked) {
     if (!document.querySelectorAll('#fin-item-lines .fin-item-line').length) financeAddItemLine();
     financeUpdateTaxVisibility();
   } else {
-    // Warn if items exist
     const existing = document.querySelectorAll('#fin-item-lines .fin-item-line').length;
     if (existing > 0 && !confirm('Clear all items and switch to manual entry?')) {
       document.getElementById('fin-items-toggle').checked = true; return;
     }
     section.classList.add('hidden');
     const lines = document.getElementById('fin-item-lines'); if(lines) lines.innerHTML = '';
-    if (totalEl) { totalEl.readOnly = false; totalEl.style.opacity = ''; totalEl.title = ''; }
+    if (totalEl) { totalEl.readOnly = false; totalEl.style.opacity = ''; totalEl.title = ''; totalEl.value = ''; }
   }
+  financeProgressReveal();
 }
 
 function financeItemCatOpts(selectedId) {
@@ -3240,6 +3296,7 @@ function financeItemsAutoSum() {
   const tip = Number(document.getElementById('fin-items-tip')?.value) || 0;
   const grandTotal = parseFloat((sum + tax + tip).toFixed(2));
   totalEl.value = grandTotal > 0 ? grandTotal : '';
+  financeProgressReveal();
   // Update tax note with distribution preview
   const noteEl = document.getElementById('fin-tax-note');
   if (noteEl && tax > 0) {
@@ -3654,6 +3711,7 @@ function financeEditTransactionCard(t){
             <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
             <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
+          ${item.cat === 'groceries' ? `<div class="form-group" style="margin:0;"><label class="form-label">Weight</label><button class="small-btn fil-weight-toggle${eIsLb?' active':''}" type="button" title="${eIsLb?'Weight mode':'Switch to weight'}" onclick="financeToggleWeightMode(this)">⚖</button></div>` : ''}
         </div>
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
           <button class="small-btn" type="button" onclick="financeEditItemCollapse(this)">Done</button>
@@ -5134,7 +5192,12 @@ function receiptRenderReview(parsed) {
         <label class="form-label">Notes</label>
         <input class="form-input" id="rec-notes" placeholder="Optional" />
       </div>
-    </div>`;
+    </div>
+    ${items.some(it => (it._editedCategory || it.category) === 'dining') ? `
+    <div class="fin-tip-row" style="margin-bottom:8px;">
+      <label class="form-label" style="margin:0;white-space:nowrap;">Tip amount</label>
+      <input class="form-input fin-tax-input" type="number" step="0.01" min="0" id="rec-tip" placeholder="0.00" style="max-width:120px;" />
+    </div>` : ''}`;
 
   // ── Manual tax entry if tax_total was null ──
   const taxInputHtml = taxTotal == null ? `
@@ -5665,6 +5728,12 @@ async function receiptSubmit() {
 
   // Build splits (by category, including distributed tax)
   let splits = receiptBuildSplits(items, taxShares, taxTotal);
+
+  // Add tip if entered
+  const tipAmt = parseFloat(document.getElementById('rec-tip')?.value) || 0;
+  if (tipAmt > 0) {
+    splits.push({ cat: 'dining', subcat: 'tip', amount: parseFloat(tipAmt.toFixed(2)), name: 'Tip', taxable: false, qty: 1, unit_price: tipAmt, unit: 'each' });
+  }
 
   // Handle reconciliation difference: add to 'other'
   const splitsSum = splits.reduce((s, sp) => s + sp.amount, 0);
