@@ -290,7 +290,7 @@
                 </div>
               </div>
 
-              <!-- Save (revealed after category) -->
+              <!-- Save — shown independently for both normal and return flows -->
               <div id="fin-step-save" class="form-reveal hidden">
                 <div class="btn-row"><button class="save-btn" type="button" id="fin-save-btn" onclick="financeSaveTransaction()">Save transaction</button><button class="small-btn" type="button" onclick="financeClearForm()">Clear</button><span class="save-msg" id="fin-save-msg"></span></div>
               </div>
@@ -2659,41 +2659,40 @@ function financeProgressReveal() {
   const merchant = (document.getElementById('fin-store')?.value || '').trim();
   const isItemized = document.getElementById('fin-items-toggle')?.checked;
   const manualTotal = Number(document.getElementById('fin-total')?.value || 0);
-  // Items auto-sum total, so treat as "has total" when items exist and any have a price
   const itemsTotal = isItemized
     ? Array.from(document.querySelectorAll('#fin-item-lines [data-role="item-amt"]'))
         .reduce((s,el) => s + (Number(el.value)||0), 0)
     : 0;
   const total = isItemized ? itemsTotal : manualTotal;
-  const cat      = document.getElementById('fin-cat-quick')?.value || '';
-  const txType   = financeTxType;
+  const cat   = document.getElementById('fin-cat-quick')?.value || '';
+  const txType = financeTxType;
+  const isReturn = txType === 'return';
+  const hasReturnItems = !document.getElementById('fin-return-item-wrap')?.classList.contains('hidden');
 
-  // Step 2: amount — show once merchant has value (or return type)
-  const showAmount = merchant.length > 0 || txType === 'return';
+  // Step 2: amount row — show once merchant entered (always show for return)
+  const showAmount = merchant.length > 0 || isReturn;
   document.getElementById('fin-step-amount')?.classList.toggle('hidden', !showAmount);
 
-  // Step 3: category — show once amount entered (skip for return if item picker active)
-  const hasReturnItems = !document.getElementById('fin-return-item-wrap')?.classList.contains('hidden');
-  // For itemized mode: show category step immediately after merchant (items drive the total)
-  const showCat = showAmount && (isItemized || total > 0) && !hasReturnItems;
+  // Step 3: category — skip entirely for return flow (category comes from the items)
+  const showCat = !isReturn && showAmount && (isItemized || total > 0);
   document.getElementById('fin-step-category')?.classList.toggle('hidden', !showCat);
 
-  // Step 4 + save: show once category mode chosen
+  // Step 4: extras — skip for return flow
   const catReady = financeSplitMode === 'split' || cat !== '';
-  const showExtras = showCat && catReady;
+  const showExtras = !isReturn && showCat && catReady;
   document.getElementById('fin-step-extras')?.classList.toggle('hidden', !showExtras);
-  document.getElementById('fin-step-save')?.classList.toggle('hidden', !showExtras);
 
-  // For return flow: also show save once items are selected
-  if (txType === 'return' && hasReturnItems && total > 0) {
-    document.getElementById('fin-step-save')?.classList.remove('hidden');
-  }
+  // Save button — shown for:
+  //   • Normal expense: once extras are visible (catReady)
+  //   • Return: once a total amount is set (item selected or manual)
+  const returnReady = isReturn && total > 0;
+  const showSave = showExtras || returnReady;
+  document.getElementById('fin-step-save')?.classList.toggle('hidden', !showSave);
 
-  // Show/hide subcategory tap button based on split mode (only for quick mode)
+  // Subcategory tap button — only in quick mode for normal expense
   const subcatBtn = document.getElementById('tap-add-subcat');
   if (subcatBtn) subcatBtn.classList.toggle('hidden', financeSplitMode !== 'quick' || !showExtras);
 
-  // Show tip row if any item is in the dining category
   financeUpdateTipVisibility();
 }
 
@@ -2984,7 +2983,8 @@ async function financeSaveTransaction(){
       const unit_price = parseFloat(line.querySelector('[data-role="item-unit-price"]')?.value) || amount;
       const unitBtn    = line.querySelector('.fil-unit-btn.active');
       const unit       = unitBtn?.dataset.unit || 'each';
-      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit });
+      const lbs        = parseFloat(line.dataset.lbs) || null;
+      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit, lbs });
     });
     if (!rawItems.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
     // Distribute tax proportionally across taxable items (mirrors receipt scanner)
@@ -2995,7 +2995,8 @@ async function financeSaveTransaction(){
         : 0;
       splits.push({ cat: item.cat, subcat: '', amount: parseFloat((item.amount + taxShare).toFixed(2)),
         ...(item.name ? {name: item.name} : {}), taxable: item.taxable,
-        qty: item.qty, unit_price: item.unit_price, unit: item.unit });
+        qty: item.qty, unit_price: item.unit_price, unit: item.unit,
+        ...(item.lbs ? {lbs: item.lbs} : {}) });
     });
     if (!splits.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
     // Add tip as a separate dining split if present
@@ -3117,22 +3118,19 @@ function financeAddItemLine(item={}) {
 
   const div = document.createElement('div');
   div.className = 'fin-item-line';
+  if (item.lbs) div.dataset.lbs = item.lbs;
   div.innerHTML = `
     <div class="fil-row1">
       <input class="form-input fil-name" data-role="item-name" placeholder="Item name" value="${escapeHtml(item.name||'')}" />
       <button class="fil-remove" type="button" onclick="this.closest('.fin-item-line').remove(); financeItemsAutoSum();" aria-label="Remove">×</button>
     </div>
     <div class="fil-row2">
-      <div class="fil-unit-toggle">
-        <button class="fil-unit-btn ${!isLb?'active':''}" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
-        <button class="fil-unit-btn ${isLb?'active':''}" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')">lb</button>
-      </div>
       <input class="form-input fil-qty" type="number" data-role="item-qty"
-        min="0" step="${isLb?'0.01':'1'}" placeholder="${isLb?'lbs':'qty'}"
-        value="${qty}" oninput="financeItemCalcTotal(this)" />
+        min="1" step="1" placeholder="qty"
+        value="${item.qty || 1}" oninput="financeItemCalcTotal(this)" />
       <span class="fil-at">@</span>
       <input class="form-input fil-unit-price" type="number" step="0.01" min="0" data-role="item-unit-price"
-        placeholder="$/unit" value="${unitPrice}" oninput="financeItemCalcTotal(this)" />
+        placeholder="$/each" value="${unitPrice}" oninput="financeItemCalcTotal(this)" />
       <span class="fil-eq">=</span>
       <input class="form-input fil-total" type="number" step="0.01" min="0" data-role="item-amt"
         placeholder="total" value="${total}" oninput="financeItemsAutoSum()" readonly style="background:var(--surface2);opacity:0.8;" />
@@ -3141,12 +3139,14 @@ function financeAddItemLine(item={}) {
       <select class="form-select fil-cat" data-role="item-cat" onchange="financeItemCatChanged(this)">${financeItemCatOpts(cat)}</select>
       <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}"
         type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button>
-      ${cat === 'groceries' ? `<button class="small-btn fil-weight-toggle" type="button" title="Switch between each ↔ weight" onclick="financeToggleWeightMode(this)">⚖</button>` : ''}
+      ${cat === 'groceries' ? `<button class="small-btn fil-weight-toggle" type="button" title="Add weight (lbs)" onclick="financeToggleWeightMode(this)">⚖ lbs</button>` : ''}
     </div>`;
   wrap.appendChild(div);
-  // Feature 2: hide lb button if default category is not groceries
-  const lbBtnInit = div.querySelector('.fil-unit-btn[data-unit="lb"]');
-  if (lbBtnInit && cat !== 'groceries') lbBtnInit.style.display = 'none';
+  // Restore lbs field if item already had weight data
+  if (item.lbs) {
+    const fakeBtn = div.querySelector('.fil-weight-toggle');
+    if (fakeBtn) { financeToggleWeightMode(fakeBtn); const inp = div.querySelector('.fil-lbs-input'); if(inp) inp.value = item.lbs; financeWeightLbsChanged(inp); }
+  }
 }
 
 function financeItemUnitMode(btn, unit) {
@@ -3176,15 +3176,25 @@ function financeItemCatChanged(selectEl) {
   const line = selectEl.closest('.fin-item-line') || selectEl.closest('.edit-item-inline');
   if (!line) return;
   const cat = selectEl.value;
-  // lb unit only available for Groceries
-  const lbBtn = line.querySelector('.fil-unit-btn[data-unit="lb"]');
-  if (lbBtn) {
-    const showLb = (cat === 'groceries');
-    lbBtn.style.display = showLb ? '' : 'none';
-    // If lb was active and category changed away from groceries, reset to each
-    if (!showLb && lbBtn.classList.contains('active')) {
-      const eachBtn = line.querySelector('.fil-unit-btn[data-unit="each"]');
-      if (eachBtn) financeItemUnitMode(eachBtn, 'each');
+  // Show/hide weight toggle button — only for groceries
+  const weightBtn = line.querySelector('.fil-weight-toggle');
+  if (weightBtn) {
+    weightBtn.style.display = (cat === 'groceries') ? '' : 'none';
+    // If switching away from groceries while weight mode is open, close it
+    if (cat !== 'groceries' && weightBtn.classList.contains('active')) {
+      financeToggleWeightMode(weightBtn); // toggle closes it
+    }
+  } else if (cat === 'groceries') {
+    // Add weight button if it doesn't exist yet (edit rows)
+    const row3 = line.querySelector('.fil-row3') || line.querySelector('.edit-item-inline-fields');
+    if (row3 && !row3.querySelector('.fil-weight-toggle')) {
+      const wb = document.createElement('button');
+      wb.className = 'small-btn fil-weight-toggle';
+      wb.type = 'button';
+      wb.title = 'Add weight (lbs)';
+      wb.textContent = '⚖ lbs';
+      wb.onclick = function() { financeToggleWeightMode(wb); };
+      row3.appendChild(wb);
     }
   }
   const taxBtn = line.querySelector('[data-role="item-taxable"]');
@@ -3200,51 +3210,59 @@ function financeItemCatChanged(selectEl) {
 function financeToggleWeightMode(btn) {
   const line = btn.closest('.fin-item-line') || btn.closest('.edit-item-inline');
   if (!line) return;
-  const eachBtn = line.querySelector('.fil-unit-btn[data-unit="each"]');
-  const lbBtn   = line.querySelector('.fil-unit-btn[data-unit="lb"]');
-  const qtyEl   = line.querySelector('[data-role="item-qty"]');
-  const unitPriceEl = line.querySelector('[data-role="item-unit-price"]');
-  const amtEl   = line.querySelector('[data-role="item-amt"]');
-  if (!eachBtn || !lbBtn || !qtyEl) return;
 
-  const isEach = eachBtn.classList.contains('active');
-  if (isEach) {
-    // --- Switch to weight mode ---
-    // Capture the total cost before switching (e.g. $5 for 1 bag)
-    const lockedTotal = parseFloat(amtEl?.value || unitPriceEl?.value || 0);
+  // Find or create the lbs overlay field
+  let lbsWrap = line.querySelector('.fil-lbs-wrap');
+  const isOpen = btn.classList.contains('active');
 
-    // Show lb button and activate it
-    lbBtn.style.display = '';
-    // Manually activate lb without triggering a recalc that wipes total
-    line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === 'lb'));
-    const qtyLabel = line.querySelector('.form-group label.form-label');
-    if (qtyEl) { qtyEl.step = '0.01'; qtyEl.min = '0'; qtyEl.placeholder = 'lbs'; }
-
-    // Set qty to empty so user enters lbs; keep total locked at original cost
-    qtyEl.value = '';
-    if (amtEl) { amtEl.readOnly = true; amtEl.value = lockedTotal > 0 ? lockedTotal.toFixed(2) : ''; }
-
-    // Attach a one-time lbs input handler: as user types lbs, update $/lb but keep total
-    qtyEl.oninput = function() {
-      const lbs = parseFloat(qtyEl.value) || 0;
-      const total = parseFloat(amtEl?.value || 0);
-      if (unitPriceEl && lbs > 0 && total > 0) {
-        unitPriceEl.value = (total / lbs).toFixed(2);
-      }
-    };
-
-    btn.title = 'Currently: weight mode — click to switch back to each';
-    btn.classList.add('active');
-
-  } else {
-    // --- Switch back to each mode ---
-    line.querySelectorAll('.fil-unit-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === 'each'));
-    if (qtyEl) { qtyEl.step = '1'; qtyEl.min = '1'; qtyEl.placeholder = 'qty'; qtyEl.value = '1'; qtyEl.oninput = function() { financeItemCalcTotal(qtyEl); }; }
-    if (amtEl) { amtEl.readOnly = false; }
-    // Restore normal total calculation
-    financeItemCalcTotal(qtyEl);
-    btn.title = 'Switch to weight mode (lbs)';
+  if (isOpen) {
+    // Close: hide the lbs field, clear it, restore button
+    if (lbsWrap) lbsWrap.style.display = 'none';
     btn.classList.remove('active');
+    btn.title = 'Add weight (lbs)';
+  } else {
+    // Open: show (or create) the lbs field below the price row
+    if (!lbsWrap) {
+      lbsWrap = document.createElement('div');
+      lbsWrap.className = 'fil-lbs-wrap';
+      lbsWrap.innerHTML = `
+        <label class="form-label" style="margin:0;white-space:nowrap;">Weight (lbs)</label>
+        <input class="form-input fil-lbs-input" type="number" step="0.01" min="0"
+          placeholder="e.g. 3.2" data-role="item-lbs"
+          style="width:100px;"
+          oninput="financeWeightLbsChanged(this)" />
+        <span class="metric-sub fil-lbs-note"></span>`;
+      // Insert after fil-row2 if present, else append
+      const row2 = line.querySelector('.fil-row2');
+      if (row2) row2.insertAdjacentElement('afterend', lbsWrap);
+      else line.appendChild(lbsWrap);
+    }
+    lbsWrap.style.display = '';
+    // Pre-fill with existing lbs if already set
+    const existingLbs = line.dataset.lbs || '';
+    const lbsInput = lbsWrap.querySelector('.fil-lbs-input');
+    if (lbsInput) { lbsInput.value = existingLbs; lbsInput.focus(); }
+    // Update the note immediately
+    financeWeightLbsChanged(lbsWrap.querySelector('.fil-lbs-input'));
+    btn.classList.add('active');
+    btn.title = 'Hide weight field';
+  }
+}
+
+function financeWeightLbsChanged(input) {
+  if (!input) return;
+  const line = input.closest('.fin-item-line') || input.closest('.edit-item-inline');
+  if (!line) return;
+  const lbs = parseFloat(input.value) || 0;
+  const total = parseFloat(line.querySelector('[data-role="item-amt"]')?.value) || 0;
+  const noteEl = line.querySelector('.fil-lbs-note');
+  if (lbs > 0 && total > 0) {
+    const perLb = (total / lbs).toFixed(2);
+    if (noteEl) noteEl.textContent = `$${perLb}/lb`;
+    line.dataset.lbs = lbs;
+  } else {
+    if (noteEl) noteEl.textContent = '';
+    line.dataset.lbs = '';
   }
 }
 
@@ -4646,10 +4664,11 @@ financeTransactionCard = function(t) {
         const cat = financeCat(s.cat);
         const qtyLabel = s.qty && s.unit && (s.qty !== 1 || s.unit !== 'each')
           ? `<span class="tx-item-qty">${s.unit==='lb'?s.qty+'lb':(s.qty>1?'×'+s.qty:'')}</span>` : '';
+        const lbsLabel = s.lbs ? `<span class="tx-item-qty">${s.lbs}lb</span>` : '';
         const itemLower = (s.name || '').toLowerCase();
         const retBadge = returnedItemNames.has(itemLower) ? ' <span class="badge badge-returned" style="font-size:9px;">↩ Returned</span>' : '';
         const pmBadge  = priceMatchedItems[itemLower] ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 Price Match</span>` : '';
-        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}${qtyLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
+        return `<div class="tx-item-row"><span class="tx-item-name">${escapeHtml(s.name)}${qtyLabel}${lbsLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${financeFmt(s.amount)}</span></div>`;
       }).join('')}</div>`
     : '';
 

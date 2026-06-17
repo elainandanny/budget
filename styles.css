@@ -2589,6 +2589,23 @@ input[type="date"] {
   flex-wrap: wrap;
 }
 
+/* ── Weight (lbs) inline field ─────────────────────── */
+.fil-lbs-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0 2px;
+  flex-wrap: wrap;
+}
+.fil-lbs-input {
+  width: 100px;
+}
+.fil-lbs-note {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a90d9;
+}
+
 /* Price Match item selector rows */
 .pm-item-row {
   cursor: pointer;
@@ -2614,3 +2631,4 @@ input[type="date"] {
   gap: 2px;
   margin-bottom: 10px;
 }
+
