@@ -2970,18 +2970,80 @@ async function financeSaveTransaction(){
   const date = normalizeDateValue(document.getElementById('fin-date').value);
   const store = document.getElementById('fin-store').value.trim();
   const payment = document.getElementById('fin-payment').value;
-  const notes = document.getElementById('fin-notes').value.trim();
-  const isItemized = document.getElementById('fin-items-toggle')?.checked;
+  const notes = document.getElementById('fin-notes')?.value.trim() || '';
+  const is_return = financeTxType === 'return';
+  const msgId = is_return ? 'fin-return-save-msg' : 'fin-save-msg';
 
+  // ── RETURN / PRICE MATCH PATH ──────────────────────────────────────────
+  if (is_return) {
+    const linked_id = document.getElementById('fin-return-link')?.value || null;
+    const return_type = financeReturnSubType; // 'return' | 'price_match'
+    const total = Number(document.getElementById('fin-total')?.value || 0);
+
+    if (!date) { financeShowMsg(msgId, 'Date is required.', true); return; }
+    if (total <= 0) {
+      const hint = return_type === 'price_match'
+        ? 'Enter the refund amount you received.'
+        : 'Select at least one item to return.';
+      financeShowMsg(msgId, hint, true); return;
+    }
+
+    // Build splits from checked return items (or PM radio)
+    let splits = [];
+    if (return_type === 'price_match') {
+      const pmRadio = document.querySelector('.pm-item-radio:checked');
+      const cat  = pmRadio?.dataset.cat  || 'other';
+      const name = pmRadio?.dataset.name || '';
+      splits = [{ cat, subcat: 'price_match', amount: total, ...(name ? {name} : {}), taxable: false, qty: 1, unit_price: total, unit: 'each' }];
+      // Annotate the original transaction's split
+      if (linked_id) {
+        const origTx = financeState.transactions.find(t => t.id === linked_id);
+        if (origTx) {
+          (origTx.splits || []).forEach(s => {
+            if (!name || (s.name && s.name.toLowerCase() === name.toLowerCase())) {
+              const origAmt = Number(pmRadio?.dataset.amount || s.amount || 0);
+              s.price_match = { refund: total, effective_price: parseFloat((origAmt - total).toFixed(2)), date };
+            }
+          });
+          await financeUpdateRow('transactions', linked_id, { splits: origTx.splits });
+        }
+      }
+    } else {
+      // Regular return — build splits from checked items
+      const checked = document.querySelectorAll('.return-item-check:checked');
+      if (checked.length) {
+        checked.forEach(cb => {
+          const adj = cb.closest('.return-item-row')?.querySelector('.return-item-adj');
+          const amount = adj?.value ? Number(adj.value) : Number(cb.dataset.amount || 0);
+          splits.push({ cat: cb.dataset.cat || 'other', subcat: 'return', amount: parseFloat(amount.toFixed(2)), name: cb.dataset.name || '', taxable: false, qty: 1, unit_price: amount, unit: 'each' });
+        });
+      } else {
+        // No named items — use total as a single split from the linked transaction's primary category
+        const origTx = linked_id ? financeState.transactions.find(t => t.id === linked_id) : null;
+        const cat = origTx?.splits?.[0]?.cat || 'other';
+        splits = [{ cat, subcat: 'return', amount: total, taxable: false, qty: 1, unit_price: total, unit: 'each' }];
+      }
+    }
+
+    const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return: true, linked_id, return_type });
+    if (error) { financeShowMsg(msgId, 'Could not save to cloud.', true); return; }
+    financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return: true, linked_id, return_type, created_at: new Date().toISOString() });
+    await financePersist();
+    financeShowMsg(msgId, return_type === 'price_match' ? 'Price match logged.' : 'Return logged.');
+    financeClearForm();
+    financeRenderAll();
+    return;
+  }
+
+  // ── NORMAL EXPENSE PATH ────────────────────────────────────────────────
+  const isItemized = document.getElementById('fin-items-toggle')?.checked;
   let splits = [], total = 0;
 
   if (isItemized) {
-    // Build splits from item rows — each item becomes a named split
     const itemLines = document.querySelectorAll('#fin-item-lines .fin-item-line');
-    if (!itemLines.length) { financeShowMsg('fin-save-msg','Add at least one item.',true); return; }
+    if (!itemLines.length) { financeShowMsg(msgId,'Add at least one item.',true); return; }
     const taxAmt = Number(document.getElementById('fin-items-tax')?.value) || 0;
     const tipAmt = Number(document.getElementById('fin-items-tip')?.value) || 0;
-    // Collect raw items with taxable flag
     const rawItems = [];
     itemLines.forEach(line => {
       const name       = line.querySelector('[data-role="item-name"]').value.trim();
@@ -2995,31 +3057,27 @@ async function financeSaveTransaction(){
       const lbs        = parseFloat(line.dataset.lbs) || null;
       if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit, lbs });
     });
-    if (!rawItems.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
-    // Distribute tax proportionally across taxable items (mirrors receipt scanner)
+    if (!rawItems.length) { financeShowMsg(msgId,'At least one item must have a price.',true); return; }
     const taxableTotal = rawItems.filter(i=>i.taxable).reduce((s,i)=>s+i.amount,0);
-    rawItems.forEach((item, idx) => {
+    rawItems.forEach(item => {
       const taxShare = (taxAmt > 0 && item.taxable && taxableTotal > 0)
-        ? parseFloat((item.amount / taxableTotal * taxAmt).toFixed(2))
-        : 0;
+        ? parseFloat((item.amount / taxableTotal * taxAmt).toFixed(2)) : 0;
       splits.push({ cat: item.cat, subcat: '', amount: parseFloat((item.amount + taxShare).toFixed(2)),
         ...(item.name ? {name: item.name} : {}), taxable: item.taxable,
         qty: item.qty, unit_price: item.unit_price, unit: item.unit,
         ...(item.lbs ? {lbs: item.lbs} : {}) });
     });
-    if (!splits.length) { financeShowMsg('fin-save-msg','At least one item must have a price.',true); return; }
-    // Add tip as a separate dining split if present
+    if (!splits.length) { financeShowMsg(msgId,'At least one item must have a price.',true); return; }
     if (tipAmt > 0) {
       splits.push({ cat: 'dining', subcat: 'tip', amount: parseFloat(tipAmt.toFixed(2)), name: 'Tip', taxable: false, qty: 1, unit_price: tipAmt, unit: 'each' });
     }
     total = parseFloat(splits.reduce((s,x)=>s+x.amount,0).toFixed(2));
-    // Update total display
     const totalEl = document.getElementById('fin-total');
     if (totalEl) totalEl.value = total;
   } else {
     total = Number(document.getElementById('fin-total').value);
     if (financeSplitMode === 'quick') {
-      splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat').value.trim(), amount: total }];
+      splits = [{ cat: document.getElementById('fin-cat-quick').value, subcat: document.getElementById('fin-subcat')?.value.trim() || '', amount: total }];
     } else {
       document.querySelectorAll('#fin-split-lines .split-line').forEach(line => {
         const cat = line.querySelector('[data-role="cat"]').value;
@@ -3027,45 +3085,16 @@ async function financeSaveTransaction(){
         if(amount > 0) splits.push({cat, subcat:'', amount});
       });
       const alloc = splits.reduce((sum,x)=>sum+x.amount,0);
-      if(Math.abs(alloc-total) > .06){ financeShowMsg('fin-save-msg', `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; }
+      if(Math.abs(alloc-total) > .06){ financeShowMsg(msgId, `Split total (${financeFmt(alloc)}) must equal amount (${financeFmt(total)}).`, true); return; }
     }
   }
 
-  if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg('fin-save-msg','Date and positive amount required.',true); return; }
-  const is_return = financeTxType === 'return';
-  const linked_id = is_return ? (document.getElementById('fin-return-link').value || null) : null;
-  const return_type = is_return ? financeReturnSubType : null;
+  if(!date || !Number.isFinite(total) || total <= 0){ financeShowMsg(msgId,'Date and positive amount required.',true); return; }
 
-  // Feature 5: For price match, back-calculate item reduction from the refund total
-  // and annotate the original transaction's split item
-  if (is_return && return_type === 'price_match' && linked_id) {
-    const origTx = financeState.transactions.find(t => t.id === linked_id);
-    if (origTx) {
-      // Read the selected item from the radio button
-      const pmRadio = document.querySelector('.pm-item-radio:checked');
-      const matchedName = pmRadio?.dataset.name || null;
-      (origTx.splits || []).forEach(s => {
-        if (!matchedName || (s.name && s.name.toLowerCase() === matchedName.toLowerCase())) {
-          const origItemAmt = Number(pmRadio?.dataset.amount || s.amount || 0);
-          s.price_match = {
-            refund: total,
-            item_reduction: total,
-            tax_reduction: 0,
-            effective_price: parseFloat((origItemAmt - total).toFixed(2)),
-            date,
-            linked_tx_id: null
-          };
-        }
-      });
-      await financeUpdateRow('transactions', linked_id, { splits: origTx.splits });
-    }
-  }
-
-  const msgId = is_return ? 'fin-return-save-msg' : 'fin-save-msg';
-  const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return, linked_id, return_type });
+  const { data, error } = await financeInsertRow('transactions', { date, store, total, payment, notes, splits, is_return: false, linked_id: null, return_type: null });
   if(error){ financeShowMsg(msgId,'Could not save to cloud. Check Supabase SQL/policies.',true); return; }
-  financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return, linked_id, created_at: new Date().toISOString() });
-  await financePersist(); financeShowMsg(msgId, is_return ? (return_type==='price_match' ? 'Price match logged.' : 'Return logged.') : 'Saved.'); financeClearForm(); financeRenderAll();
+  financeState.transactions.unshift(data ? normalizeFinanceTransaction(data) : { id: financeId(), date, store, total, payment, notes, splits, is_return: false, linked_id: null, created_at: new Date().toISOString() });
+  await financePersist(); financeShowMsg(msgId, 'Saved.'); financeClearForm(); financeRenderAll();
 }
 function financeClearForm(){
   ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
