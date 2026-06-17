@@ -2580,6 +2580,15 @@ input[type="date"] {
   opacity: 1;
 }
 
+/* Tip row — mirrors tax row style */
+.fin-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
 /* ── Return sub-type toggle (Return | Price Match) ── */
 .finance-return-type-toggle {
   display: inline-flex;
