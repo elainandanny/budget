@@ -4699,7 +4699,7 @@ financeTransactionCard = function(t) {
   const pmSummary     = pmCount > 0       ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 ${pmCount} price matched</span>` : '';
 
   const itemBadge = namedItems.length
-    ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}')">${namedItems.length} item${namedItems.length>1?'s':''}</button>${returnSummary}${pmSummary}`
+    ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}',this)">${namedItems.length} item${namedItems.length>1?'s':''}</button>${returnSummary}${pmSummary}`
     : `${returnSummary}${pmSummary}`;
 
   // Title-line badges: whole-tx return/PM + transaction type
@@ -4753,9 +4753,21 @@ financeTransactionCard = function(t) {
   </div>`;
 };
 
-function financeToggleItemList(id) {
-  const el = document.getElementById('tx-items-' + id);
-  if (el) el.classList.toggle('hidden');
+function financeToggleItemList(id, btn) {
+  // Prefer finding the list relative to the clicked button to avoid
+  // ID collisions when the same transaction appears in both history and calendar
+  let el = null;
+  if (btn) {
+    const card = btn.closest('.tx-item');
+    el = card ? card.querySelector('.tx-item-list') : null;
+  }
+  // Fall back to ID lookup if no button context (e.g. called programmatically)
+  if (!el) el = document.getElementById('tx-items-' + id);
+  if (!el) return;
+  const isHidden = el.classList.toggle('hidden');
+  if (btn) btn.textContent = isHidden
+    ? `${el.querySelectorAll('.tx-item-row').length} items`
+    : 'Hide items';
 }
 
 // ── Shared helpers used by history, calendar, and transaction cards ──
