@@ -337,6 +337,9 @@
           </div>
 
           <div class="summary-line" id="finance-history-summary"></div>
+          <div style="margin-bottom:12px;">
+            <button class="small-btn" type="button" onclick="drilldownOpenBrowse()" style="font-size:13px;padding:8px 14px;">🔍 Browse items</button>
+          </div>
           <div class="tx-list" id="finance-history-list"></div>
         </div>
 
@@ -4590,33 +4593,70 @@ if (_metricsContainer) {
 // ══════════════════════════════════════════════
 // DRILL-DOWN MODAL (category or merchant)
 // ══════════════════════════════════════════════
-let _drilldownMode = null;  // 'category' | 'merchant'
-let _drilldownKey  = null;  // category id or merchant name
+let _drilldownMode = 'category'; // 'category' | 'merchant'
+
+function drilldownPopulateDropdowns() {
+  // Categories
+  const catSel = document.getElementById('drilldown-cat-select');
+  if (catSel) {
+    const currentCat = catSel.value;
+    catSel.innerHTML = '<option value="">All categories</option>' +
+      FINANCE_CATS.map(c => `<option value="${c.id}" ${c.id===currentCat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('');
+  }
+  // Merchants — sorted alphabetically, deduplicated
+  const merchantSel = document.getElementById('drilldown-merchant-select');
+  if (merchantSel) {
+    const currentMerchant = merchantSel.value;
+    const merchants = [...new Set(
+      financeState.transactions
+        .filter(t => t.store && !t.is_return && t.source !== 'gas')
+        .map(t => t.store)
+    )].sort((a,b) => a.localeCompare(b));
+    merchantSel.innerHTML = '<option value="">All merchants</option>' +
+      merchants.map(m => `<option value="${m}" ${m===currentMerchant?'selected':''}>${escapeHtml(m)}</option>`).join('');
+  }
+}
+
+function drilldownSetMode(mode) {
+  _drilldownMode = mode;
+  document.getElementById('drilldown-mode-category')?.classList.toggle('active', mode === 'category');
+  document.getElementById('drilldown-mode-merchant')?.classList.toggle('active', mode === 'merchant');
+  drilldownRender();
+}
+
+function drilldownOpenBrowse() {
+  drilldownPopulateDropdowns();
+  document.getElementById('drilldown-title').textContent = 'Browse Items';
+  document.getElementById('drilldown-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  drilldownSetMode('category');
+}
 
 function drilldownOpenCategory(catId) {
-  const cat = financeCat(catId);
+  drilldownPopulateDropdowns();
   _drilldownMode = 'category';
-  _drilldownKey  = catId;
-  document.getElementById('drilldown-title').innerHTML =
-    `<span style="color:${cat.color}">${cat.emoji}</span> ${escapeHtml(cat.label)}`;
-  drilldownClearDates();
+  document.getElementById('drilldown-cat-select').value = catId;
+  document.getElementById('drilldown-mode-category')?.classList.add('active');
+  document.getElementById('drilldown-mode-merchant')?.classList.remove('active');
+  document.getElementById('drilldown-title').textContent = 'Browse Items';
   document.getElementById('drilldown-modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   drilldownRender();
 }
 
 function drilldownOpenMerchant(store) {
+  drilldownPopulateDropdowns();
   _drilldownMode = 'merchant';
-  _drilldownKey  = store;
-  document.getElementById('drilldown-title').textContent = store;
-  drilldownClearDates();
+  document.getElementById('drilldown-merchant-select').value = store;
+  document.getElementById('drilldown-mode-merchant')?.classList.add('active');
+  document.getElementById('drilldown-mode-category')?.classList.remove('active');
+  document.getElementById('drilldown-title').textContent = 'Browse Items';
   document.getElementById('drilldown-modal').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   drilldownRender();
 }
 
 function drilldownClose(e) {
-  // Close only if clicking the overlay backdrop, or the close button (no event)
   if (e && e.target !== document.getElementById('drilldown-modal')) return;
   document.getElementById('drilldown-modal').classList.add('hidden');
   document.body.style.overflow = '';
@@ -4630,66 +4670,75 @@ function drilldownClearDates() {
 }
 
 function drilldownRender() {
-  const from = document.getElementById('drilldown-from').value;
-  const to   = document.getElementById('drilldown-to').value;
-  const clearBtn = document.getElementById('drilldown-clear-dates');
+  const from        = document.getElementById('drilldown-from').value;
+  const to          = document.getElementById('drilldown-to').value;
+  const filterCat   = document.getElementById('drilldown-cat-select').value;
+  const filterMerch = document.getElementById('drilldown-merchant-select').value;
+  const clearBtn    = document.getElementById('drilldown-clear-dates');
   if (clearBtn) clearBtn.style.display = (from || to) ? '' : 'none';
 
-  // Build flat row list from all transactions
+  // Show both dropdowns always — they act as cross-filters
+  const catWrap  = document.getElementById('drilldown-cat-wrap');
+  const merchWrap = document.getElementById('drilldown-merchant-wrap');
+  if (catWrap)   catWrap.style.display   = '';
+  if (merchWrap) merchWrap.style.display = '';
+
   const rows = [];
   const txs = financeState.transactions.filter(t => !t.is_return && t.source !== 'gas');
 
   txs.forEach(t => {
     if (from && t.date < from) return;
     if (to   && t.date > to)   return;
+    if (filterMerch && String(t.store||'').toLowerCase() !== filterMerch.toLowerCase()) return;
 
-    const splits = (t.splits || []);
+    const splits = t.splits || [];
     const namedSplits = splits.filter(s => s.name);
 
     if (_drilldownMode === 'category') {
-      const catSplits = splits.filter(s => s.cat === _drilldownKey);
-      if (!catSplits.length) return;
+      // Primary: group by category; cross-filter by merchant already applied above
+      const relevantSplits = filterCat
+        ? splits.filter(s => s.cat === filterCat)
+        : splits;
+      if (!relevantSplits.length) return;
 
       if (namedSplits.length) {
-        // Show each named item in this category
-        catSplits.filter(s => s.name).forEach(s => {
+        relevantSplits.filter(s => s.name).forEach(s => {
           rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: s.name, amount: s.amount, lbs: s.lbs });
         });
-        // If some splits in this category have no name (mixed tx), add a remainder row
-        const unnamedAmt = catSplits.filter(s => !s.name).reduce((sum,s) => sum + s.amount, 0);
-        if (unnamedAmt > 0) rows.push({ date: t.date, merchant: t.store, catId: _drilldownKey, name: null, amount: unnamedAmt });
+        const unnamedAmt = relevantSplits.filter(s => !s.name).reduce((sum,s) => sum + s.amount, 0);
+        if (unnamedAmt > 0) rows.push({ date: t.date, merchant: t.store, catId: filterCat || relevantSplits[0].cat, name: null, amount: unnamedAmt });
       } else {
-        // Whole transaction is this category (or part of it)
-        const amt = catSplits.reduce((sum,s) => sum + s.amount, 0);
-        rows.push({ date: t.date, merchant: t.store, catId: _drilldownKey, name: null, amount: amt });
+        const amt = relevantSplits.reduce((sum,s) => sum + s.amount, 0);
+        rows.push({ date: t.date, merchant: t.store, catId: filterCat || relevantSplits[0]?.cat || 'other', name: null, amount: amt });
       }
 
     } else {
-      // Merchant mode
-      if (String(t.store||'').toLowerCase() !== String(_drilldownKey||'').toLowerCase()) return;
+      // Primary: group by merchant; cross-filter by category
+      const relevantSplits = filterCat
+        ? splits.filter(s => s.cat === filterCat)
+        : splits;
+      if (!relevantSplits.length) return;
 
       if (namedSplits.length) {
-        namedSplits.forEach(s => {
+        relevantSplits.filter(s => s.name).forEach(s => {
           rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: s.name, amount: s.amount, lbs: s.lbs });
         });
+        const unnamedAmt = relevantSplits.filter(s => !s.name).reduce((sum,s) => sum + s.amount, 0);
+        if (unnamedAmt > 0) rows.push({ date: t.date, merchant: t.store, catId: relevantSplits[0]?.cat || 'other', name: null, amount: unnamedAmt });
       } else {
-        // Non-itemized — show one row per split
-        splits.forEach(s => {
+        relevantSplits.forEach(s => {
           rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: null, amount: s.amount });
         });
       }
     }
   });
 
-  // Sort newest first
   rows.sort((a,b) => String(b.date).localeCompare(String(a.date)));
 
-  // Summary
   const total = rows.reduce((s,r) => s + r.amount, 0);
   document.getElementById('drilldown-summary').textContent =
     `${rows.length} item${rows.length!==1?'s':''} · ${financeFmt(total)} total`;
 
-  // Render rows
   const list = document.getElementById('drilldown-list');
   if (!rows.length) {
     list.innerHTML = '<div class="drilldown-empty">No items found.</div>';
@@ -4698,19 +4747,21 @@ function drilldownRender() {
 
   list.innerHTML = rows.map(r => {
     const cat = financeCat(r.catId);
-    const weightStr = r.lbs && r.amount > 0 ? `<span class="drilldown-weight">$${(r.amount/r.lbs).toFixed(2)}/lb · ${r.lbs}lb</span>` : '';
+    const weightStr = r.lbs && r.amount > 0
+      ? `<span class="drilldown-weight">$${(r.amount/r.lbs).toFixed(2)}/lb · ${r.lbs}lb</span>` : '';
     const nameHtml = r.name
-      ? `<span class="drilldown-item-name">${escapeHtml(r.name)}</span>${weightStr}`
+      ? `<span class="drilldown-item-name">${escapeHtml(r.name)}${weightStr}</span>`
       : `<span class="drilldown-item-name muted">—</span>`;
-
-    const leftCol = _drilldownMode === 'category'
-      ? `<span class="drilldown-merchant">${escapeHtml(r.merchant||'—')}</span>`
-      : `<span class="drilldown-cat" style="color:${cat.color}">${cat.emoji} ${escapeHtml(cat.label)}</span>`;
 
     return `<div class="drilldown-row">
       <div class="drilldown-row-left">
-        <span class="drilldown-date">${formatDateShort(r.date)}</span>
-        ${leftCol}
+        <div class="drilldown-row-meta">
+          <span class="drilldown-date">${formatDateShort(r.date)}</span>
+          <span class="drilldown-dot">·</span>
+          <span class="drilldown-merchant">${escapeHtml(r.merchant||'—')}</span>
+          <span class="drilldown-dot">·</span>
+          <span class="drilldown-cat" style="color:${cat.color}">${cat.emoji} ${escapeHtml(cat.label)}</span>
+        </div>
         ${nameHtml}
       </div>
       <span class="drilldown-amount">${financeFmt(r.amount)}</span>
@@ -6591,11 +6642,32 @@ financeSaveEditTransaction = async function(id) {
 <div id="drilldown-modal" class="drilldown-overlay hidden" onclick="drilldownClose(event)">
   <div class="drilldown-sheet">
     <div class="drilldown-header">
-      <div class="drilldown-title" id="drilldown-title"></div>
+      <div class="drilldown-title" id="drilldown-title">Browse Items</div>
       <button class="drilldown-close" type="button" onclick="drilldownClose()">✕</button>
     </div>
     <div class="drilldown-filters">
-      <div class="drilldown-filter-row">
+      <!-- Browse mode toggle -->
+      <div class="mode-toggle" style="margin-bottom:12px;">
+        <button class="mode-btn active" id="drilldown-mode-category" type="button" onclick="drilldownSetMode('category')">By Category</button>
+        <button class="mode-btn" id="drilldown-mode-merchant" type="button" onclick="drilldownSetMode('merchant')">By Merchant</button>
+      </div>
+      <!-- Primary selector -->
+      <div class="form-row" style="gap:10px;flex-wrap:wrap;">
+        <div class="form-group" style="margin:0;flex:1;min-width:140px;" id="drilldown-cat-wrap">
+          <label class="form-label">Category</label>
+          <select class="form-select" id="drilldown-cat-select" onchange="drilldownRender()">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0;flex:1;min-width:140px;" id="drilldown-merchant-wrap">
+          <label class="form-label">Merchant</label>
+          <select class="form-select" id="drilldown-merchant-select" onchange="drilldownRender()">
+            <option value="">All merchants</option>
+          </select>
+        </div>
+      </div>
+      <!-- Date range -->
+      <div class="drilldown-filter-row" style="margin-top:10px;">
         <div class="form-group" style="margin:0;flex:1;">
           <label class="form-label">From</label>
           <input class="form-input" type="date" id="drilldown-from" oninput="drilldownRender()" />
@@ -6604,7 +6676,7 @@ financeSaveEditTransaction = async function(id) {
           <label class="form-label">To</label>
           <input class="form-input" type="date" id="drilldown-to" oninput="drilldownRender()" />
         </div>
-        <button class="small-btn" type="button" id="drilldown-clear-dates" onclick="drilldownClearDates()" style="align-self:flex-end;display:none;">Clear dates</button>
+        <button class="small-btn" type="button" id="drilldown-clear-dates" onclick="drilldownClearDates()" style="align-self:flex-end;display:none;">Clear</button>
       </div>
       <div class="drilldown-summary" id="drilldown-summary"></div>
     </div>
