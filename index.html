@@ -3229,16 +3229,27 @@ function financeItemCatChanged(selectEl) {
   const line = selectEl.closest('.fin-item-line') || selectEl.closest('.edit-item-inline');
   if (!line) return;
   const cat = selectEl.value;
+
+  // Show/hide lb unit button — only for groceries
+  const lbUnitBtn = line.querySelector('.fil-unit-btn[data-unit="lb"]');
+  if (lbUnitBtn) {
+    lbUnitBtn.style.display = (cat === 'groceries') ? '' : 'none';
+    if (cat !== 'groceries' && lbUnitBtn.classList.contains('active')) {
+      const eachBtn = line.querySelector('.fil-unit-btn[data-unit="each"]');
+      if (eachBtn) financeItemUnitMode(eachBtn, 'each');
+    }
+  }
+
   // Show/hide weight toggle button — only for groceries
   const weightBtn = line.querySelector('.fil-weight-toggle');
   if (weightBtn) {
-    weightBtn.style.display = (cat === 'groceries') ? '' : 'none';
-    // If switching away from groceries while weight mode is open, close it
+    const weightWrap = weightBtn.closest('.form-group') || weightBtn;
+    weightWrap.style.display = (cat === 'groceries') ? '' : 'none';
     if (cat !== 'groceries' && weightBtn.classList.contains('active')) {
-      financeToggleWeightMode(weightBtn); // toggle closes it
+      financeToggleWeightMode(weightBtn);
     }
   } else if (cat === 'groceries') {
-    // Add weight button if it doesn't exist yet (edit rows)
+    // Add weight button dynamically if not present (add-form rows that started non-grocery)
     const row3 = line.querySelector('.fil-row3') || line.querySelector('.edit-item-inline-fields');
     if (row3 && !row3.querySelector('.fil-weight-toggle')) {
       const wb = document.createElement('button');
@@ -3419,7 +3430,7 @@ function financeRenderDashboard(){
 function financeCategoryTotals(txs){ const totals = {}; financeExcludeFromTx(txs).forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderBudgetCard(spent, txs){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const fullSpent = txs ? financeNetSpentFull(txs) : spent; const pct = Math.max(0, Math.min(100, fullSpent/limit*100)); const discNote = fullSpent !== spent ? ` <span style="font-size:10px;color:var(--muted)">(discretionary: ${financeFmt(spent)})</span>` : ''; el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(fullSpent)} / ${financeFmt(limit)}${discNote}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-fullSpent)} remaining</div>`; }
 function financeCategoryTotalsRaw(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
-function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotalsRaw(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><span>${c.emoji}</span><span>${escapeHtml(c.label)}</span><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div><strong>${financeFmt(amt)}</strong></div>`; }).join(''); }
+function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotalsRaw(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><div class="cat-row-header"><span class="cat-row-label">${c.emoji} ${escapeHtml(c.label)}</span><strong class="cat-row-amt">${financeFmt(amt)}</strong></div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
 function financeChartBucket(dateString, view){
   const d = parseLocalDate(dateString);
@@ -3559,7 +3570,7 @@ function financeRenderCalendar(){
     const { netTotal, adjLine } = financeTxNetInfo(t);
     const hasAdj = adjLine !== '';
     const totalDisplay = hasAdj
-      ? `<strong>${financeFmt(netTotal)}</strong> <span class="tx-orig-total">${financeFmt(t.total)}</span>`
+      ? `<strong>${financeFmt(netTotal)}</strong>`
       : `${t.is_return?'-':''}${financeFmt(t.total)}`;
 
     const namedItems = (t.splits||[]).filter(s => s.name);
@@ -3837,7 +3848,7 @@ function financeEditTransactionCard(t){
             <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
             <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
-          ${item.cat === 'groceries' ? `<div class="form-group" style="margin:0;"><label class="form-label">Weight</label><button class="small-btn fil-weight-toggle${item.lbs?' active':''}" type="button" title="${item.lbs?'Weight mode':'Add weight (lbs)'}" onclick="financeToggleWeightMode(this)">⚖ lbs</button></div>` : ''}
+          <div class="form-group" style="margin:0;${item.cat !== 'groceries' ? 'display:none;' : ''}"><label class="form-label">Weight</label><button class="small-btn fil-weight-toggle${item.lbs?' active':''}" type="button" title="${item.lbs?'Weight mode':'Add weight (lbs)'}" onclick="financeToggleWeightMode(this)">⚖ lbs</button></div>
         </div>
         ${item.lbs ? `<div class="fil-lbs-wrap" data-restored="1"><label class="form-label" style="margin:0;white-space:nowrap;">Weight (lbs)</label><input class="form-input fil-lbs-input" type="number" step="0.01" min="0" placeholder="e.g. 3.2" data-role="item-lbs" style="width:100px;" value="${item.lbs}" oninput="financeWeightLbsChanged(this)" /><span class="metric-sub fil-lbs-note">${financeItemWeightLabel ? financeItemWeightLabel({amount: Number(item.amount||0), lbs: item.lbs}) : ''}</span></div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
@@ -4111,7 +4122,7 @@ function financeRenderCategoryBudgetInputs(){
     if(ab!==bb) return ab-bb;
     return a.label.localeCompare(b.label);
   });
-  wrap.innerHTML=cats.map(c=>{ const spent=Math.max(0, totals[c.id]||0); const limit=Number(budgets[c.id]||0); const pct=limit?Math.min(100,spent/limit*100):0; return `<div class="cat-budget-row ${limit?'has-budget':'no-budget'}"><div><div class="budget-header"><span>${c.emoji} ${escapeHtml(c.label)}</span><span>${financeFmt(spent)}${limit?' / '+financeFmt(limit):''}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${limit&&spent/limit>=1?'over':limit&&spent/limit>=.8?'warn':''}" style="width:${pct}%"></div></div></div><input class="form-input" type="number" step="1" data-cat-budget="${c.id}" value="${limit||''}" placeholder="Budget"></div>`; }).join('');
+  wrap.innerHTML=cats.map(c=>{ const spent=Math.max(0, totals[c.id]||0); const limit=Number(budgets[c.id]||0); const pct=limit?Math.min(100,spent/limit*100):0; return `<div class="cat-budget-row ${limit?'has-budget':'no-budget'}"><div><div class="budget-header"><span class="cat-budget-label"><span class="cat-budget-emoji">${c.emoji}</span> ${escapeHtml(c.label)}</span><span class="cat-budget-amt">${financeFmt(spent)}${limit?' / '+financeFmt(limit):''}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${limit&&spent/limit>=1?'over':limit&&spent/limit>=.8?'warn':''}" style="width:${pct}%;background:${c.color}"></div></div></div><input class="form-input" type="number" step="1" data-cat-budget="${c.id}" value="${limit||''}" placeholder="Budget"></div>`; }).join('');
 }
 async function financeSaveCategoryBudgets(){ const budgets={}; document.querySelectorAll('[data-cat-budget]').forEach(el=>{ const v=Number(el.value); if(Number.isFinite(v)&&v>0) budgets[el.dataset.catBudget]=v; }); financeState.settings.category_budgets=budgets; if(!(await saveFinanceSettingsToCloud())) return; financeShowMsg('fin-cat-budget-msg','Category budgets saved.'); financeRenderAll(); }
 let financeGoalOpen=false; function financeToggleGoalForm(){ financeGoalOpen=!financeGoalOpen; document.getElementById('finance-goal-form')?.classList.toggle('hidden', !financeGoalOpen); }
@@ -4768,9 +4779,15 @@ financeTransactionCard = function(t) {
   const wholeReturnBadge = returnedItemNames.has('__whole__') ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
   const wholePMBadge = priceMatchedItems['__whole__'] ? ` <span class="badge badge-pricematch">💲 Price Matched</span>` : '';
 
+  // Summary counts for always-visible badge on the item button
+  const returnedCount = returnedItemNames.size - (returnedItemNames.has('__whole__') ? 1 : 0);
+  const pmCount = Object.keys(priceMatchedItems).filter(k => k !== '__whole__').length;
+  const returnSummary = returnedCount > 0 ? ` <span class="badge badge-returned" style="font-size:9px;">↩ ${returnedCount} returned</span>` : '';
+  const pmSummary     = pmCount > 0       ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 ${pmCount} price matched</span>` : '';
+
   const itemBadge = namedItems.length
-    ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}')">${namedItems.length} item${namedItems.length>1?'s':''}</button>`
-    : '';
+    ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}')">${namedItems.length} item${namedItems.length>1?'s':''}</button>${returnSummary}${pmSummary}`
+    : `${returnSummary}${pmSummary}`;
 
   const itemList = namedItems.length
     ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
@@ -4803,7 +4820,7 @@ financeTransactionCard = function(t) {
     </div>
     <div class="tx-right">
       ${hasAdj
-        ? `<strong>${financeFmt(netTotal)}</strong><div class="tx-orig-total">${financeFmt(t.total)}</div>`
+        ? `<strong>${financeFmt(netTotal)}</strong>`
         : `<strong>${t.is_return ? '-' : ''}${financeFmt(t.total)}</strong>`}
       ${t.source === 'gas' ? '<span class="metric-sub">Edit in Gas History</span>' :
         `<div class="btn-row compact-actions">
