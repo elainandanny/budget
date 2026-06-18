@@ -3545,94 +3545,7 @@ function financeRenderCalendar(){
     details.innerHTML = '<div class="metric-sub">Tap a shaded day to see transaction details.</div>';
     return;
   }
-  details.innerHTML = selected.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(t=>{
-    const catTotals = {};
-    (t.splits||[]).forEach(s => { catTotals[s.cat] = (catTotals[s.cat]||0) + Number(s.amount||0); });
-    const cats = Object.entries(catTotals).map(([id,amt]) => catPillHtml(id, amt)).join(' ');
-
-    // Collect return/price-match info for item badges
-    const linkedTxs = financeState.transactions.filter(r => r.linked_id === t.id && r.is_return);
-    const returnedNames = new Set();
-    const pmNames = {};
-    linkedTxs.forEach(r => {
-      (r.splits||[]).forEach(s => {
-        if (s.name) {
-          if (r.return_type === 'price_match') pmNames[s.name.toLowerCase()] = (pmNames[s.name.toLowerCase()]||0) + Number(s.amount||0);
-          else returnedNames.add(s.name.toLowerCase());
-        }
-      });
-      if (!(r.splits||[]).some(s=>s.name)) {
-        if (r.return_type === 'price_match') pmNames['__whole__'] = r.total;
-        else returnedNames.add('__whole__');
-      }
-    });
-
-    const { netTotal, adjLine } = financeTxNetInfo(t);
-    const hasAdj = adjLine !== '';
-    const totalDisplay = hasAdj
-      ? `<strong>${financeFmt(netTotal)}</strong>`
-      : `${t.is_return?'-':''}${financeFmt(t.total)}`;
-
-    const namedItems = (t.splits||[]).filter(s => s.name);
-    const itemsHtml = namedItems.length
-      ? `<div class="cal-entry-items hidden" id="cal-items-${t.id}">
-          ${namedItems.map(s => {
-            const c = financeCat(s.cat);
-            const weightStr = financeItemWeightLabel(s);
-            const itemLower = (s.name||'').toLowerCase();
-            const isReturned = returnedNames.has(itemLower);
-            const pmRefund   = pmNames[itemLower];
-            const effectiveAmt = pmRefund ? parseFloat((s.amount - pmRefund).toFixed(2)) : s.amount;
-            const nameStyle  = isReturned ? ' style="text-decoration:line-through;opacity:0.5;"' : '';
-            const amtDisplay = isReturned
-              ? `<span class="tx-item-amt-strike">${financeFmt(s.amount)}</span>`
-              : pmRefund
-                ? `<span style="color:var(--success);font-weight:600;">${financeFmt(effectiveAmt)}</span>`
-                : financeFmt(s.amount);
-            return `<div class="cal-item-row">
-              <span class="cal-item-name"${nameStyle}>${escapeHtml(s.name)}</span>
-              ${weightStr ? `<span class="cal-item-weight">${weightStr}</span>` : ''}
-              <span class="cal-item-cat" style="color:${c.color}">${c.emoji}</span>
-              <span class="cal-item-amt">${amtDisplay}</span>
-            </div>`;
-          }).join('')}
-        </div>`
-      : '';
-
-    const itemsToggle = namedItems.length
-      ? `<button class="cal-items-toggle" type="button" onclick="financeCalToggleItems('${t.id}')">
-          ${namedItems.length} item${namedItems.length!==1?'s':''}
-        </button>`
-      : '';
-
-    const wholeRetBadge = returnedNames.has('__whole__') ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
-    const wholePMBadge  = pmNames['__whole__'] ? ' <span class="badge badge-pricematch">💲 Price Matched</span>' : '';
-
-    return `<div class="calendar-entry">
-      <div class="calendar-entry-title">
-        ${escapeHtml(t.store || 'Transaction')}
-        ${t.is_return?'<span class="badge">Return</span>':''}
-        ${t.return_type==='price_match'?'<span class="badge badge-pricematch">Price Match</span>':''}
-        ${t.source==='gas'?'<span class="badge">Gas import</span>':''}
-        ${wholeRetBadge}${wholePMBadge}
-      </div>
-      <div class="calendar-entry-sub">${totalDisplay} · ${cats}${itemsToggle}</div>
-      ${t.notes?`<div class="calendar-entry-sub">${escapeHtml(t.notes)}</div>`:''}
-      ${itemsHtml}
-    </div>`;
-  }).join('');
-}
-function financeCalToggleItems(txId) {
-  const el = document.getElementById('cal-items-' + txId);
-  if (!el) return;
-  const isHidden = el.classList.toggle('hidden');
-  // Update button text
-  const btn = el.previousElementSibling?.querySelector('.cal-items-toggle');
-  if (!btn) return;
-  const count = el.querySelectorAll('.cal-item-row').length;
-  btn.textContent = isHidden
-    ? `${count} item${count!==1?'s':''}`
-    : `Hide items`;
+  details.innerHTML = selected.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(t => financeTransactionCard(t)).join('');
 }
 function financeToggleRecent(){
   const card=document.getElementById('finance-recent-card');
@@ -4779,7 +4692,7 @@ financeTransactionCard = function(t) {
   const wholeReturnBadge = returnedItemNames.has('__whole__') ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
   const wholePMBadge = priceMatchedItems['__whole__'] ? ` <span class="badge badge-pricematch">💲 Price Matched</span>` : '';
 
-  // Summary counts for always-visible badge on the item button
+  // Item-level count badges (shown on sub line)
   const returnedCount = returnedItemNames.size - (returnedItemNames.has('__whole__') ? 1 : 0);
   const pmCount = Object.keys(priceMatchedItems).filter(k => k !== '__whole__').length;
   const returnSummary = returnedCount > 0 ? ` <span class="badge badge-returned" style="font-size:9px;">↩ ${returnedCount} returned</span>` : '';
@@ -4788,6 +4701,15 @@ financeTransactionCard = function(t) {
   const itemBadge = namedItems.length
     ? `<button class="tx-items-badge" type="button" onclick="financeToggleItemList('${t.id}')">${namedItems.length} item${namedItems.length>1?'s':''}</button>${returnSummary}${pmSummary}`
     : `${returnSummary}${pmSummary}`;
+
+  // Title-line badges: whole-tx return/PM + transaction type
+  const titleBadges = [
+    t.is_return ? '<span class="badge">Return</span>' : '',
+    t.return_type === 'price_match' ? '<span class="badge badge-pricematch">Price Match</span>' : '',
+    t.source === 'gas' ? '<span class="badge">Gas import</span>' : '',
+    wholeReturnBadge,
+    wholePMBadge,
+  ].filter(Boolean).join(' ');
 
   const itemList = namedItems.length
     ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
@@ -4814,7 +4736,7 @@ financeTransactionCard = function(t) {
 
   return `<div class="tx-item" id="tx-card-${t.id}">
     <div style="min-width:0;flex:1;">
-      <div class="tx-title">${escapeHtml(t.store || '—')} ${t.is_return ? '<span class="badge">Return</span>' : ''}${t.return_type === 'price_match' ? '<span class="badge badge-pricematch">Price Match</span>' : ''}${t.source === 'gas' ? '<span class="badge">Gas import</span>' : ''}${wholeReturnBadge}${wholePMBadge}</div>
+      <div class="tx-title">${escapeHtml(t.store || '—')} ${titleBadges}</div>
       <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${itemBadge}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
       ${itemList}
     </div>
