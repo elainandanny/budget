@@ -3430,7 +3430,7 @@ function financeRenderDashboard(){
 function financeCategoryTotals(txs){ const totals = {}; financeExcludeFromTx(txs).forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
 function financeRenderBudgetCard(spent, txs){ const limit = Number(financeState.settings.monthly_limit || 0); const el = document.getElementById('finance-budget-card'); if(!el) return; if(!limit){ el.innerHTML = '<div class="summary-line">No monthly limit set yet. Open Budgets to set one.</div>'; return; } const fullSpent = txs ? financeNetSpentFull(txs) : spent; const pct = Math.max(0, Math.min(100, fullSpent/limit*100)); const discNote = fullSpent !== spent ? ` <span style="font-size:10px;color:var(--muted)">(discretionary: ${financeFmt(spent)})</span>` : ''; el.innerHTML = `<div class="budget-header"><span>Monthly limit</span><span>${financeFmt(fullSpent)} / ${financeFmt(limit)}${discNote}</span></div><div class="budget-bar-wrap"><div class="budget-bar ${pct>=100?'over':pct>=80?'warn':''}" style="width:${pct}%"></div></div><div class="budget-pct">${pct.toFixed(0)}% used · ${financeFmt(limit-fullSpent)} remaining</div>`; }
 function financeCategoryTotalsRaw(txs){ const totals = {}; txs.forEach(t=>{ const sign = t.is_return ? -1 : 1; (t.splits && t.splits.length ? t.splits : [{cat:'other',amount:t.total}]).forEach(s => totals[s.cat] = (totals[s.cat] || 0) + Number(s.amount || 0) * sign); }); return totals; }
-function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotalsRaw(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row"><div class="cat-row-header"><span class="cat-row-label">${c.emoji} ${escapeHtml(c.label)}</span><strong class="cat-row-amt">${financeFmt(amt)}</strong></div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div></div>`; }).join(''); }
+function financeRenderCategoryBreakdown(txs){ const totals = financeCategoryTotalsRaw(txs); const rows = Object.entries(totals).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]); const max = rows[0]?.[1] || 1; const el = document.getElementById('finance-category-breakdown'); if(!el) return; if(!rows.length){ el.innerHTML = '<div class="empty">No spending this month.</div>'; return; } el.innerHTML = rows.map(([id,amt])=>{ const c=financeCat(id); return `<div class="category-row" onclick="drilldownOpenCategory('${id}')" style="cursor:pointer;" title="Tap to see all ${escapeHtml(c.label)} items"><div class="cat-row-header"><span class="cat-row-label">${c.emoji} ${escapeHtml(c.label)}</span><strong class="cat-row-amt">${financeFmt(amt)}</strong></div><div class="cat-bar-wrap"><div class="cat-bar" style="width:${amt/max*100}%;background:${c.color}"></div></div></div>`; }).join(''); }
 function financeRenderInsights(monthTx, prevTx){ const spent=financeNetSpent(monthTx), prev=financeNetSpent(prevTx); const totals=financeCategoryTotals(monthTx); const top=Object.entries(totals).sort((a,b)=>b[1]-a[1])[0]; const insights=[]; if(prev>0 && Math.abs(spent-prev)>10) insights.push(`Spent ${financeFmt(Math.abs(spent-prev))} ${spent>prev?'more':'less'} than last month.`); if(top) insights.push(`Biggest category: ${financeCat(top[0]).label} at ${financeFmt(top[1])}.`); const limit=Number(financeState.settings.monthly_limit||0); if(limit && spent>limit) insights.push(`You are ${financeFmt(spent-limit)} over budget.`); if(!insights.length) insights.push('Add more transactions to unlock insights.'); document.getElementById('finance-insights').innerHTML = insights.map(x=>`<div class="insight">${escapeHtml(x)}</div>`).join(''); }
 function financeChartBucket(dateString, view){
   const d = parseLocalDate(dateString);
@@ -4588,7 +4588,135 @@ if (_metricsContainer) {
 }
 
 // ══════════════════════════════════════════════
-// 4. MOBILE GAS ENTRY CARDS
+// DRILL-DOWN MODAL (category or merchant)
+// ══════════════════════════════════════════════
+let _drilldownMode = null;  // 'category' | 'merchant'
+let _drilldownKey  = null;  // category id or merchant name
+
+function drilldownOpenCategory(catId) {
+  const cat = financeCat(catId);
+  _drilldownMode = 'category';
+  _drilldownKey  = catId;
+  document.getElementById('drilldown-title').innerHTML =
+    `<span style="color:${cat.color}">${cat.emoji}</span> ${escapeHtml(cat.label)}`;
+  drilldownClearDates();
+  document.getElementById('drilldown-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  drilldownRender();
+}
+
+function drilldownOpenMerchant(store) {
+  _drilldownMode = 'merchant';
+  _drilldownKey  = store;
+  document.getElementById('drilldown-title').textContent = store;
+  drilldownClearDates();
+  document.getElementById('drilldown-modal').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  drilldownRender();
+}
+
+function drilldownClose(e) {
+  // Close only if clicking the overlay backdrop, or the close button (no event)
+  if (e && e.target !== document.getElementById('drilldown-modal')) return;
+  document.getElementById('drilldown-modal').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function drilldownClearDates() {
+  document.getElementById('drilldown-from').value = '';
+  document.getElementById('drilldown-to').value   = '';
+  document.getElementById('drilldown-clear-dates').style.display = 'none';
+  drilldownRender();
+}
+
+function drilldownRender() {
+  const from = document.getElementById('drilldown-from').value;
+  const to   = document.getElementById('drilldown-to').value;
+  const clearBtn = document.getElementById('drilldown-clear-dates');
+  if (clearBtn) clearBtn.style.display = (from || to) ? '' : 'none';
+
+  // Build flat row list from all transactions
+  const rows = [];
+  const txs = financeState.transactions.filter(t => !t.is_return && t.source !== 'gas');
+
+  txs.forEach(t => {
+    if (from && t.date < from) return;
+    if (to   && t.date > to)   return;
+
+    const splits = (t.splits || []);
+    const namedSplits = splits.filter(s => s.name);
+
+    if (_drilldownMode === 'category') {
+      const catSplits = splits.filter(s => s.cat === _drilldownKey);
+      if (!catSplits.length) return;
+
+      if (namedSplits.length) {
+        // Show each named item in this category
+        catSplits.filter(s => s.name).forEach(s => {
+          rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: s.name, amount: s.amount, lbs: s.lbs });
+        });
+        // If some splits in this category have no name (mixed tx), add a remainder row
+        const unnamedAmt = catSplits.filter(s => !s.name).reduce((sum,s) => sum + s.amount, 0);
+        if (unnamedAmt > 0) rows.push({ date: t.date, merchant: t.store, catId: _drilldownKey, name: null, amount: unnamedAmt });
+      } else {
+        // Whole transaction is this category (or part of it)
+        const amt = catSplits.reduce((sum,s) => sum + s.amount, 0);
+        rows.push({ date: t.date, merchant: t.store, catId: _drilldownKey, name: null, amount: amt });
+      }
+
+    } else {
+      // Merchant mode
+      if (String(t.store||'').toLowerCase() !== String(_drilldownKey||'').toLowerCase()) return;
+
+      if (namedSplits.length) {
+        namedSplits.forEach(s => {
+          rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: s.name, amount: s.amount, lbs: s.lbs });
+        });
+      } else {
+        // Non-itemized — show one row per split
+        splits.forEach(s => {
+          rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: null, amount: s.amount });
+        });
+      }
+    }
+  });
+
+  // Sort newest first
+  rows.sort((a,b) => String(b.date).localeCompare(String(a.date)));
+
+  // Summary
+  const total = rows.reduce((s,r) => s + r.amount, 0);
+  document.getElementById('drilldown-summary').textContent =
+    `${rows.length} item${rows.length!==1?'s':''} · ${financeFmt(total)} total`;
+
+  // Render rows
+  const list = document.getElementById('drilldown-list');
+  if (!rows.length) {
+    list.innerHTML = '<div class="drilldown-empty">No items found.</div>';
+    return;
+  }
+
+  list.innerHTML = rows.map(r => {
+    const cat = financeCat(r.catId);
+    const weightStr = r.lbs && r.amount > 0 ? `<span class="drilldown-weight">$${(r.amount/r.lbs).toFixed(2)}/lb · ${r.lbs}lb</span>` : '';
+    const nameHtml = r.name
+      ? `<span class="drilldown-item-name">${escapeHtml(r.name)}</span>${weightStr}`
+      : `<span class="drilldown-item-name muted">—</span>`;
+
+    const leftCol = _drilldownMode === 'category'
+      ? `<span class="drilldown-merchant">${escapeHtml(r.merchant||'—')}</span>`
+      : `<span class="drilldown-cat" style="color:${cat.color}">${cat.emoji} ${escapeHtml(cat.label)}</span>`;
+
+    return `<div class="drilldown-row">
+      <div class="drilldown-row-left">
+        <span class="drilldown-date">${formatDateShort(r.date)}</span>
+        ${leftCol}
+        ${nameHtml}
+      </div>
+      <span class="drilldown-amount">${financeFmt(r.amount)}</span>
+    </div>`;
+  }).join('');
+}
 // ══════════════════════════════════════════════
 function renderGasMobileCards(historyData) {
   const container = document.getElementById('gas-mobile-list');
@@ -4736,7 +4864,7 @@ financeTransactionCard = function(t) {
 
   return `<div class="tx-item" id="tx-card-${t.id}">
     <div style="min-width:0;flex:1;">
-      <div class="tx-title">${escapeHtml(t.store || '—')} ${titleBadges}</div>
+      <div class="tx-title"><button class="tx-merchant-btn" type="button" onclick="drilldownOpenMerchant('${escapeHtml(t.store || '')}')">${escapeHtml(t.store || '—')}</button> ${titleBadges}</div>
       <div class="tx-sub">${formatDateShort(t.date)} · ${cats}${itemBadge}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
       ${itemList}
     </div>
@@ -6459,5 +6587,30 @@ financeSaveEditTransaction = async function(id) {
 };
 
 </script>
+<!-- ── Drill-down modal (category or merchant) ── -->
+<div id="drilldown-modal" class="drilldown-overlay hidden" onclick="drilldownClose(event)">
+  <div class="drilldown-sheet">
+    <div class="drilldown-header">
+      <div class="drilldown-title" id="drilldown-title"></div>
+      <button class="drilldown-close" type="button" onclick="drilldownClose()">✕</button>
+    </div>
+    <div class="drilldown-filters">
+      <div class="drilldown-filter-row">
+        <div class="form-group" style="margin:0;flex:1;">
+          <label class="form-label">From</label>
+          <input class="form-input" type="date" id="drilldown-from" oninput="drilldownRender()" />
+        </div>
+        <div class="form-group" style="margin:0;flex:1;">
+          <label class="form-label">To</label>
+          <input class="form-input" type="date" id="drilldown-to" oninput="drilldownRender()" />
+        </div>
+        <button class="small-btn" type="button" id="drilldown-clear-dates" onclick="drilldownClearDates()" style="align-self:flex-end;display:none;">Clear dates</button>
+      </div>
+      <div class="drilldown-summary" id="drilldown-summary"></div>
+    </div>
+    <div class="drilldown-list" id="drilldown-list"></div>
+  </div>
+</div>
+
 </body>
 </html>
