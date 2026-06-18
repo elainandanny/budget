@@ -3107,6 +3107,9 @@ async function financeSaveTransaction(){
 }
 function financeClearForm(){
   ['fin-store','fin-total','fin-notes','fin-subcat'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  // Clear the merchant recent-picker dropdown
+  const storePicker = document.getElementById('fin-store-picker');
+  if (storePicker) storePicker.value = '';
   const d=document.getElementById('fin-date'); if(d) d.value = dateForInput(financeDateToday());
   const linesEl=document.getElementById('fin-split-lines'); if(linesEl) linesEl.innerHTML = '';
   const itemLines=document.getElementById('fin-item-lines'); if(itemLines) itemLines.innerHTML = '';
@@ -3114,7 +3117,7 @@ function financeClearForm(){
   const tipInput=document.getElementById('fin-items-tip'); if(tipInput) tipInput.value = '';
   const itemToggle=document.getElementById('fin-items-toggle'); if(itemToggle) itemToggle.checked = true;
   const itemSection=document.getElementById('fin-items-section'); if(itemSection) itemSection.classList.remove('hidden');
-  // Reset progressive disclosure steps
+  // Reset progressive disclosure — hide all steps so form is blank
   ['fin-step-amount','fin-step-category','fin-step-extras','fin-step-save'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
   ['fin-subcat-wrap','fin-notes-wrap'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
   document.getElementById('tap-add-notes')?.classList.remove('hidden');
@@ -3124,6 +3127,8 @@ function financeClearForm(){
   financeSetSplitMode('split'); financeSetTxType('expense');
   financeReturnSubType = 'return';
   financeSetReturnSubType('return');
+  // Scroll to top of the add form
+  document.getElementById('finance-add-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function financeToggleItemize(checked) {
@@ -3769,6 +3774,22 @@ function financeEditTransactionCard(t){
 
   const total = parseFloat(splits.reduce((sum,s) => sum + Number(s.amount||0), 0).toFixed(2));
 
+  // Back-calculate tax: tax is baked into taxable items' amounts.
+  // We estimate it as (taxable item amount) - (taxable item unit_price * qty).
+  // If unit_price wasn't stored, we can't back-calculate — leave blank.
+  let estimatedTax = 0;
+  splits.filter(s => s.taxable && s.unit_price && s.qty).forEach(s => {
+    const base = parseFloat((Number(s.unit_price) * Number(s.qty)).toFixed(2));
+    const taxShare = parseFloat((Number(s.amount) - base).toFixed(2));
+    if (taxShare > 0) estimatedTax += taxShare;
+  });
+  estimatedTax = parseFloat(estimatedTax.toFixed(2));
+
+  // Back-calculate tip: tip is stored as a split with subcat 'tip'
+  const tipSplit = splits.find(s => s.subcat === 'tip');
+  const estimatedTip = tipSplit ? Number(tipSplit.amount) : 0;
+  const hasDining = splits.some(s => s.cat === 'dining');
+
   const groupsHtml = Object.entries(groups).map(([catId, items]) => {
     const cat = financeCat(catId);
     const groupTotal = items.reduce((s,i) => s + Number(i.amount||0), 0);
@@ -3799,8 +3820,8 @@ function financeEditTransactionCard(t){
           <div class="form-group" style="margin:0;width:80px;">
             <label class="form-label">Unit</label>
             <div class="fil-unit-toggle" style="margin-top:2px;">
-              <button class="fil-unit-btn ${!eIsLb?'active':''}" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
-              <button class="fil-unit-btn ${eIsLb?'active':''}" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')">lb</button>
+              <button class="fil-unit-btn active" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
+              <button class="fil-unit-btn ${eIsLb?'active':''}" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">lb</button>
             </div>
           </div>
           <div class="form-group" style="margin:0;width:65px;"><label class="form-label">${eIsLb?'Lbs':'Qty'}</label>
@@ -3858,19 +3879,19 @@ function financeEditTransactionCard(t){
     </div>
     <!-- Hidden total field driven by items sum -->
     <input type="hidden" id="edit-fin-total" value="${total}" />
-    <!-- Tax / Tip adjustment row -->
+    <!-- Tax / Tip adjustment row — always show tax; show tip if dining -->
     <div class="fin-edit-adj-row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:8px 0 4px;">
       <div class="form-group" style="min-width:130px;">
         <label class="form-label">Tax amount</label>
         <input class="form-input" type="number" step="0.01" min="0" id="edit-fin-tax"
-          value="${Number(t._editTax||0)||''}" placeholder="0.00"
+          value="${estimatedTax > 0 ? estimatedTax : ''}" placeholder="0.00"
           oninput="financeEditAdjSum()" />
       </div>
-      ${(t.splits||[]).some(s=>s.cat==='dining') ? `
+      ${hasDining ? `
       <div class="form-group" style="min-width:130px;">
         <label class="form-label">Tip amount</label>
         <input class="form-input" type="number" step="0.01" min="0" id="edit-fin-tip"
-          value="${Number(t._editTip||0)||''}" placeholder="0.00"
+          value="${estimatedTip > 0 ? estimatedTip : ''}" placeholder="0.00"
           oninput="financeEditAdjSum()" />
       </div>` : ''}
     </div>
@@ -4759,13 +4780,15 @@ financeTransactionCard = function(t) {
         const isReturned   = returnedItemNames.has(itemLower);
         const pmRefund     = priceMatchedItems[itemLower];
         const effectiveAmt = pmRefund ? parseFloat((s.amount - pmRefund).toFixed(2)) : s.amount;
+        const retBadge = isReturned ? ' <span class="badge badge-returned" style="font-size:9px;">↩ Returned</span>' : '';
+        const pmBadge  = pmRefund   ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 Price Match</span>` : '';
         const amtDisplay   = isReturned
           ? `<span class="tx-item-amt-strike">${financeFmt(s.amount)}</span>`
           : pmRefund
             ? `<span class="tx-item-amt-pm">${financeFmt(effectiveAmt)}<span class="tx-item-amt-orig">${financeFmt(s.amount)}</span></span>`
             : financeFmt(s.amount);
         const nameStyle = isReturned ? ' style="text-decoration:line-through;opacity:0.5;"' : '';
-        return `<div class="tx-item-row${isReturned?' tx-item-row-returned':''}"><span class="tx-item-name"${nameStyle}>${escapeHtml(s.name)}${lbsLabel}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${amtDisplay}</span></div>`;
+        return `<div class="tx-item-row${isReturned?' tx-item-row-returned':''}"><span class="tx-item-name"${nameStyle}>${escapeHtml(s.name)}${lbsLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${amtDisplay}</span></div>`;
       }).join('')}</div>`
     : '';
 
