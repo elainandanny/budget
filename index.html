@@ -3072,8 +3072,11 @@ async function financeSaveTransaction(){
       const unit_price = parseFloat(line.querySelector('[data-role="item-unit-price"]')?.value) || amount;
       const unitBtn    = line.querySelector('.fil-unit-btn.active');
       const unit       = unitBtn?.dataset.unit || 'each';
-      const lbs        = parseFloat(line.dataset.lbs) || null;
-      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit, lbs });
+      const lbs  = parseFloat(line.dataset.lbs) || null;
+      const wQty = parseFloat(line.dataset.weightQty) || null;
+      const wUnit = line.dataset.unit && line.dataset.unit !== 'each' ? line.dataset.unit : null;
+      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit, lbs,
+        ...(wQty && wUnit ? { weightQty: wQty, weightUnit: wUnit } : {}) });
     });
     if (!rawItems.length) { financeShowMsg(msgId,'At least one item must have a price.',true); return; }
     const taxableTotal = rawItems.filter(i=>i.taxable).reduce((s,i)=>s+i.amount,0);
@@ -3083,7 +3086,8 @@ async function financeSaveTransaction(){
       splits.push({ cat: item.cat, subcat: '', amount: parseFloat((item.amount + taxShare).toFixed(2)),
         ...(item.name ? {name: item.name} : {}), taxable: item.taxable,
         qty: item.qty, unit_price: item.unit_price, unit: item.unit,
-        ...(item.lbs ? {lbs: item.lbs} : {}) });
+        ...(item.lbs ? {lbs: item.lbs} : {}),
+        ...(item.weightQty && item.weightUnit === 'oz' ? {qty: item.weightQty, unit: 'oz', unit_price: parseFloat((item.amount / item.weightQty).toFixed(4))} : {}) });
     });
     if (!splits.length) { financeShowMsg(msgId,'At least one item must have a price.',true); return; }
     if (tipAmt > 0) {
@@ -3300,11 +3304,15 @@ function financeToggleWeightMode(btn) {
       lbsWrap = document.createElement('div');
       lbsWrap.className = 'fil-lbs-wrap';
       lbsWrap.innerHTML = `
-        <label class="form-label" style="margin:0;white-space:nowrap;">Weight (lbs)</label>
+        <label class="form-label" style="margin:0;white-space:nowrap;">Weight</label>
         <input class="form-input fil-lbs-input" type="number" step="0.01" min="0"
-          placeholder="e.g. 3.2" data-role="item-lbs"
-          style="width:100px;"
+          placeholder="amount" data-role="item-lbs"
+          style="width:80px;"
           oninput="financeWeightLbsChanged(this)" />
+        <select class="form-select fil-unit-select" style="width:58px;padding:4px 2px;font-size:12px;" onchange="financeWeightLbsChanged(this.closest('.fil-lbs-wrap').querySelector('.fil-lbs-input'))">
+          <option value="lb">lb</option>
+          <option value="oz">oz</option>
+        </select>
         <span class="metric-sub fil-lbs-note"></span>`;
       // Insert after fil-row2 if present, else append
       const row2 = line.querySelector('.fil-row2');
@@ -3325,18 +3333,25 @@ function financeToggleWeightMode(btn) {
 
 function financeWeightLbsChanged(input) {
   if (!input) return;
-  const line = input.closest('.fin-item-line') || input.closest('.edit-item-inline') || input.closest('.fil-lbs-wrap')?.parentElement;
+  const wrap = input.closest('.fil-lbs-wrap');
+  const line = wrap?.closest('.fin-item-line') || wrap?.closest('.edit-item-inline') || wrap?.parentElement;
   if (!line) return;
-  const lbs = parseFloat(input.value) || 0;
+  const qty = parseFloat(input.value) || 0;
+  const unitSel = wrap?.querySelector('.fil-unit-select');
+  const unit = unitSel?.value || 'lb';
   const total = parseFloat(line.querySelector('[data-role="item-amt"]')?.value) || 0;
-  const noteEl = input.closest('.fil-lbs-wrap')?.querySelector('.fil-lbs-note');
-  if (lbs > 0 && total > 0) {
-    const perLb = (total / lbs).toFixed(2);
-    if (noteEl) noteEl.textContent = `$${perLb}/lb`;
-    line.dataset.lbs = lbs;
+  const noteEl = wrap?.querySelector('.fil-lbs-note');
+  if (qty > 0 && total > 0) {
+    const perUnit = (total / qty).toFixed(2);
+    if (noteEl) noteEl.textContent = `$${perUnit}/${unit}`;
+    line.dataset.lbs  = unit === 'lb' ? qty : null;
+    line.dataset.unit = unit;
+    line.dataset.weightQty = qty;
   } else {
     if (noteEl) noteEl.textContent = '';
-    line.dataset.lbs = '';
+    line.dataset.lbs  = '';
+    line.dataset.unit = 'each';
+    line.dataset.weightQty = '';
   }
 }
 
@@ -4857,7 +4872,8 @@ financeTransactionCard = function(t) {
   const itemList = namedItems.length
     ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
         const cat = financeCat(s.cat);
-        const lbsLabel = s.lbs ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
+        const lbsLabel = (s.lbs || s.unit === 'lb' || s.unit === 'oz') ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
+        const qtyLabel = (!lbsLabel && s.qty && s.qty > 1 && s.unit === 'each') ? `<span class="tx-item-qty">×${s.qty}</span>` : '';
         const itemLower = (s.name || '').toLowerCase();
         const isReturned   = returnedItemNames.has(itemLower);
         const pmRefund     = priceMatchedItems[itemLower];
@@ -4870,7 +4886,7 @@ financeTransactionCard = function(t) {
             ? `<span class="tx-item-amt-pm">${financeFmt(effectiveAmt)}<span class="tx-item-amt-orig">${financeFmt(s.amount)}</span></span>`
             : financeFmt(s.amount);
         const nameStyle = isReturned ? ' style="text-decoration:line-through;opacity:0.5;"' : '';
-        return `<div class="tx-item-row${isReturned?' tx-item-row-returned':''}"><span class="tx-item-name"${nameStyle}>${escapeHtml(s.name)}${lbsLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${amtDisplay}</span></div>`;
+        return `<div class="tx-item-row${isReturned?' tx-item-row-returned':''}"><span class="tx-item-name"${nameStyle}>${escapeHtml(s.name)}${lbsLabel}${qtyLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${amtDisplay}</span></div>`;
       }).join('')}</div>`
     : '';
 
@@ -4923,9 +4939,21 @@ function financeToggleItemList(id, btn) {
 
 // Returns weight display string for an item split: "$2.50/lb · 2lb"
 function financeItemWeightLabel(s) {
-  if (!s.lbs || s.lbs <= 0) return '';
-  const perLb = s.amount > 0 ? (s.amount / s.lbs).toFixed(2) : null;
-  return perLb ? `$${perLb}/lb · ${s.lbs}lb` : `${s.lbs}lb`;
+  // Case 1: explicit lbs field (add form weight toggle)
+  if (s.lbs && s.lbs > 0) {
+    const perLb = s.amount > 0 ? (s.amount / s.lbs).toFixed(2) : null;
+    return perLb ? `$${perLb}/lb · ${s.lbs}lb` : `${s.lbs}lb`;
+  }
+  // Case 2: unit is lb or oz (receipt scan or manual unit selection)
+  if (s.unit === 'lb' && s.qty && s.qty > 0) {
+    const perLb = s.unit_price ? Number(s.unit_price).toFixed(2) : (s.amount > 0 ? (s.amount / s.qty).toFixed(2) : null);
+    return perLb ? `$${perLb}/lb · ${s.qty}lb` : `${s.qty}lb`;
+  }
+  if (s.unit === 'oz' && s.qty && s.qty > 0) {
+    const perOz = s.unit_price ? Number(s.unit_price).toFixed(2) : (s.amount > 0 ? (s.amount / s.qty).toFixed(2) : null);
+    return perOz ? `$${perOz}/oz · ${s.qty}oz` : `${s.qty}oz`;
+  }
+  return '';
 }
 
 // Returns { netTotal, adjLine } for a transaction:
@@ -5427,6 +5455,8 @@ function receiptBuildSplits(items, taxShares, manualTax) {
     const base   = item.amount;
     const tax    = shares.get(idx) || 0;
     const amount = parseFloat((base + tax).toFixed(2));
+    // lbs: use explicit lbs field, or qty when unit is lb
+    const lbs = item.lbs || (item.unit === 'lb' && item.qty ? item.qty : null);
     return {
       cat,
       subcat: item.subcategory || '',
@@ -5435,7 +5465,8 @@ function receiptBuildSplits(items, taxShares, manualTax) {
       ...(item.qty        ? { qty: item.qty }               : {}),
       ...(item.unit       ? { unit: item.unit }             : {}),
       ...(item.unit_price ? { unit_price: item.unit_price } : {}),
-      ...(item.lbs        ? { lbs: item.lbs }               : {})
+      ...(lbs             ? { lbs }                         : {}),
+      taxable: !!item.taxable
     };
   });
 }
@@ -5562,40 +5593,46 @@ function receiptRenderReview(parsed) {
             <button class="small-btn danger-btn" style="padding:4px 8px;font-size:11px;"
               onclick="receiptRemoveManualLine(${item._idx})">✕</button>
           </div>`
-        : `<div class="receipt-item-row ${isTip ? 'tip-row' : isTax ? 'tax-row' : ''}" data-item-idx="${item._idx}">
-        <div class="receipt-item-name-wrap">
-          ${subcatBadge}
-          <input class="receipt-item-name-input" type="text"
-            value="${escapeHtml(item.name)}"
-            placeholder="Item name"
-            data-item-idx="${item._idx}"
-            oninput="receiptItemNameChange(${item._idx}, this.value)" />
-          ${item.unit && item.unit !== 'each' && item.qty
-            ? `<span class="receipt-unit-badge">${item.qty}${item.unit} @$${Number(item.unit_price||0).toFixed(2)}/${item.unit}</span>`
-            : item.qty > 1 ? `<span class="receipt-unit-badge">×${item.qty}</span>` : ''}
-          ${taxMarker}
-        </div>
-        <div class="receipt-item-price-wrap">
-          <input class="form-input receipt-item-price-input" type="number" step="0.01"
-            value="${Math.abs(item.amount).toFixed(2)}"
-            data-item-idx="${item._idx}"
-            oninput="receiptItemPriceChange(${item._idx}, this.value, ${isDiscount})"
-            style="width:80px;text-align:right;font-size:13px;padding:4px 6px;" />
-          ${(item._editedCategory||item.category) === 'groceries' ? `
-            <button class="small-btn fil-weight-toggle" type="button"
-              title="Add weight (lbs)"
+        : (() => {
+          const isGrocery = (item._editedCategory || item.category) === 'groceries';
+          const hasWeight = isGrocery && (item.unit === 'lb' || item.unit === 'oz' || item.lbs);
+          const weightQty = item.lbs || (item.unit !== 'each' ? item.qty : null);
+          const weightUnit = item.lbs ? 'lb' : (item.unit !== 'each' ? item.unit : 'lb');
+          return `<div class="receipt-item-row2 ${isTip?'tip-row':isTax?'tax-row':''}" data-item-idx="${item._idx}">
+          <div class="rec-row-top">
+            <input class="form-input rec-name-input" type="text"
+              value="${escapeHtml(item.name)}" placeholder="Item name"
               data-item-idx="${item._idx}"
-              onclick="receiptToggleWeightMode(this, ${item._idx})">⚖ lbs</button>
-            <div class="fil-lbs-wrap" id="rec-lbs-wrap-${item._idx}" style="display:none;">
-              <input class="form-input fil-lbs-input" type="number" step="0.01" min="0"
-                placeholder="lbs" style="width:70px;"
-                oninput="receiptWeightLbsChanged(${item._idx}, this)" />
-              <span class="metric-sub fil-lbs-note" id="rec-lbs-note-${item._idx}"></span>
+              oninput="receiptItemNameChange(${item._idx}, this.value)" />
+            <div class="rec-row-badges">
+              ${subcatBadge}${taxMarker}
+            </div>
+          </div>
+          <div class="rec-row-bottom">
+            <div class="rec-price-wrap">
+              <span class="rec-label">$</span>
+              <input class="form-input rec-price-input" type="number" step="0.01"
+                value="${Math.abs(item.amount).toFixed(2)}"
+                data-item-idx="${item._idx}"
+                oninput="receiptItemPriceChange(${item._idx}, this.value, ${isDiscount})" />
+            </div>
+            ${isGrocery ? `<div class="rec-weight-wrap" id="rec-weight-wrap-${item._idx}">
+              <input class="form-input rec-weight-input" type="number" step="0.01" min="0"
+                placeholder="weight" style="width:64px;"
+                value="${weightQty || ''}"
+                oninput="receiptWeightChanged(${item._idx}, this)" />
+              <select class="form-select rec-unit-select" style="width:56px;padding:4px 2px;font-size:12px;"
+                onchange="receiptUnitChanged(${item._idx}, this.value)">
+                <option value="lb" ${weightUnit==='lb'?'selected':''}>lb</option>
+                <option value="oz" ${weightUnit==='oz'?'selected':''}>oz</option>
+              </select>
+              <span class="rec-weight-note" id="rec-wt-note-${item._idx}" style="font-size:11px;color:#4a90d9;white-space:nowrap;">${weightQty && item.amount > 0 ? '$'+(item.amount/weightQty).toFixed(2)+'/'+weightUnit : ''}</span>
             </div>` : ''}
-        </div>
-        <select class="receipt-item-cat-select" data-item-idx="${item._idx}"
-          onchange="receiptItemCatChange(${item._idx}, this.value)">${itemCatOpts}</select>
-      </div>`;
+            <select class="form-select rec-cat-select" data-item-idx="${item._idx}"
+              onchange="receiptItemCatChange(${item._idx}, this.value)">${itemCatOpts}</select>
+          </div>
+        </div>`;
+        })();
     }).join('');
 
     // Group footer: Pre-tax | Post-tax
@@ -5990,37 +6027,41 @@ function receiptItemPriceChange(idx, value, isDiscount) {
   if (lbsInput?.value) receiptWeightLbsChanged(idx, lbsInput);
 }
 
-function receiptToggleWeightMode(btn, idx) {
-  const wrap = document.getElementById(`rec-lbs-wrap-${idx}`);
-  if (!wrap) return;
-  const isOpen = btn.classList.contains('active');
-  if (isOpen) {
-    wrap.style.display = 'none';
-    btn.classList.remove('active');
-    btn.title = 'Add weight (lbs)';
-    if (_receiptParsed?.items?.[idx]) delete _receiptParsed.items[idx].lbs;
-  } else {
-    wrap.style.display = 'flex';
-    btn.classList.add('active');
-    btn.title = 'Hide weight field';
-    wrap.querySelector('input')?.focus();
-  }
-}
-
-function receiptWeightLbsChanged(idx, input) {
-  const lbs = parseFloat(input.value) || 0;
+function receiptWeightChanged(idx, input) {
+  const qty = parseFloat(input.value) || 0;
   const item = _receiptParsed?.items?.[idx];
   if (!item) return;
+  const unitSel = document.querySelector(`#rec-weight-wrap-${idx} .rec-unit-select`);
+  const unit = unitSel?.value || 'lb';
   const total = Math.abs(item.amount) || 0;
-  const noteEl = document.getElementById(`rec-lbs-note-${idx}`);
-  if (lbs > 0 && total > 0) {
-    item.lbs = lbs;
-    if (noteEl) noteEl.textContent = `$${(total/lbs).toFixed(2)}/lb`;
+  const noteEl = document.getElementById(`rec-wt-note-${idx}`);
+  if (qty > 0) {
+    item.qty = qty;
+    item.unit = unit;
+    item.unit_price = parseFloat((total / qty).toFixed(4));
+    item.lbs = (unit === 'lb') ? qty : null;
+    if (noteEl) noteEl.textContent = `$${(total/qty).toFixed(2)}/${unit}`;
   } else {
-    delete item.lbs;
+    item.qty = null;
+    item.unit = 'each';
+    item.unit_price = null;
+    item.lbs = null;
     if (noteEl) noteEl.textContent = '';
   }
 }
+
+function receiptUnitChanged(idx, unit) {
+  const item = _receiptParsed?.items?.[idx];
+  if (!item) return;
+  item.unit = unit;
+  item.lbs = (unit === 'lb' && item.qty) ? item.qty : null;
+  const weightInput = document.querySelector(`#rec-weight-wrap-${idx} .rec-weight-input`);
+  if (weightInput?.value) receiptWeightChanged(idx, weightInput);
+}
+
+// Keep old function names as aliases for backward compat
+function receiptToggleWeightMode() {}
+function receiptWeightLbsChanged(idx, input) { receiptWeightChanged(idx, input); }
 
 function receiptItemCatChange(idx, newCat) {
   if (!_receiptParsed) return;
@@ -6082,12 +6123,19 @@ async function receiptSubmit() {
 
   // Handle reconciliation difference: add to 'other'
   const splitsSum = splits.reduce((s, sp) => s + sp.amount, 0);
-  const receiptTotal = _receiptParsed.total || splitsSum;
+  // Use parsed receipt total if available — prevents rounding drift
+  const receiptTotal = (_receiptParsed.total && _receiptParsed.total > 0)
+    ? _receiptParsed.total
+    : splitsSum;
   const diff = parseFloat((receiptTotal - splitsSum).toFixed(2));
   if (Math.abs(diff) >= 0.01) {
-    const otherSplit = splits.find(s => s.cat === 'other');
-    if (otherSplit) otherSplit.amount = parseFloat((otherSplit.amount + diff).toFixed(2));
-    else splits.push({ cat: 'other', subcat: 'receipt difference', amount: diff });
+    // Apply correction to the last non-discount, non-tip, non-tax split
+    const correctable = splits.filter(s => s.amount > 0 && s.subcat !== 'tip' && s.subcat !== 'tax' && s.subcat !== 'discount');
+    if (correctable.length > 0) {
+      correctable[correctable.length - 1].amount = parseFloat((correctable[correctable.length - 1].amount + diff).toFixed(2));
+    } else {
+      splits.push({ cat: 'other', subcat: 'receipt difference', amount: diff });
+    }
   }
 
   const total = parseFloat(splits.reduce((s, sp) => s + sp.amount, 0).toFixed(2));

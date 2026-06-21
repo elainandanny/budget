@@ -2857,3 +2857,77 @@ input[type="date"] {
   text-decoration-color: var(--muted);
   color: var(--primary);
 }
+
+/* ── Receipt scan: 2-row mobile layout ─────────────── */
+.receipt-item-row2 {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.receipt-item-row2:last-child { border-bottom: none; }
+.receipt-item-row2.tip-row { background: rgba(46,171,111,0.05); }
+.receipt-item-row2.tax-row { background: rgba(74,144,217,0.05); }
+
+.rec-row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.rec-name-input {
+  flex: 1;
+  font-size: 13px;
+  padding: 5px 8px;
+  min-width: 0;
+}
+.rec-row-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.rec-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rec-price-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.rec-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rec-price-input {
+  width: 72px;
+  text-align: right;
+  font-size: 13px;
+  padding: 4px 6px;
+}
+.rec-weight-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.rec-weight-input {
+  width: 60px;
+  font-size: 12px;
+  padding: 4px 5px;
+}
+.rec-unit-select {
+  width: 52px;
+  font-size: 12px;
+  padding: 4px 2px;
+}
+.rec-cat-select {
+  flex: 1;
+  min-width: 110px;
+  font-size: 12px;
+}
