@@ -3764,16 +3764,18 @@ function financeEditTransactionCard(t){
 
       // Inline edit row (hidden by default, shown on tap)
       const eUnit      = item.unit || 'each';
-      // Weight detection: ONLY from explicit lbs or oz fields
-      // unit=lb on old data is handled via legacy path in financeItemWeightLabel
-      const eLbs       = item.lbs > 0 ? item.lbs : null;
-      const eOz        = item.oz  > 0 ? item.oz  : null;
+      const eIsLegacyLb = (eUnit === 'lb' || eUnit === 'oz') && !item.lbs && !item.oz;
+      // Weight detection: explicit lbs/oz fields (new data), OR legacy unit=lb with qty as weight
+      const eLbs       = item.lbs > 0 ? item.lbs : (eUnit === 'lb' && item.qty > 0 ? item.qty : null);
+      const eOz        = item.oz  > 0 ? item.oz  : (eUnit === 'oz' && item.qty > 0 ? item.qty : null);
       const eHasWeight = eLbs > 0 || eOz > 0;
       const eWeightQty = eLbs || eOz || null;
       const eWeightUnit= eOz ? 'oz' : 'lb';
-      // Each qty: always use item.qty (which is 1 for weighted items saved correctly)
-      const eQty       = item.qty > 0 ? item.qty : 1;
-      const eUnitPrice = item.unit_price || item.unitPrice || 0;
+      // Each qty: for weighted items (new or legacy) always 1
+      // For each items, use saved qty
+      const eQty       = eHasWeight ? 1 : (item.qty > 0 ? item.qty : 1);
+      // $/unit: for weighted items show total price (not $/lb); $/lb lives in the weight row
+      const eUnitPrice = eHasWeight ? displayAmt : (item.unit_price || item.unitPrice || 0);
       const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}"
           data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}"
           ${eWeightQty ? `data-lbs="${eLbs?eWeightQty:''}" data-weight-qty="${eWeightQty}" data-unit="${eWeightUnit}"` : ''}>
@@ -4038,18 +4040,18 @@ async function financeSaveEditTransaction(id){
       // Determine final unit/qty/lbs for this split
       let finalUnit, finalQty, finalLbs;
       if (weightQty && weightUnit) {
-        // User has weight data — save as weighted item
-        finalUnit = weightUnit;
-        finalQty  = weightQty;
+        // Has weight data from lbs wrap — save as each with lbs metadata
+        finalUnit = 'each';
+        finalQty  = qty; // the each count (should be 1)
         finalLbs  = (weightUnit === 'lb') ? weightQty : null;
       } else if (unit === 'lb' || unit === 'oz') {
-        // Unit button is lb/oz but no lbs wrap — use qty field as weight
-        finalUnit = unit;
-        finalQty  = qty;
+        // Unit button is lb/oz but no lbs wrap — treat qty as weight, save as each
+        finalUnit = 'each';
+        finalQty  = 1;
         finalLbs  = (unit === 'lb') ? qty : null;
       } else {
-        // each item
-        finalUnit = unit;
+        // Each item
+        finalUnit = 'each';
         finalQty  = qty;
         finalLbs  = parseFloat(row.dataset.lbs) || null;
       }
@@ -4060,15 +4062,16 @@ async function financeSaveEditTransaction(id){
 
       if (finalUnit === 'each' && origCount > 1 && finalQty === origCount) {
         const perAmt   = parseFloat((amount / origCount).toFixed(2));
-        const perPrice = unit_price > 0 ? parseFloat(unit_price.toFixed(2)) : perAmt;
         for (let i = 0; i < origCount; i++) {
           splits.push({ cat, subcat: '', amount: perAmt,
-            ...(name?{name}:{}), taxable, qty: 1, unit_price: perPrice, unit: 'each' });
+            ...(name?{name}:{}), taxable, qty: 1, unit_price: perAmt, unit: 'each' });
         }
       } else {
+        // unit_price for each items = amount/qty; for weighted items = amount (total)
+        const savedUnitPrice = finalQty > 1 ? parseFloat((amount / finalQty).toFixed(4)) : amount;
         splits.push({ cat, subcat: '', amount: parseFloat(amount.toFixed(2)),
           ...(name?{name}:{}), taxable,
-          qty: finalQty, unit_price: unit_price || amount, unit: finalUnit,
+          qty: finalQty, unit_price: savedUnitPrice, unit: finalUnit,
           ...(finalLbs?{lbs: finalLbs}:{}) });
       }
     });
