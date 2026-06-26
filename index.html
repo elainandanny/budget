@@ -3794,32 +3794,39 @@ function financeEditTransactionCard(t){
           data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}"
           ${eWeightQty ? `data-lbs="${eLbs?eWeightQty:''}" data-weight-qty="${eWeightQty}" data-unit="${eWeightUnit}"` : ''}>
         <div class="edit-item-inline-fields">
+          <!-- Row 1: Name full width -->
           <div class="form-group" style="margin:0;"><label class="form-label">Name</label>
             <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
-          <div class="form-group" style="margin:0;">
-            <label class="form-label">Unit</label>
-            <div class="fil-unit-toggle" style="margin-top:2px;">
-              <button class="fil-unit-btn active" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
-              <button class="fil-unit-btn" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">lb</button>
-              <button class="fil-unit-btn" data-unit="oz" type="button" onclick="financeItemUnitMode(this,'oz')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">oz</button>
+          <!-- Row 2: Unit | Qty | $/unit | Total -->
+          <div class="edit-item-row2">
+            <div class="form-group" style="margin:0;">
+              <label class="form-label">Unit</label>
+              <div class="fil-unit-toggle" style="margin-top:2px;">
+                <button class="fil-unit-btn active" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
+                <button class="fil-unit-btn" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">lb</button>
+                <button class="fil-unit-btn" data-unit="oz" type="button" onclick="financeItemUnitMode(this,'oz')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">oz</button>
+              </div>
             </div>
+            <div class="form-group" style="margin:0;width:60px;"><label class="form-label">Qty</label>
+              <input class="form-input" type="number" step="1" min="1" data-role="item-qty"
+                value="${eQty}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
+            <div class="form-group" style="margin:0;width:72px;"><label class="form-label">$/unit</label>
+              <input class="form-input" type="number" step="0.01" min="0" data-role="item-unit-price"
+                value="${Number(eUnitPrice||0).toFixed(2)}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
+            <div class="form-group" style="margin:0;width:72px;"><label class="form-label">Total</label>
+              <input class="form-input" type="number" step="0.01" data-role="item-amt"
+                value="${Number(displayAmt||0).toFixed(2)}" oninput="financeEditStickyUpdate()" readonly style="opacity:0.7" /></div>
           </div>
-          <div class="form-group" style="margin:0;"><label class="form-label">Qty</label>
-            <input class="form-input" type="number" step="1" min="1" data-role="item-qty"
-              value="${eQty}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
-          <div class="form-group" style="margin:0;"><label class="form-label">$/unit</label>
-            <input class="form-input" type="number" step="0.01" min="0" data-role="item-unit-price"
-              value="${Number(eUnitPrice||0).toFixed(2)}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
-          <div class="form-group" style="margin:0;"><label class="form-label">Total</label>
-            <input class="form-input" type="number" step="0.01" data-role="item-amt"
-              value="${Number(displayAmt||0).toFixed(2)}" oninput="financeEditStickyUpdate()" readonly style="opacity:0.7" /></div>
-          <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
-            <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
-          <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
-            <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
-          <div class="form-group" style="margin:0;${item.cat !== 'groceries' ? 'display:none;' : ''}"><label class="form-label">Weight</label>
-            <button class="small-btn fil-weight-toggle${eHasWeight?' active':''}" type="button"
-              title="${eHasWeight?'Weight entered':'Add weight'}" onclick="financeToggleWeightMode(this)">⚖ lbs</button></div>
+          <!-- Row 3: Category | Tax | Weight -->
+          <div class="edit-item-row3">
+            <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
+              <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
+            <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
+              <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
+            <div class="form-group" style="margin:0;${item.cat !== 'groceries' ? 'display:none;' : ''}"><label class="form-label">Weight</label>
+              <button class="small-btn fil-weight-toggle${eHasWeight?' active':''}" type="button"
+                title="${eHasWeight?'Weight entered':'Add weight'}" onclick="financeToggleWeightMode(this)">⚖ lbs</button></div>
+          </div>
         </div>
         ${eHasWeight && eWeightQty ? `<div class="fil-lbs-wrap" data-restored="1" style="display:flex;align-items:center;gap:6px;padding:6px 0 2px;flex-wrap:wrap;">
           <label class="form-label" style="margin:0;white-space:nowrap;">Weight</label>
