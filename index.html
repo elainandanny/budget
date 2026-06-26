@@ -3072,10 +3072,11 @@ async function financeSaveTransaction(){
       const unit_price = parseFloat(line.querySelector('[data-role="item-unit-price"]')?.value) || amount;
       const unitBtn    = line.querySelector('.fil-unit-btn.active');
       const unit       = unitBtn?.dataset.unit || 'each';
-      const lbs  = parseFloat(line.dataset.lbs) || null;
-      const wQty = parseFloat(line.dataset.weightQty) || null;
+      const lbs   = parseFloat(line.dataset.lbs) || null;
+      const oz    = parseFloat(line.dataset.oz)  || null;
+      const wQty  = parseFloat(line.dataset.weightQty) || null;
       const wUnit = line.dataset.unit && line.dataset.unit !== 'each' ? line.dataset.unit : null;
-      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit, lbs,
+      if (amount > 0) rawItems.push({ name, amount, cat, taxable, qty, unit_price, unit, lbs, oz,
         ...(wQty && wUnit ? { weightQty: wQty, weightUnit: wUnit } : {}) });
     });
     if (!rawItems.length) { financeShowMsg(msgId,'At least one item must have a price.',true); return; }
@@ -3087,7 +3088,7 @@ async function financeSaveTransaction(){
         ...(item.name ? {name: item.name} : {}), taxable: item.taxable,
         qty: item.qty, unit_price: item.unit_price, unit: item.unit,
         ...(item.lbs ? {lbs: item.lbs} : {}),
-        ...(item.weightQty && item.weightUnit === 'oz' ? {qty: item.weightQty, unit: 'oz', unit_price: parseFloat((item.amount / item.weightQty).toFixed(4))} : {}) });
+        ...(item.oz  ? {oz:  item.oz}  : {}) });
     });
     if (!splits.length) { financeShowMsg(msgId,'At least one item must have a price.',true); return; }
     if (tipAmt > 0) {
@@ -3344,13 +3345,15 @@ function financeWeightLbsChanged(input) {
   if (qty > 0 && total > 0) {
     const perUnit = (total / qty).toFixed(2);
     if (noteEl) noteEl.textContent = `$${perUnit}/${unit}`;
-    line.dataset.lbs  = unit === 'lb' ? qty : null;
-    line.dataset.unit = unit;
+    line.dataset.lbs       = unit === 'lb' ? qty : '';
+    line.dataset.oz        = unit === 'oz' ? qty : '';
+    line.dataset.unit      = unit;
     line.dataset.weightQty = qty;
   } else {
     if (noteEl) noteEl.textContent = '';
-    line.dataset.lbs  = '';
-    line.dataset.unit = 'each';
+    line.dataset.lbs       = '';
+    line.dataset.oz        = '';
+    line.dataset.unit      = 'each';
     line.dataset.weightQty = '';
   }
 }
@@ -4037,23 +4040,25 @@ async function financeSaveEditTransaction(id){
       const weightUnit = lbsWrap ? (lbsWrap.querySelector('.fil-unit-select')?.value || 'lb') : null;
       if (amount <= 0) return;
 
-      // Determine final unit/qty/lbs for this split
-      let finalUnit, finalQty, finalLbs;
+      // Determine final unit/qty/lbs/oz for this split
+      let finalUnit, finalQty, finalLbs, finalOz;
       if (weightQty && weightUnit) {
-        // Has weight data from lbs wrap — save as each with lbs metadata
+        // Has weight data from lbs wrap — save as each with weight metadata
         finalUnit = 'each';
-        finalQty  = qty; // the each count (should be 1)
+        finalQty  = qty;
         finalLbs  = (weightUnit === 'lb') ? weightQty : null;
+        finalOz   = (weightUnit === 'oz') ? weightQty : null;
       } else if (unit === 'lb' || unit === 'oz') {
-        // Unit button is lb/oz but no lbs wrap — treat qty as weight, save as each
+        // Unit button is lb/oz but no lbs wrap — treat qty as weight
         finalUnit = 'each';
         finalQty  = 1;
         finalLbs  = (unit === 'lb') ? qty : null;
+        finalOz   = (unit === 'oz') ? qty : null;
       } else {
-        // Each item
         finalUnit = 'each';
         finalQty  = qty;
         finalLbs  = parseFloat(row.dataset.lbs) || null;
+        finalOz   = null;
       }
 
       // How many original splits does this row represent?
@@ -4072,7 +4077,8 @@ async function financeSaveEditTransaction(id){
         splits.push({ cat, subcat: '', amount: parseFloat(amount.toFixed(2)),
           ...(name?{name}:{}), taxable,
           qty: finalQty, unit_price: savedUnitPrice, unit: finalUnit,
-          ...(finalLbs?{lbs: finalLbs}:{}) });
+          ...(finalLbs ? {lbs: finalLbs} : {}),
+          ...(finalOz  ? {oz:  finalOz}  : {}) });
       }
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
