@@ -3794,9 +3794,9 @@ function financeEditTransactionCard(t){
           data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}"
           ${eWeightQty ? `data-lbs="${eLbs?eWeightQty:''}" data-weight-qty="${eWeightQty}" data-unit="${eWeightUnit}"` : ''}>
         <div class="edit-item-inline-fields">
-          <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
+          <div class="form-group" style="margin:0;"><label class="form-label">Name</label>
             <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
-          <div class="form-group" style="margin:0;width:80px;">
+          <div class="form-group" style="margin:0;">
             <label class="form-label">Unit</label>
             <div class="fil-unit-toggle" style="margin-top:2px;">
               <button class="fil-unit-btn active" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
@@ -3804,13 +3804,13 @@ function financeEditTransactionCard(t){
               <button class="fil-unit-btn" data-unit="oz" type="button" onclick="financeItemUnitMode(this,'oz')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">oz</button>
             </div>
           </div>
-          <div class="form-group" style="margin:0;width:65px;"><label class="form-label">Qty</label>
+          <div class="form-group" style="margin:0;"><label class="form-label">Qty</label>
             <input class="form-input" type="number" step="1" min="1" data-role="item-qty"
               value="${eQty}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
-          <div class="form-group" style="margin:0;width:80px;"><label class="form-label">$/unit</label>
+          <div class="form-group" style="margin:0;"><label class="form-label">$/unit</label>
             <input class="form-input" type="number" step="0.01" min="0" data-role="item-unit-price"
               value="${Number(eUnitPrice||0).toFixed(2)}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
-          <div class="form-group" style="margin:0;width:80px;"><label class="form-label">Total</label>
+          <div class="form-group" style="margin:0;"><label class="form-label">Total</label>
             <input class="form-input" type="number" step="0.01" data-role="item-amt"
               value="${Number(displayAmt||0).toFixed(2)}" oninput="financeEditStickyUpdate()" readonly style="opacity:0.7" /></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Category</label>
