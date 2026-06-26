@@ -3760,21 +3760,28 @@ function financeEditTransactionCard(t){
       // Inline edit row (hidden by default, shown on tap)
       const eUnit      = item.unit || 'each';
       const eIsLb      = eUnit === 'lb';
-      const eQty       = item.qty !== undefined ? item.qty : (item.qty > 1 ? item.qty : 1);
+      const eIsOz      = eUnit === 'oz';
+      const eIsWeight  = eIsLb || eIsOz;
+      // Weight qty: use explicit lbs field OR qty when unit is lb/oz
+      const eWeightQty = item.lbs || (eIsWeight ? item.qty : null);
+      const eQty       = eIsWeight ? 1 : (item.qty !== undefined ? item.qty : 1);
       const eUnitPrice = item.unit_price || item.unitPrice || item.amount || 0;
-      const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}" data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}">
+      const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}"
+          data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}"
+          ${eWeightQty ? `data-lbs="${eIsLb||item.lbs?eWeightQty:''}" data-weight-qty="${eWeightQty}" data-unit="${eUnit}"` : ''}>
         <div class="edit-item-inline-fields">
           <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
             <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
           <div class="form-group" style="margin:0;width:80px;">
             <label class="form-label">Unit</label>
             <div class="fil-unit-toggle" style="margin-top:2px;">
-              <button class="fil-unit-btn active" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
+              <button class="fil-unit-btn ${!eIsWeight?'active':''}" data-unit="each" type="button" onclick="financeItemUnitMode(this,'each')">each</button>
               <button class="fil-unit-btn ${eIsLb?'active':''}" data-unit="lb" type="button" onclick="financeItemUnitMode(this,'lb')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">lb</button>
+              <button class="fil-unit-btn ${eIsOz?'active':''}" data-unit="oz" type="button" onclick="financeItemUnitMode(this,'oz')" style="${item.cat !== 'groceries' ? 'display:none;' : ''}">oz</button>
             </div>
           </div>
-          <div class="form-group" style="margin:0;width:65px;"><label class="form-label">${eIsLb?'Lbs':'Qty'}</label>
-            <input class="form-input" type="number" step="${eIsLb?'0.01':'1'}" min="0" data-role="item-qty"
+          <div class="form-group" style="margin:0;width:65px;"><label class="form-label">${eIsWeight?eUnit.toUpperCase():'Qty'}</label>
+            <input class="form-input" type="number" step="${eIsWeight?'0.01':'1'}" min="0" data-role="item-qty"
               value="${eQty}" oninput="financeItemCalcTotal(this); financeEditStickyUpdate()" /></div>
           <div class="form-group" style="margin:0;width:80px;"><label class="form-label">$/unit</label>
             <input class="form-input" type="number" step="0.01" min="0" data-role="item-unit-price"
@@ -3786,9 +3793,20 @@ function financeEditTransactionCard(t){
             <select class="form-select" data-role="item-cat" onchange="financeItemCatChanged(this)">${FINANCE_CATS.map(c=>`<option value="${c.id}" ${c.id===item.cat?'selected':''}>${c.emoji} ${escapeHtml(c.label)}</option>`).join('')}</select></div>
           <div class="form-group" style="margin:0;"><label class="form-label">Tax</label>
             <button class="small-btn fin-tax-toggle ${taxable?'tax-on':'tax-off'}" data-role="item-taxable" data-taxable="${taxable}" type="button" onclick="financeToggleItemTax(this)">${taxable?'T':'NT'}</button></div>
-          <div class="form-group" style="margin:0;${item.cat !== 'groceries' ? 'display:none;' : ''}"><label class="form-label">Weight</label><button class="small-btn fil-weight-toggle${item.lbs?' active':''}" type="button" title="${item.lbs?'Weight mode':'Add weight (lbs)'}" onclick="financeToggleWeightMode(this)">⚖ lbs</button></div>
+          <div class="form-group" style="margin:0;${item.cat !== 'groceries' ? 'display:none;' : ''}"><label class="form-label">Weight</label><button class="small-btn fil-weight-toggle${eWeightQty?' active':''}" type="button" title="${eWeightQty?'Weight entered':'Add weight'}" onclick="financeToggleWeightMode(this)">⚖ lbs</button></div>
         </div>
-        ${item.lbs ? `<div class="fil-lbs-wrap" data-restored="1"><label class="form-label" style="margin:0;white-space:nowrap;">Weight (lbs)</label><input class="form-input fil-lbs-input" type="number" step="0.01" min="0" placeholder="e.g. 3.2" data-role="item-lbs" style="width:100px;" value="${item.lbs}" oninput="financeWeightLbsChanged(this)" /><span class="metric-sub fil-lbs-note">${financeItemWeightLabel ? financeItemWeightLabel({amount: Number(item.amount||0), lbs: item.lbs}) : ''}</span></div>` : ''}
+        ${eWeightQty ? `<div class="fil-lbs-wrap" data-restored="1" style="display:flex;align-items:center;gap:6px;padding:6px 0 2px;flex-wrap:wrap;">
+          <label class="form-label" style="margin:0;white-space:nowrap;">Weight</label>
+          <input class="form-input fil-lbs-input" type="number" step="0.01" min="0"
+            placeholder="amount" data-role="item-lbs" style="width:80px;"
+            value="${eWeightQty}" oninput="financeWeightLbsChanged(this)" />
+          <select class="form-select fil-unit-select" style="width:58px;padding:4px 2px;font-size:12px;"
+            onchange="financeWeightLbsChanged(this.closest('.fil-lbs-wrap').querySelector('.fil-lbs-input'))">
+            <option value="lb" ${eUnit==='lb'||item.lbs?'selected':''}>lb</option>
+            <option value="oz" ${eUnit==='oz'?'selected':''}>oz</option>
+          </select>
+          <span class="metric-sub fil-lbs-note">${financeItemWeightLabel({amount: Number(displayAmt||0), lbs: eWeightQty, unit: eUnit, qty: eWeightQty})}</span>
+        </div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
           <button class="small-btn" type="button" onclick="financeEditItemCollapse(this)">Done</button>
           <button class="small-btn danger-btn" type="button" onclick="financeEditItemDelete(this)">Remove</button>
@@ -3870,11 +3888,17 @@ function financeEditItemCollapse(btn) {
   const name = editRow.querySelector('[data-role="item-name"]')?.value.trim() || '—';
   const amt  = Number(editRow.querySelector('[data-role="item-amt"]')?.value || 0);
   const taxable = editRow.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
-  const lbs  = parseFloat(editRow.dataset.lbs) || null;
+  // Read weight from lbs wrap
+  const lbsWrap   = editRow.querySelector('.fil-lbs-wrap');
+  const weightQty = lbsWrap ? parseFloat(lbsWrap.querySelector('.fil-lbs-input')?.value) || null : null;
+  const weightUnit= lbsWrap ? (lbsWrap.querySelector('.fil-unit-select')?.value || 'lb') : null;
+  const lbs = (weightQty && weightUnit === 'lb') ? weightQty : (parseFloat(editRow.dataset.lbs) || null);
+  // Build a synthetic split object for the label helper
+  const synth = { amount: amt, lbs, unit: weightUnit || 'each', qty: weightQty, unit_price: weightQty ? parseFloat((amt / weightQty).toFixed(4)) : null };
+  const weightLabel = (weightQty || lbs) ? ` <span class="tx-item-qty">${financeItemWeightLabel(synth)}</span>` : '';
   const nameEl = displayRow?.querySelector('.edit-item-display-name');
   const amtEl  = displayRow?.querySelector('.edit-item-display-amt');
   const taxEl  = displayRow?.querySelector('.fin-tax-toggle');
-  const weightLabel = lbs ? ` <span class="tx-item-qty">${financeItemWeightLabel({amount: amt, lbs})}</span>` : '';
   if (nameEl) nameEl.innerHTML = escapeHtml(name) + weightLabel;
   if (amtEl)  amtEl.textContent  = financeFmt(amt);
   if (taxEl)  { taxEl.textContent = taxable ? 'T' : 'NT'; taxEl.className = `fin-tax-toggle ${taxable?'tax-on':'tax-off'}`; }
@@ -3995,10 +4019,34 @@ async function financeSaveEditTransaction(id){
       const qty        = parseFloat(row.querySelector('[data-role="item-qty"]')?.value) || 1;
       const unit_price = parseFloat(unitPriceEl?.value) || 0;
       const amount     = parseFloat(amtEl?.value) || (unit_price > 0 ? parseFloat((qty*unit_price).toFixed(2)) : 0);
-      const lbs        = parseFloat(row.dataset.lbs) || null;
-      if (amount > 0) splits.push({ cat, subcat: '', amount: parseFloat(amount.toFixed(2)),
-        ...(name?{name}:{}), taxable, qty, unit_price: unit_price || amount, unit,
-        ...(lbs?{lbs}:{}) });
+      // Read weight from the lbs wrap if present
+      const lbsWrap    = row.querySelector('.fil-lbs-wrap');
+      const weightQty  = lbsWrap ? parseFloat(lbsWrap.querySelector('.fil-lbs-input')?.value) || null : null;
+      const weightUnit = lbsWrap ? (lbsWrap.querySelector('.fil-unit-select')?.value || 'lb') : null;
+      const lbs        = (weightQty && weightUnit === 'lb') ? weightQty : (parseFloat(row.dataset.lbs) || null);
+      const finalUnit  = weightQty ? weightUnit : unit;
+      const finalQty   = weightQty || qty;
+      if (amount <= 0) return;
+
+      // How many original splits does this row represent?
+      const groupIdxs = (row.dataset.groupIdxs || '').split(',').filter(Boolean);
+      const origCount = groupIdxs.length || 1;
+
+      // If unit=each and qty matches origCount exactly, write one split per original
+      // (preserves the audit structure for consolidated items)
+      if (finalUnit === 'each' && origCount > 1 && finalQty === origCount) {
+        const perAmt = parseFloat((amount / origCount).toFixed(2));
+        const perPrice = unit_price > 0 ? parseFloat((unit_price).toFixed(2)) : perAmt;
+        for (let i = 0; i < origCount; i++) {
+          splits.push({ cat, subcat: '', amount: perAmt,
+            ...(name?{name}:{}), taxable, qty: 1, unit_price: perPrice, unit: 'each' });
+        }
+      } else {
+        // Single consolidated split (user may have changed qty)
+        splits.push({ cat, subcat: '', amount: parseFloat(amount.toFixed(2)),
+          ...(name?{name}:{}), taxable, qty: finalQty, unit_price: unit_price || amount, unit: finalUnit,
+          ...(lbs?{lbs}:{}) });
+      }
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
     // Redistribute tax from edit-fin-tax across taxable items
@@ -5402,10 +5450,32 @@ async function receiptAnalyze() {
     parsed.items = parsed.items.map(item => ({
       ...item,
       category: FINANCE_CATS.find(c => c.id === item.category) ? item.category : 'other',
-      taxable: item.taxable !== false, // default true if missing
+      taxable: item.taxable !== false,
       discount: Number(item.discount) || 0,
       amount: Number(item.amount) || 0
     }));
+
+    // Silently consolidate identical each-unit items
+    // (same name + category + unit_price, unit=each) → one row with qty summed
+    const consolidated = [];
+    const consolidateMap = new Map();
+    parsed.items.forEach(item => {
+      const isEach = !item.unit || item.unit === 'each';
+      if (!isEach || !item.name || item.amount < 0) {
+        consolidated.push({ ...item }); return;
+      }
+      const key = item.name.trim().toLowerCase() + '|' + (item.category||'other') + '|' + Number(item.unit_price || item.amount).toFixed(4);
+      if (consolidateMap.has(key)) {
+        const existing = consolidateMap.get(key);
+        existing.qty = (existing.qty || 1) + 1;
+        existing.amount = parseFloat((existing.amount + item.amount).toFixed(2));
+      } else {
+        const entry = { ...item, qty: 1, unit: 'each', unit_price: item.unit_price || item.amount };
+        consolidateMap.set(key, entry);
+        consolidated.push(entry);
+      }
+    });
+    parsed.items = consolidated;
 
     _receiptParsed = parsed;
     receiptRenderReview(parsed);
