@@ -4786,7 +4786,7 @@ function drilldownRender() {
     const namedRelevant = relevantSplits.filter(s => s.name);
     if (namedRelevant.length) {
       namedRelevant.forEach(s => {
-        rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: s.name, amount: s.amount, lbs: s.lbs });
+        rows.push({ date: t.date, merchant: t.store, catId: s.cat, name: s.name, amount: s.amount, lbs: s.lbs, oz: s.oz });
       });
       const unnamedAmt = relevantSplits.filter(s => !s.name).reduce((sum,s) => sum + s.amount, 0);
       if (unnamedAmt > 0) rows.push({ date: t.date, merchant: t.store, catId: relevantSplits[0].cat, name: null, amount: unnamedAmt });
@@ -4808,8 +4808,7 @@ function drilldownRender() {
 
   list.innerHTML = rows.map(r => {
     const cat = financeCat(r.catId);
-    const weightStr = r.lbs && r.amount > 0
-      ? `<span class="drilldown-weight">$${(r.amount/r.lbs).toFixed(2)}/lb · ${r.lbs}lb</span>` : '';
+    const weightStr = (r.lbs || r.oz) ? `<span class="drilldown-weight">${financeItemWeightLabel(r)}</span>` : '';
     const nameHtml = r.name
       ? `<span class="drilldown-item-name">${escapeHtml(r.name)}${weightStr}</span>`
       : `<span class="drilldown-item-name muted">—</span>`;
@@ -4953,7 +4952,7 @@ financeTransactionCard = function(t) {
   const itemList = namedItems.length
     ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
         const cat = financeCat(s.cat);
-        const lbsLabel = (s.lbs || s.unit === 'lb' || s.unit === 'oz') ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
+        const lbsLabel = (s.lbs || s.oz || s.unit === 'lb' || s.unit === 'oz') ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
         const qtyLabel = (!lbsLabel && s.qty && s.qty > 1 && s.unit === 'each') ? `<span class="tx-item-qty">×${s.qty}</span>` : '';
         const itemLower = (s.name || '').toLowerCase();
         const isReturned   = returnedItemNames.has(itemLower);
