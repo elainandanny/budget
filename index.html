@@ -2812,8 +2812,10 @@ function financeSetTxType(type){
   document.getElementById('finance-income-form')?.classList.toggle('hidden', type !== 'income');
   document.getElementById('finance-return-wrap')?.classList.toggle('hidden', type !== 'return');
   if(type === 'return') {
+    // Always reset date to today for returns so it doesn't inherit a previous purchase date
+    const dateEl = document.getElementById('fin-date');
+    if (dateEl) dateEl.value = dateForInput(financeDateToday());
     financePopulateReturnLinks();
-    // Auto-fill merchant filter from merchant field
     const merchant = document.getElementById('fin-store')?.value.trim() || '';
     const retFilter = document.getElementById('fin-return-merchant-filter');
     if (retFilter && merchant) retFilter.value = merchant;
@@ -4008,7 +4010,19 @@ function financeEditAddItemLine() {
   div.querySelector('[data-role="item-name"]')?.focus();
 }
 function financeEditUpdateTally(){ const total=Number(document.getElementById('edit-fin-total')?.value||0); let alloc=0; document.querySelectorAll('#edit-fin-split-lines [data-role="edit-amt"]').forEach(el=>alloc+=Number(el.value||0)); const rem=total-alloc; const a=document.getElementById('edit-fin-tally-alloc'); const r=document.getElementById('edit-fin-tally-rem'); if(a) a.textContent=financeFmt(alloc); if(r){ r.textContent=`Remaining: ${financeFmt(rem)}`; r.style.color=Math.abs(rem)<.02?'var(--success)':rem<0?'var(--danger)':'var(--muted)'; } }
-function financeStartEditTransaction(id){ const t=financeState.transactions.find(x=>x.id===id); financeEditingTransactionId=id; financeEditSplitMode=(t?.splits?.length||0)>1?'split':'quick'; financeRenderHistory(); setTimeout(financeEditUpdateTally,0); }
+function financeStartEditTransaction(id){
+  const t = financeState.transactions.find(x => x.id === id);
+  financeEditingTransactionId = id;
+  financeEditSplitMode = (t?.splits?.length || 0) > 1 ? 'split' : 'quick';
+  // Switch to History tab so the edit card is visible
+  financeSwitch('history');
+  financeRenderHistory();
+  setTimeout(() => {
+    const card = document.getElementById('tx-card-' + id);
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    financeEditUpdateTally();
+  }, 100);
+}
 function financeCancelEditTransaction(){ financeEditingTransactionId=null; financeRenderHistory(); }
 async function financeSaveEditTransaction(id){
   const t=financeState.transactions.find(x=>x.id===id); if(!t) return;
