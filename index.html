@@ -3746,8 +3746,13 @@ function financeEditTransactionCard(t){
 
     const rowsHtml = items.map(item => {
       const taxable = item.taxable !== undefined ? item.taxable : itemTaxDefault(item.cat||'other');
-      const qtyBadge = item.qty > 1 ? `<span class="edit-qty-badge">×${item.qty}</span>` : '';
-      const displayAmt = item.qty > 1 ? item.totalAmt : item.amount;
+      const isWeightUnit = item.unit === 'lb' || item.unit === 'oz' || item.lbs > 0;
+      const weightQtyForBadge = item.lbs > 0 ? item.lbs : (isWeightUnit ? item.qty : null);
+      const weightUnitForBadge = item.unit === 'oz' ? 'oz' : 'lb';
+      const qtyBadge = isWeightUnit && weightQtyForBadge
+        ? `<span class="edit-qty-badge">${weightQtyForBadge}${weightUnitForBadge}</span>`
+        : (item.qty > 1 ? `<span class="edit-qty-badge">×${item.qty}</span>` : '');
+      const displayAmt = item.totalAmt || item.amount;
 
       // Compact display row (shown by default)
       const displayRow = `<div class="edit-item-display" data-item-idx="${item._idx}" onclick="financeEditItemExpand(this)">
@@ -3763,11 +3768,15 @@ function financeEditTransactionCard(t){
       const eIsLb      = eUnit === 'lb';
       const eIsOz      = eUnit === 'oz';
       const eHasWeight = eIsLb || eIsOz || (item.lbs > 0);
-      // Weight qty: explicit lbs field takes priority; otherwise qty when unit is lb/oz
-      const eWeightQty = item.lbs > 0 ? item.lbs : (eIsLb || eIsOz ? item.qty : null);
-      const eWeightUnit= item.lbs > 0 ? 'lb' : (eIsLb ? 'lb' : eIsOz ? 'oz' : 'lb');
-      // Display qty: for weight items show 1 (weight is in the lbs wrap); for each items show actual qty
+      // When unit=lb/oz, item.qty IS the weight (e.g. 2lb of strawberries)
+      // When unit=each with item.lbs, lbs is the weight and qty is the each count
+      const eWeightQty = eIsLb || eIsOz
+        ? (item.qty || item.lbs || null)   // qty is the weight for lb/oz items
+        : (item.lbs > 0 ? item.lbs : null); // explicit lbs field for each items with weight
+      const eWeightUnit = eIsOz ? 'oz' : 'lb';
+      // Each qty: weighted items always have each=1; each items keep their qty
       const eQty       = eHasWeight ? 1 : (item.qty > 0 ? item.qty : 1);
+      // Unit price: for lb/oz items this is $/lb or $/oz
       const eUnitPrice = item.unit_price || item.unitPrice || 0;
       const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}"
           data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}"
@@ -3810,7 +3819,7 @@ function financeEditTransactionCard(t){
             <option value="lb" ${eWeightUnit==='lb'?'selected':''}>lb</option>
             <option value="oz" ${eWeightUnit==='oz'?'selected':''}>oz</option>
           </select>
-          <span class="metric-sub fil-lbs-note">${financeItemWeightLabel({amount: Number(displayAmt||0), lbs: eWeightUnit==='lb'?eWeightQty:null, unit: eWeightUnit, qty: eWeightQty, unit_price: eUnitPrice||null})}</span>
+          <span class="metric-sub fil-lbs-note">${eWeightQty && Number(displayAmt||0) > 0 ? `$${(Number(displayAmt)/eWeightQty).toFixed(2)}/${eWeightUnit}` : (eUnitPrice > 0 ? `$${Number(eUnitPrice).toFixed(2)}/${eWeightUnit}` : '')}</span>
         </div>` : ''}
         <div style="display:flex;gap:6px;margin-top:8px;justify-content:flex-end;">
           <button class="small-btn" type="button" onclick="financeEditItemCollapse(this)">Done</button>
@@ -4028,29 +4037,43 @@ async function financeSaveEditTransaction(id){
       const lbsWrap    = row.querySelector('.fil-lbs-wrap');
       const weightQty  = lbsWrap ? parseFloat(lbsWrap.querySelector('.fil-lbs-input')?.value) || null : null;
       const weightUnit = lbsWrap ? (lbsWrap.querySelector('.fil-unit-select')?.value || 'lb') : null;
-      const lbs        = (weightQty && weightUnit === 'lb') ? weightQty : (parseFloat(row.dataset.lbs) || null);
-      const finalUnit  = weightQty ? weightUnit : unit;
-      const finalQty   = weightQty || qty;
       if (amount <= 0) return;
+
+      // Determine final unit/qty/lbs for this split
+      let finalUnit, finalQty, finalLbs;
+      if (weightQty && weightUnit) {
+        // User has weight data — save as weighted item
+        finalUnit = weightUnit;
+        finalQty  = weightQty;
+        finalLbs  = (weightUnit === 'lb') ? weightQty : null;
+      } else if (unit === 'lb' || unit === 'oz') {
+        // Unit button is lb/oz but no lbs wrap — use qty field as weight
+        finalUnit = unit;
+        finalQty  = qty;
+        finalLbs  = (unit === 'lb') ? qty : null;
+      } else {
+        // each item
+        finalUnit = unit;
+        finalQty  = qty;
+        finalLbs  = parseFloat(row.dataset.lbs) || null;
+      }
 
       // How many original splits does this row represent?
       const groupIdxs = (row.dataset.groupIdxs || '').split(',').filter(Boolean);
       const origCount = groupIdxs.length || 1;
 
-      // If unit=each and qty matches origCount exactly, write one split per original
-      // (preserves the audit structure for consolidated items)
       if (finalUnit === 'each' && origCount > 1 && finalQty === origCount) {
-        const perAmt = parseFloat((amount / origCount).toFixed(2));
-        const perPrice = unit_price > 0 ? parseFloat((unit_price).toFixed(2)) : perAmt;
+        const perAmt   = parseFloat((amount / origCount).toFixed(2));
+        const perPrice = unit_price > 0 ? parseFloat(unit_price.toFixed(2)) : perAmt;
         for (let i = 0; i < origCount; i++) {
           splits.push({ cat, subcat: '', amount: perAmt,
             ...(name?{name}:{}), taxable, qty: 1, unit_price: perPrice, unit: 'each' });
         }
       } else {
-        // Single consolidated split (user may have changed qty)
         splits.push({ cat, subcat: '', amount: parseFloat(amount.toFixed(2)),
-          ...(name?{name}:{}), taxable, qty: finalQty, unit_price: unit_price || amount, unit: finalUnit,
-          ...(lbs?{lbs}:{}) });
+          ...(name?{name}:{}), taxable,
+          qty: finalQty, unit_price: unit_price || amount, unit: finalUnit,
+          ...(finalLbs?{lbs: finalLbs}:{}) });
       }
     });
     if (!splits.length) { financeShowMsg('edit-fin-msg','At least one item must have a price.',true); return; }
@@ -5454,8 +5477,6 @@ async function receiptAnalyze() {
     // Ensure all category ids are valid
     parsed.items = parsed.items.map(item => ({
       ...item,
-      name: item.name ? item.name.trim().replace(/\b\w+/g, w =>
-        w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()) : item.name,
       category: FINANCE_CATS.find(c => c.id === item.category) ? item.category : 'other',
       taxable: item.taxable !== false,
       discount: Number(item.discount) || 0,
@@ -6653,8 +6674,15 @@ function financeEditItemCollapse(btn) {
   const amt  = Number(editRow.querySelector('[data-role="item-amt"]')?.value || 0);
   const taxable = editRow.querySelector('[data-role="item-taxable"]')?.dataset.taxable === 'true';
 
-  const qtyBadge = unit === 'lb'
-    ? ` <span class="edit-qty-badge">${qty} lb</span>`
+  const lbsWrap   = editRow.querySelector('.fil-lbs-wrap');
+  const weightQty = lbsWrap ? parseFloat(lbsWrap.querySelector('.fil-lbs-input')?.value) || null : null;
+  const weightUnit= lbsWrap ? (lbsWrap.querySelector('.fil-unit-select')?.value || 'lb') : null;
+
+  const isWeightItem = (unit === 'lb' || unit === 'oz') || (weightQty > 0);
+  const badgeWeight  = weightQty || (isWeightItem ? qty : null);
+  const badgeUnit    = weightUnit || (unit !== 'each' ? unit : null);
+  const qtyBadge = isWeightItem && badgeWeight
+    ? ` <span class="edit-qty-badge">${badgeWeight}${badgeUnit}</span>`
     : qty > 1 ? ` <span class="edit-qty-badge">×${qty}</span>` : '';
 
   const nameEl = displayRow?.querySelector('.edit-item-display-name');
