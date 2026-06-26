@@ -2795,12 +2795,19 @@ function financeDashboardTransactions(){ const f=financeDashboardFilterState(); 
 function financeChartTransactions(){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>financeTransactionMatchesFilters(t,f,Boolean(f.hasRange))); }
 function financeDashboardIncome(){ const f=financeDashboardFilterState(); return financeState.income.filter(i=>{ const month=String(i.date||'').slice(0,7); if(f.hasRange){ if(f.start && month < f.start) return false; if(f.end && month > f.end) return false; return true; } const current = `${financeMonth.getFullYear()}-${String(financeMonth.getMonth()+1).padStart(2,'0')}`; return month === current; }); }
 function financeTransactionsForChartMonth(y,m){ const f=financeDashboardFilterState(); return financeAllTransactions().filter(t=>{ const x=financeYM(t.date); return x.y===y && x.m===m && financeTransactionMatchesFilters(t,{...f,hasRange:false,start:'',end:''},false); }); }
+let financeCurrentTab = 'dashboard';
 function financeSwitch(name){
+  financeCurrentTab = name;
   const panels = ['dashboard','add','history','budgets','subs','scan'];
   document.querySelectorAll('.finance-subtab').forEach((b,i) => b.classList.toggle('active', panels[i] === name));
   document.querySelectorAll('.finance-panel').forEach(p=>p.classList.remove('active'));
   document.getElementById('finance-' + name)?.classList.add('active');
   if (name !== 'scan') financeRenderAll();
+}
+function financeCancelEditTransaction(){
+  financeEditingTransactionId = null;
+  if (financeCurrentTab === 'dashboard') financeRenderCalendar();
+  else financeRenderHistory();
 }
 function financeRenderAll(){ financeInitUI(); financeRenderDashboard(); financeRenderRecent(); financeRenderHistory(); financeRenderBudgets(); financeRenderSubs(); }
 function financeChangeMonth(delta){ financeMonth = new Date(financeMonth.getFullYear(), financeMonth.getMonth()+delta, 1); financeCalendarMonth = new Date(financeMonth); financeRenderDashboard(); }
@@ -3575,7 +3582,9 @@ function financeRenderCalendar(){
     details.innerHTML = '<div class="metric-sub">Tap a shaded day to see transaction details.</div>';
     return;
   }
-  details.innerHTML = selected.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(t => financeTransactionCard(t)).join('');
+  details.innerHTML = selected.sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||''))).map(t =>
+    t.id === financeEditingTransactionId ? financeEditTransactionCard(t) : financeTransactionCard(t)
+  ).join('');
 }
 function financeToggleRecent(){
   const card=document.getElementById('finance-recent-card');
@@ -4014,16 +4023,18 @@ function financeStartEditTransaction(id){
   const t = financeState.transactions.find(x => x.id === id);
   financeEditingTransactionId = id;
   financeEditSplitMode = (t?.splits?.length || 0) > 1 ? 'split' : 'quick';
-  // Switch to History tab so the edit card is visible
-  financeSwitch('history');
-  financeRenderHistory();
+  if (financeCurrentTab === 'dashboard') {
+    financeRenderCalendar();
+  } else {
+    financeRenderHistory();
+  }
   setTimeout(() => {
     const card = document.getElementById('tx-card-' + id);
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     financeEditUpdateTally();
-  }, 100);
+  }, 50);
 }
-function financeCancelEditTransaction(){ financeEditingTransactionId=null; financeRenderHistory(); }
+function financeCancelEditTransaction_OLD(){ /* replaced above */ }
 async function financeSaveEditTransaction(id){
   const t=financeState.transactions.find(x=>x.id===id); if(!t) return;
   const date=normalizeDateValue(document.getElementById('edit-fin-date').value);
