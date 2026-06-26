@@ -3776,7 +3776,7 @@ function financeEditTransactionCard(t){
       const eUnitPrice = item.unit_price || item.unitPrice || 0;
       const editRow = `<div class="edit-item-inline hidden" data-item-idx="${item._idx}"
           data-group-idxs="${(item._groupIdxs||[item._idx]).join(',')}"
-          ${eWeightQty ? `data-lbs="${eIsLb||item.lbs?eWeightQty:''}" data-weight-qty="${eWeightQty}" data-unit="${eWeightUnit}"` : ''}>
+          ${eWeightQty ? `data-lbs="${eLbs?eWeightQty:''}" data-weight-qty="${eWeightQty}" data-unit="${eWeightUnit}"` : ''}>
         <div class="edit-item-inline-fields">
           <div class="form-group" style="margin:0;flex:1;min-width:120px;"><label class="form-label">Name</label>
             <input class="form-input" data-role="item-name" value="${escapeHtml(item.name||'')}" placeholder="Item name" /></div>
