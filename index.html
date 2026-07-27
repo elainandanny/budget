@@ -2918,12 +2918,23 @@ function financeReturnItemsChanged() {
       const taxNote = hasTaxInfo
         ? (s.taxable ? '<span class="return-tax-note">incl. tax</span>' : '<span class="return-tax-note nt">tax-free</span>')
         : '';
+      const qty = Number(s.qty) || 1;
+      const isEach = (s.unit || 'each') === 'each';
+      const canPartial = isEach && qty > 1;
+      const unitPrice = canPartial ? parseFloat((s.amount / qty).toFixed(4)) : s.amount;
+      const qtyLabel = qty > 1 ? ` <span class="return-item-qty-label">×${qty}</span>` : '';
+      const qtySelector = canPartial
+        ? `<input class="form-input return-item-qtysel" type="number" step="1" min="1" max="${qty}" value="${qty}"
+            data-unit-price="${unitPrice}" title="How many units returned"
+            oninput="financeReturnItemsSum()" style="display:none;width:48px;" />`
+        : '<span class="return-item-qty-spacer"></span>';
       return `<label class="return-item-row">
-        <input type="checkbox" class="return-item-check" data-amount="${s.amount}" data-name="${escapeHtml(s.name)}" data-cat="${s.cat}"
+        <input type="checkbox" class="return-item-check" data-amount="${s.amount}" data-name="${escapeHtml(s.name)}" data-cat="${s.cat}" data-qty="${qty}"
           onchange="financeReturnItemsSum()" />
-        <span class="return-item-name">${escapeHtml(s.name)}</span>
+        <span class="return-item-name">${escapeHtml(s.name)}${qtyLabel}</span>
         <span class="return-item-cat" style="color:${cat.color}">${cat.emoji}</span>
         <span class="return-item-price">${financeFmt(s.amount)} ${taxNote}</span>
+        ${qtySelector}
         <input class="form-input return-item-adj" type="number" step="0.01" min="0"
           placeholder="${Number(s.amount).toFixed(2)}"
           title="Adjust refund amount if store gives different amount"
@@ -2968,13 +2979,26 @@ function financeReturnItemsSum() {
   document.querySelectorAll('.return-item-check:checked').forEach(cb => {
     const row = cb.closest('.return-item-row');
     const adj = row?.querySelector('.return-item-adj');
+    const qtySel = row?.querySelector('.return-item-qtysel');
     if (adj) adj.style.display = '';
+    if (qtySel) qtySel.style.display = '';
+
+    // Default amount: full line, unless a qty stepper is present and reduced below the full qty
+    const fullQty = Number(cb.dataset.qty) || 1;
+    const qtyReturned = qtySel ? Math.max(1, Math.min(fullQty, Number(qtySel.value) || fullQty)) : fullQty;
+    const unitPrice = qtySel ? Number(qtySel.dataset.unitPrice || 0) : Number(cb.dataset.amount || 0);
+    const qtyBasedAmount = qtySel ? parseFloat((unitPrice * qtyReturned).toFixed(2)) : Number(cb.dataset.amount || 0);
+    if (adj) adj.placeholder = qtyBasedAmount.toFixed(2);
+
     const adjVal = Number(adj?.value || 0);
-    total += adjVal > 0 ? adjVal : Number(cb.dataset.amount || 0);
+    total += adjVal > 0 ? adjVal : qtyBasedAmount;
   });
   document.querySelectorAll('.return-item-check:not(:checked)').forEach(cb => {
-    const adj = cb.closest('.return-item-row')?.querySelector('.return-item-adj');
+    const row = cb.closest('.return-item-row');
+    const adj = row?.querySelector('.return-item-adj');
+    const qtySel = row?.querySelector('.return-item-qtysel');
     if (adj) { adj.style.display = 'none'; adj.value = ''; }
+    if (qtySel) { qtySel.style.display = 'none'; qtySel.value = qtySel.max; }
   });
   const totalEl = document.getElementById('fin-total');
   if (totalEl) totalEl.value = total > 0 ? parseFloat(total.toFixed(2)) : '';
@@ -3040,9 +3064,15 @@ async function financeSaveTransaction(){
       const checked = document.querySelectorAll('.return-item-check:checked');
       if (checked.length) {
         checked.forEach(cb => {
-          const adj = cb.closest('.return-item-row')?.querySelector('.return-item-adj');
-          const amount = adj?.value ? Number(adj.value) : Number(cb.dataset.amount || 0);
-          splits.push({ cat: cb.dataset.cat || 'other', subcat: 'return', amount: parseFloat(amount.toFixed(2)), name: cb.dataset.name || '', taxable: false, qty: 1, unit_price: amount, unit: 'each' });
+          const row = cb.closest('.return-item-row');
+          const adj = row?.querySelector('.return-item-adj');
+          const qtySel = row?.querySelector('.return-item-qtysel');
+          const fullQty = Number(cb.dataset.qty) || 1;
+          const qtyReturned = qtySel ? Math.max(1, Math.min(fullQty, Number(qtySel.value) || fullQty)) : fullQty;
+          const unitPrice = qtySel ? Number(qtySel.dataset.unitPrice || 0) : Number(cb.dataset.amount || 0);
+          const qtyBasedAmount = qtySel ? parseFloat((unitPrice * qtyReturned).toFixed(2)) : Number(cb.dataset.amount || 0);
+          const amount = adj?.value ? Number(adj.value) : qtyBasedAmount;
+          splits.push({ cat: cb.dataset.cat || 'other', subcat: 'return', amount: parseFloat(amount.toFixed(2)), name: cb.dataset.name || '', taxable: false, qty: qtyReturned, unit_price: unitPrice || amount, unit: 'each' });
         });
       } else {
         // No named items — use total as a single split from the linked transaction's primary category
@@ -4940,7 +4970,9 @@ financeTransactionCard = function(t) {
   const linkedTxs = financeState.transactions.filter(r =>
     r.linked_id === t.id && (r.is_return || r.return_type === 'price_match')
   );
-  const returnedItemNames = new Set();
+  const returnedQtyByName = {};   // name → qty units returned
+  const returnedAmtByName = {};   // name → $ amount returned
+  const wholeReturned = { flag: false };
   const priceMatchedItems = {}; // name → refund amount
   linkedTxs.forEach(r => {
     (r.splits || []).forEach(s => {
@@ -4948,18 +4980,23 @@ financeTransactionCard = function(t) {
         if (r.return_type === 'price_match') {
           priceMatchedItems[s.name.toLowerCase()] = (priceMatchedItems[s.name.toLowerCase()] || 0) + Number(s.amount || 0);
         } else {
-          returnedItemNames.add(s.name.toLowerCase());
+          const key = s.name.toLowerCase();
+          returnedQtyByName[key] = (returnedQtyByName[key] || 0) + (Number(s.qty) || 1);
+          returnedAmtByName[key] = (returnedAmtByName[key] || 0) + Number(s.amount || 0);
         }
       }
     });
     // If no named splits but linked, mark whole tx
     if (!(r.splits || []).some(s => s.name)) {
       if (r.return_type === 'price_match') priceMatchedItems['__whole__'] = r.total;
-      else returnedItemNames.add('__whole__');
+      else wholeReturned.flag = true;
     }
   });
+  // Returned/name set (fully or partially returned) — used below to look up per-item state
+  const returnedItemNames = new Set(Object.keys(returnedQtyByName));
+  if (wholeReturned.flag) returnedItemNames.add('__whole__');
 
-  const wholeReturnBadge = returnedItemNames.has('__whole__') ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
+  const wholeReturnBadge = wholeReturned.flag ? ' <span class="badge badge-returned">↩ Returned</span>' : '';
   const wholePMBadge = priceMatchedItems['__whole__'] ? ` <span class="badge badge-pricematch">💲 Price Matched</span>` : '';
 
   // Item-level count badges (shown on sub line)
@@ -4984,21 +5021,36 @@ financeTransactionCard = function(t) {
   const itemList = namedItems.length
     ? `<div class="tx-item-list hidden" id="tx-items-${t.id}">${namedItems.map(s => {
         const cat = financeCat(s.cat);
-        const lbsLabel = (s.lbs || s.oz || s.unit === 'lb' || s.unit === 'oz') ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
-        const qtyLabel = (!lbsLabel && s.qty && s.qty > 1 && s.unit === 'each') ? `<span class="tx-item-qty">×${s.qty}</span>` : '';
         const itemLower = (s.name || '').toLowerCase();
-        const isReturned   = returnedItemNames.has(itemLower);
+        const originalQty  = Number(s.qty) || 1;
+        const returnedQty  = wholeReturned.flag ? originalQty : Math.min(originalQty, returnedQtyByName[itemLower] || 0);
+        const returnedAmt  = wholeReturned.flag ? s.amount : Math.min(s.amount, returnedAmtByName[itemLower] || 0);
+        const isFullyReturned    = returnedQty > 0 && returnedQty >= originalQty;
+        const isPartiallyReturned = returnedQty > 0 && !isFullyReturned;
+        const remainingQty = originalQty - returnedQty;
+        const remainingAmt = parseFloat((s.amount - returnedAmt).toFixed(2));
+
+        const lbsLabel = (s.lbs || s.oz || s.unit === 'lb' || s.unit === 'oz') ? `<span class="tx-item-qty">${financeItemWeightLabel(s)}</span>` : '';
+        const displayQty = isPartiallyReturned ? remainingQty : originalQty;
+        const qtyLabel = (!lbsLabel && displayQty && displayQty > 1 && s.unit === 'each') ? `<span class="tx-item-qty">×${displayQty}</span>` : '';
+
         const pmRefund     = priceMatchedItems[itemLower];
         const effectiveAmt = pmRefund ? parseFloat((s.amount - pmRefund).toFixed(2)) : s.amount;
-        const retBadge = isReturned ? ' <span class="badge badge-returned" style="font-size:9px;">↩ Returned</span>' : '';
+        const retBadge = isFullyReturned
+          ? ' <span class="badge badge-returned" style="font-size:9px;">↩ Returned</span>'
+          : isPartiallyReturned
+            ? ` <span class="badge badge-returned" style="font-size:9px;">↩ ${returnedQty} of ${originalQty} returned</span>`
+            : '';
         const pmBadge  = pmRefund   ? ` <span class="badge badge-pricematch" style="font-size:9px;">💲 Price Match</span>` : '';
-        const amtDisplay   = isReturned
+        const amtDisplay   = isFullyReturned
           ? `<span class="tx-item-amt-strike">${financeFmt(s.amount)}</span>`
-          : pmRefund
-            ? `<span class="tx-item-amt-pm">${financeFmt(effectiveAmt)}<span class="tx-item-amt-orig">${financeFmt(s.amount)}</span></span>`
-            : financeFmt(s.amount);
-        const nameStyle = isReturned ? ' style="text-decoration:line-through;opacity:0.5;"' : '';
-        return `<div class="tx-item-row${isReturned?' tx-item-row-returned':''}"><span class="tx-item-name"${nameStyle}>${escapeHtml(s.name)}${lbsLabel}${qtyLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${amtDisplay}</span></div>`;
+          : isPartiallyReturned
+            ? `<span class="tx-item-amt-pm">${financeFmt(remainingAmt)}<span class="tx-item-amt-orig">${financeFmt(s.amount)}</span></span>`
+            : pmRefund
+              ? `<span class="tx-item-amt-pm">${financeFmt(effectiveAmt)}<span class="tx-item-amt-orig">${financeFmt(s.amount)}</span></span>`
+              : financeFmt(s.amount);
+        const nameStyle = isFullyReturned ? ' style="text-decoration:line-through;opacity:0.5;"' : '';
+        return `<div class="tx-item-row${isFullyReturned?' tx-item-row-returned':''}"><span class="tx-item-name"${nameStyle}>${escapeHtml(s.name)}${lbsLabel}${qtyLabel}${retBadge}${pmBadge}</span><span class="tx-item-cat" style="color:${cat.color}">${cat.emoji}</span><span class="tx-item-amt">${amtDisplay}</span></div>`;
       }).join('')}</div>`
     : '';
 
@@ -5392,6 +5444,12 @@ TAX INDICATOR RULES (read the receipt carefully):
 - Any other store: look for "T", "TX", "*" or similar indicators next to prices.
 - If you cannot determine taxability for an item, set taxable: true to be safe.
 
+TAX_TOTAL FIELD — READ THIS CAREFULLY:
+- The receipt's summary section (near SUBTOTAL/TOTAL) almost always prints a line labeled "TAX", "SALES TAX", or similar with a dollar amount — e.g. "TAX 1.66". You MUST locate this line and set tax_total to that exact printed number.
+- tax_total is completely separate from the per-item "taxable" flags above — extract it even if only one item on the receipt is taxable, and even if the amount is small.
+- Only set tax_total to null if there is truly no tax line printed anywhere on the receipt (e.g. tax-exempt purchase). Do NOT set it to null merely because you're unsure which items caused it.
+- Sanity-check your reading: subtotal + tax_total should equal (or be within a few cents of) total. If it doesn't, re-read the tax line before finalizing.
+
 DISCOUNT RULES:
 - Item-level discounts appear as a separate line with the same item number and a negative amount (e.g. "/ 1709318   5.00-"). Subtract these from the item's price and return the NET amount. Do NOT include discount lines as separate items.
 - Receipt-level summary discounts ("You saved $X", "Instant savings") are marketing text — IGNORE them entirely.
@@ -5513,6 +5571,13 @@ async function receiptAnalyze() {
     // Validate minimum shape
     if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) {
       throw new Error('No items found. Make sure the receipt is well-lit and fully visible.');
+    }
+
+    // Fallback: if the model didn't extract tax_total but did read subtotal/total,
+    // back-calculate it so tax isn't silently dropped (or dumped into "difference").
+    if (parsed.tax_total == null && typeof parsed.subtotal === 'number' && typeof parsed.total === 'number') {
+      const backCalc = parseFloat((parsed.total - parsed.subtotal).toFixed(2));
+      if (backCalc > 0.001) parsed.tax_total = backCalc;
     }
 
     // Smart title-case: preserves abbreviations (all-caps words ≤3 chars, or known patterns)

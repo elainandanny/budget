@@ -2241,7 +2241,7 @@ input[type="date"] {
 }
 .return-item-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto auto;
+  grid-template-columns: auto 1fr auto auto auto auto;
   gap: 8px;
   align-items: center;
   padding: 8px 0;
@@ -2254,6 +2254,9 @@ input[type="date"] {
 .return-item-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .return-item-cat { font-size: 16px; }
 .return-item-price { font-weight: 600; white-space: nowrap; text-align: right; }
+.return-item-qty-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+.return-item-qtysel { text-align: center; }
+.return-item-qty-spacer { display: inline-block; width: 48px; }
 .return-tax-note { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 999px; background: rgba(74,144,217,0.12); color: #4a90d9; margin-left: 4px; }
 .return-tax-note.nt { background: var(--surface2); color: var(--muted); }
 .return-items-total { font-size: 13px; font-weight: 600; padding-top: 8px; border-top: 1px solid var(--border); margin-top: 4px; text-align: right; }
